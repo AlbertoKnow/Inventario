@@ -2,6 +2,55 @@
 
 {% block title %}Nuevo Movimiento{% endblock %}
 
+{% block extra_css %}
+<style>
+    /* Estilos para el flujo de aprobación */
+    .step-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.875rem;
+        flex-shrink: 0;
+        position: relative;
+        z-index: 1;
+    }
+    
+    .step-icon.step-active {
+        background: linear-gradient(135deg, var(--accent) 0%, #e8354d 100%);
+        color: white;
+        box-shadow: 0 4px 12px rgba(200, 16, 46, 0.3);
+    }
+    
+    .step-icon.step-pending {
+        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        color: white;
+        box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+    }
+    
+    .step-icon.step-success {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: white;
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    }
+    
+    .step-connector {
+        position: absolute;
+        left: 19px;
+        top: 40px;
+        width: 2px;
+        height: 30px;
+        background: linear-gradient(to bottom, var(--gray-300), var(--gray-200));
+    }
+    
+    .d-flex.align-items-center.mb-3 {
+        position: relative;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container">
     <!-- Breadcrumb -->
@@ -315,33 +364,42 @@
             <div class="col-lg-4">
                 <!-- Info del Flujo -->
                 <div class="card mb-4">
-                    <div class="card-header">Flujo de Aprobación</div>
+                    <div class="card-header">
+                        <i class="fas fa-route me-2"></i>Flujo de Aprobación
+                    </div>
                     <div class="card-body">
+                        <!-- Paso 1 -->
                         <div class="d-flex align-items-center mb-3">
-                            <div class="rounded-circle bg-primary bg-opacity-10 p-2 me-3">
-                                <i class="fas fa-paper-plane text-primary"></i>
+                            <div class="step-icon step-active">
+                                <i class="fas fa-paper-plane"></i>
                             </div>
-                            <div>
+                            <div class="step-connector"></div>
+                            <div class="ms-3">
                                 <small class="text-muted d-block">Paso 1</small>
-                                <span>Enviar solicitud</span>
+                                <span class="fw-medium">Enviar solicitud</span>
                             </div>
                         </div>
+                        
+                        <!-- Paso 2 -->
                         <div class="d-flex align-items-center mb-3">
-                            <div class="rounded-circle bg-warning bg-opacity-10 p-2 me-3">
-                                <i class="fas fa-clock text-warning"></i>
+                            <div class="step-icon step-pending">
+                                <i class="fas fa-hourglass-half"></i>
                             </div>
-                            <div>
+                            <div class="step-connector"></div>
+                            <div class="ms-3">
                                 <small class="text-muted d-block">Paso 2</small>
-                                <span>Esperar aprobación</span>
+                                <span class="fw-medium">Esperar aprobación</span>
                             </div>
                         </div>
+                        
+                        <!-- Paso 3 -->
                         <div class="d-flex align-items-center">
-                            <div class="rounded-circle bg-success bg-opacity-10 p-2 me-3">
-                                <i class="fas fa-check text-success"></i>
+                            <div class="step-icon step-success">
+                                <i class="fas fa-check"></i>
                             </div>
-                            <div>
+                            <div class="ms-3">
                                 <small class="text-muted d-block">Paso 3</small>
-                                <span>Ejecutar movimiento</span>
+                                <span class="fw-medium">Ejecutar movimiento</span>
                             </div>
                         </div>
                         
