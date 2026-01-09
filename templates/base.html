@@ -16,23 +16,25 @@
     
     <style>
         :root {
-            --primary: #0f172a;
-            --primary-light: #1e293b;
-            --accent: #3b82f6;
-            --accent-hover: #2563eb;
-            --success: #10b981;
-            --warning: #f59e0b;
-            --danger: #ef4444;
-            --gray-50: #f8fafc;
-            --gray-100: #f1f5f9;
-            --gray-200: #e2e8f0;
-            --gray-300: #cbd5e1;
-            --gray-400: #94a3b8;
-            --gray-500: #64748b;
-            --gray-600: #475569;
-            --gray-700: #334155;
-            --gray-800: #1e293b;
-            --gray-900: #0f172a;
+            /* Paleta UTP - Negro, Rojo, Blanco y Grises */
+            --primary: #1a1a1a;
+            --primary-light: #2d2d2d;
+            --accent: #C8102E;
+            --accent-hover: #a50d25;
+            --accent-light: #e8354d;
+            --success: #28a745;
+            --warning: #ffc107;
+            --danger: #dc3545;
+            --gray-50: #fafafa;
+            --gray-100: #f5f5f5;
+            --gray-200: #e5e5e5;
+            --gray-300: #d4d4d4;
+            --gray-400: #a3a3a3;
+            --gray-500: #737373;
+            --gray-600: #525252;
+            --gray-700: #404040;
+            --gray-800: #262626;
+            --gray-900: #171717;
         }
         
         * {
@@ -96,6 +98,19 @@
         .nav-link.active {
             color: white !important;
             background-color: var(--accent);
+        }
+        
+        /* User Badge */
+        .user-badge .avatar {
+            width: 28px;
+            height: 28px;
+            background: var(--accent);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 600;
         }
         
         .dropdown-menu {
@@ -367,18 +382,83 @@
             color: var(--gray-500) !important;
         }
         
-        .bg-blue-50 { background-color: #eff6ff; }
+        /* Colores UTP */
+        .bg-blue-50 { background-color: #f5f5f5; }
         .bg-green-50 { background-color: #ecfdf5; }
         .bg-yellow-50 { background-color: #fffbeb; }
         .bg-red-50 { background-color: #fef2f2; }
         .bg-purple-50 { background-color: #faf5ff; }
         
-        .text-blue-600 { color: #2563eb; }
+        .text-blue-600 { color: var(--gray-700); }
         .text-green-600 { color: #059669; }
         .text-yellow-600 { color: #d97706; }
-        .text-red-600 { color: #dc2626; }
+        .text-red-600 { color: var(--accent); }
         .text-purple-600 { color: #9333ea; }
         
+        /* Override Bootstrap primary colors */
+        .bg-primary { background-color: var(--accent) !important; }
+        .btn-primary { 
+            background-color: var(--accent) !important; 
+            border-color: var(--accent) !important; 
+        }
+        .btn-primary:hover { 
+            background-color: var(--accent-hover) !important; 
+            border-color: var(--accent-hover) !important; 
+        }
+        .btn-outline-primary { 
+            color: var(--accent) !important; 
+            border-color: var(--accent) !important; 
+        }
+        .btn-outline-primary:hover { 
+            background-color: var(--accent) !important; 
+            border-color: var(--accent) !important;
+            color: white !important;
+        }
+        .text-primary { color: var(--accent) !important; }
+        .badge.bg-primary { background-color: var(--accent) !important; }
+        
+        /* Info badge to dark gray */
+        .badge.bg-info { background-color: var(--gray-700) !important; color: white !important; }
+        
+        /* Alert info to gray */
+        .alert-info {
+            background-color: var(--gray-100) !important;
+            border-left: 4px solid var(--accent) !important;
+            color: var(--gray-700) !important;
+        }
+        
+        /* Breadcrumb */
+        .breadcrumb-item a {
+            color: var(--accent) !important;
+            text-decoration: none;
+        }
+        .breadcrumb-item a:hover {
+            color: var(--accent-hover) !important;
+            text-decoration: underline;
+        }        
+        /* Pagination */
+        .page-link {
+            color: var(--gray-700);
+            border-color: var(--gray-300);
+        }
+        .page-link:hover {
+            color: var(--accent);
+            background-color: var(--gray-100);
+            border-color: var(--gray-300);
+        }
+        .page-item.active .page-link {
+            background-color: var(--accent);
+            border-color: var(--accent);
+            color: white;
+        }
+        
+        /* Links */
+        a {
+            color: var(--accent);
+        }
+        a:hover {
+            color: var(--accent-hover);
+        }        
         /* Responsive */
         @media (max-width: 768px) {
             main {
@@ -555,7 +635,7 @@
     <footer>
         <div class="container">
             <div class="d-flex flex-wrap justify-content-between align-items-center">
-                <p>© 2026 Universidad Tecnológica del Perú. Sistema de Inventario.</p>
+                <p>© 2026 Universidad Tecnológica de Panamá. Sistema de Inventario.</p>
                 <p class="text-end">
                     <span class="text-muted">v1.0</span>
                 </p>
