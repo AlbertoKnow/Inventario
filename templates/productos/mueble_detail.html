@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+
+{% block title %}{{ mueble.nombre }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Page Header -->
+    <div class="page-header">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a href="{% url 'home' %}">Inicio</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'productos:mueble-list' %}">Muebles</a></li>
+                <li class="breadcrumb-item active">{{ mueble.codigo_interno }}</li>
+            </ol>
+        </nav>
+    </div>
+    
+    <div class="row g-4">
+        <!-- Main Info -->
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>Información del Mueble</span>
+                    <a href="{% url 'productos:mueble-update' mueble.pk %}" class="btn btn-light btn-sm">
+                        <i class="fas fa-edit me-1"></i> Editar
+                    </a>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-4">
+                        <div>
+                            <h2 class="mb-1">{{ mueble.nombre }}</h2>
+                            <code class="fs-6">{{ mueble.codigo_interno }}</code>
+                        </div>
+                        {% if mueble.condicion %}
+                        <span class="badge" style="background-color: {{ mueble.condicion.color }};">
+                            {{ mueble.condicion.nombre }}
+                        </span>
+                        {% endif %}
+                    </div>
+                    
+                    <hr>
+                    
+                    <!-- Physical Characteristics -->
+                    <h6 class="text-muted mb-3">Características Físicas</h6>
+                    <div class="row g-4 mb-4">
+                        <div class="col-sm-6">
+                            <div class="text-muted small mb-1">Material</div>
+                            <div class="fw-medium">{{ mueble.material|default:"—" }}</div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="text-muted small mb-1">Color</div>
+                            <div class="fw-medium d-flex align-items-center gap-2">
+                                {% if mueble.color %}
+                                <span class="rounded-circle" style="width:16px;height:16px;background:{{ mueble.color }};border:1px solid #ccc;"></span>
+                                {{ mueble.color }}
+                                {% else %}
+                                —
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-sm-4">
+                            <div class="text-muted small mb-1">Alto</div>
+                            <div class="fw-medium">{{ mueble.alto|default:"—" }} {% if mueble.alto %}cm{% endif %}</div>
+                        </div>
+                        <div class="col-sm-4">
+                            <div class="text-muted small mb-1">Ancho</div>
+                            <div class="fw-medium">{{ mueble.ancho|default:"—" }} {% if mueble.ancho %}cm{% endif %}</div>
+                        </div>
+                        <div class="col-sm-4">
+                            <div class="text-muted small mb-1">Profundidad</div>
+                            <div class="fw-medium">{{ mueble.profundidad|default:"—" }} {% if mueble.profundidad %}cm{% endif %}</div>
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    
+                    <!-- Location & Status -->
+                    <h6 class="text-muted mb-3">Ubicación y Estado</h6>
+                    <div class="row g-4">
+                        <div class="col-sm-6">
+                            <div class="text-muted small mb-1">Ubicación</div>
+                            <div class="fw-medium">{{ mueble.ubicacion.nombre|default:"—" }}</div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="text-muted small mb-1">Responsable</div>
+                            <div class="fw-medium">{{ mueble.responsable|default:"—" }}</div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="text-muted small mb-1">Precio</div>
+                            <div class="fw-medium">S/. {{ mueble.precio_unitario|floatformat:2 }}</div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="text-muted small mb-1">Fecha de Adquisición</div>
+                            <div class="fw-medium">{{ mueble.fecha_adquisicion|date:"d/m/Y"|default:"—" }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Movimientos -->
+            {% if movimientos %}
+            <div class="card mt-4">
+                <div class="card-header">Historial de Movimientos</div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Tipo</th>
+                                    <th>Cantidad</th>
+                                    <th>Razón</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for mov in movimientos %}
+                                <tr>
+                                    <td>{{ mov.fecha|date:"d/m/Y H:i" }}</td>
+                                    <td>
+                                        {% if mov.tipo == 'entrada' %}
+                                        <span class="badge bg-success">Entrada</span>
+                                        {% else %}
+                                        <span class="badge bg-danger">Salida</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ mov.cantidad }}</td>
+                                    <td class="text-muted">{{ mov.razon|default:"—" }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">Información del Sistema</div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted small">Creado</span>
+                        <span class="small">{{ mueble.fecha_creacion|date:"d/m/Y H:i" }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span class="text-muted small">Actualizado</span>
+                        <span class="small">{{ mueble.fecha_actualizacion|date:"d/m/Y H:i" }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Back Button -->
+    <div class="mt-4">
+        <a href="{% url 'productos:mueble-list' %}" class="btn btn-light">
+            <i class="fas fa-arrow-left me-1"></i> Volver a muebles
+        </a>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+{% load productos_filters %}
+
+{% block title %}Ubicaciones{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'productos:dashboard' %}">Dashboard</a></li>
+            <li class="breadcrumb-item active">Ubicaciones</li>
+        </ol>
+    </nav>
+    
+    <div class="page-header mb-4">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <h1>Ubicaciones</h1>
+            {% if request.user.perfil.es_supervisor or request.user.perfil.es_admin %}
+            <a href="{% url 'productos:ubicacion-create' %}" class="btn btn-primary">
+                <i class="fas fa-plus me-1"></i> Nuevo Ambiente
+            </a>
+            {% endif %}
+        </div>
+    </div>
+    
+    {% if messages %}
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endfor %}
+    {% endif %}
+    
+    <!-- Filtros -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">Buscar</label>
+                    <input type="text" name="q" class="form-control" value="{{ request.GET.q }}" placeholder="Nombre o codigo...">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Campus</label>
+                    <select name="campus" class="form-select">
+                        <option value="">Todos</option>
+                        {% for campus in campus_list %}
+                        <option value="{{ campus.id }}" {% if request.GET.campus == campus.id|stringformat:"i" %}selected{% endif %}>{{ campus.nombre }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Sede</label>
+                    <select name="sede" class="form-select">
+                        <option value="">Todas</option>
+                        {% for sede in sedes_list %}
+                        <option value="{{ sede.id }}" {% if request.GET.sede == sede.id|stringformat:"i" %}selected{% endif %}>{{ sede.nombre }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Pabellon</label>
+                    <select name="pabellon" class="form-select">
+                        <option value="">Todos</option>
+                        {% for pab in pabellones_list %}
+                        <option value="{{ pab.id }}" {% if request.GET.pabellon == pab.id|stringformat:"i" %}selected{% endif %}>{{ pab.nombre }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Tipo</label>
+                    <select name="tipo" class="form-select">
+                        <option value="">Todos</option>
+                        {% for tipo_val, tipo_label in tipos_ambiente %}
+                        <option value="{{ tipo_val }}" {% if request.GET.tipo == tipo_val %}selected{% endif %}>{{ tipo_label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-1 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-filter"></i>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Lista de Ambientes -->
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Codigo</th>
+                        <th>Ambiente</th>
+                        <th>Tipo</th>
+                        <th>Campus / Sede</th>
+                        <th>Pabellon / Piso</th>
+                        <th class="text-center">Items</th>
+                        <th class="text-end">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ambiente in ambientes %}
+                    <tr>
+                        <td>
+                            <code>{{ ambiente.codigo }}</code>
+                        </td>
+                        <td>
+                            <a href="{% url 'productos:ubicacion-detail' ambiente.pk %}" class="text-decoration-none">
+                                <strong>{{ ambiente.nombre }}</strong>
+                            </a>
+                        </td>
+                        <td>
+                            {% if ambiente.tipo == 'aula_teorica' %}
+                            <span class="badge bg-info">Aula Teorica</span>
+                            {% elif ambiente.tipo == 'lab_computo' %}
+                            <span class="badge bg-primary">Lab. Computo</span>
+                            {% elif ambiente.tipo == 'lab_especializado' %}
+                            <span class="badge bg-success">Lab. Especializado</span>
+                            {% elif ambiente.tipo == 'administrativo' %}
+                            <span class="badge bg-secondary">Administrativo</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <small>{{ ambiente.pabellon.sede.campus.nombre }}</small><br>
+                            <small class="text-muted">{{ ambiente.pabellon.sede.nombre }}</small>
+                        </td>
+                        <td>
+                            <small>Pab. {{ ambiente.pabellon.nombre }}</small><br>
+                            <small class="text-muted">{{ ambiente.piso|piso_display }}</small>
+                        </td>
+                        <td class="text-center">
+                            <span class="badge bg-light text-dark">{{ ambiente.items.count }}</span>
+                        </td>
+                        <td class="text-end">
+                            <a href="{% url 'productos:ubicacion-detail' ambiente.pk %}" class="btn btn-sm btn-light">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center py-5">
+                            <i class="fas fa-map-marker-alt text-muted mb-3" style="font-size: 3rem;"></i>
+                            <p class="text-muted">No hay ambientes registrados</p>
+                            {% if request.user.perfil.es_supervisor or request.user.perfil.es_admin %}
+                            <a href="{% url 'productos:ubicacion-create' %}" class="btn btn-primary">
+                                <i class="fas fa-plus me-1"></i> Crear el primero
+                            </a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- Paginacion -->
+    {% if ambientes.has_other_pages %}
+    <nav class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if ambientes.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ ambientes.previous_page_number }}&{{ request.GET.urlencode }}">&laquo;</a>
+            </li>
+            {% endif %}
+            {% for num in ambientes.paginator.page_range %}
+            <li class="page-item {% if ambientes.number == num %}active{% endif %}">
+                <a class="page-link" href="?page={{ num }}&{{ request.GET.urlencode }}">{{ num }}</a>
+            </li>
+            {% endfor %}
+            {% if ambientes.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ ambientes.next_page_number }}&{{ request.GET.urlencode }}">&raquo;</a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</div>
+{% endblock %}

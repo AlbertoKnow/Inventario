@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+
+{% block title %}Contrato {{ contrato.numero_contrato }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'productos:contrato-list' %}">Contratos</a></li>
+            <li class="breadcrumb-item active">{{ contrato.numero_contrato }}</li>
+        </ol>
+    </nav>
+    
+    <div class="row">
+        <div class="col-lg-8">
+            <!-- Info del Contrato -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-file-contract me-2"></i>Información del Contrato</span>
+                    <a href="{% url 'productos:contrato-update' contrato.pk %}" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-edit me-1"></i> Editar
+                    </a>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>Número:</strong> {{ contrato.numero_contrato }}</p>
+                            <p><strong>Proveedor:</strong> 
+                                <a href="{% url 'productos:proveedor-detail' contrato.proveedor.pk %}">
+                                    {{ contrato.proveedor.razon_social }}
+                                </a>
+                            </p>
+                            <p><strong>Estado:</strong> 
+                                {% if contrato.esta_vigente %}
+                                <span class="badge bg-success">Vigente</span>
+                                {% elif contrato.estado == 'vencido' %}
+                                <span class="badge bg-warning">Vencido</span>
+                                {% elif contrato.estado == 'anulado' %}
+                                <span class="badge bg-danger">Anulado</span>
+                                {% else %}
+                                <span class="badge bg-secondary">{{ contrato.get_estado_display }}</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Fecha Inicio:</strong> {{ contrato.fecha_inicio|date:"d/m/Y" }}</p>
+                            <p><strong>Fecha Fin:</strong> {{ contrato.fecha_fin|date:"d/m/Y"|default:"No especificada" }}</p>
+                            <p><strong>Monto Total:</strong> <span class="fw-bold text-success">S/ {{ contrato.monto_total|floatformat:2 }}</span></p>
+                        </div>
+                    </div>
+                    {% if contrato.descripcion %}
+                    <hr>
+                    <p><strong>Descripción:</strong></p>
+                    <p class="text-muted">{{ contrato.descripcion }}</p>
+                    {% endif %}
+                    {% if contrato.observaciones %}
+                    <hr>
+                    <p><strong>Observaciones:</strong></p>
+                    <p class="text-muted">{{ contrato.observaciones }}</p>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Anexos -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-paperclip me-2"></i>Anexos</span>
+                    <a href="{% url 'productos:anexo-create' contrato.pk %}" class="btn btn-sm btn-primary">
+                        <i class="fas fa-plus me-1"></i> Nuevo Anexo
+                    </a>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Número</th>
+                                    <th>Fecha</th>
+                                    <th>Descripción</th>
+                                    <th>Monto Modificación</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for anexo in anexos %}
+                                <tr>
+                                    <td>{{ anexo.numero_anexo }}</td>
+                                    <td>{{ anexo.fecha|date:"d/m/Y" }}</td>
+                                    <td>{{ anexo.descripcion|truncatechars:50 }}</td>
+                                    <td>
+                                        {% if anexo.monto_modificacion > 0 %}
+                                        <span class="text-success">+S/ {{ anexo.monto_modificacion|floatformat:2 }}</span>
+                                        {% elif anexo.monto_modificacion < 0 %}
+                                        <span class="text-danger">S/ {{ anexo.monto_modificacion|floatformat:2 }}</span>
+                                        {% else %}
+                                        <span class="text-muted">S/ 0.00</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted py-4">
+                                        No hay anexos registrados
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Lotes -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-boxes me-2"></i>Lotes</span>
+                    <a href="{% url 'productos:lote-create' %}?contrato={{ contrato.pk }}" class="btn btn-sm btn-primary">
+                        <i class="fas fa-plus me-1"></i> Nuevo Lote
+                    </a>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Código</th>
+                                    <th>Descripción</th>
+                                    <th>Fecha Adquisición</th>
+                                    <th>Ítems</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for lote in lotes %}
+                                <tr>
+                                    <td>
+                                        <a href="{% url 'productos:lote-detail' lote.pk %}">{{ lote.codigo_interno }}</a>
+                                    </td>
+                                    <td>{{ lote.descripcion|truncatechars:40 }}</td>
+                                    <td>{{ lote.fecha_adquisicion|date:"d/m/Y" }}</td>
+                                    <td><span class="badge bg-primary">{{ lote.cantidad_items }}</span></td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted py-4">
+                                        No hay lotes asociados
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Ítems Directos -->
+            {% if items_directos %}
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-list me-2"></i>Ítems Directos (sin lote)
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Código</th>
+                                    <th>Nombre</th>
+                                    <th>Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in items_directos %}
+                                <tr>
+                                    <td><a href="{% url 'productos:item-detail' item.pk %}">{{ item.codigo_utp }}</a></td>
+                                    <td>{{ item.nombre|truncatechars:40 }}</td>
+                                    <td>
+                                        <span class="badge bg-{% if item.estado == 'nuevo' %}success{% elif item.estado == 'instalado' %}primary{% else %}secondary{% endif %}">
+                                            {{ item.get_estado_display }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="col-lg-4">
+            <!-- Resumen -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="fas fa-chart-pie me-2"></i>Resumen
+                </div>
+                <div class="card-body">
+                    <p><strong>Total Anexos:</strong> {{ anexos|length }}</p>
+                    <p><strong>Total Lotes:</strong> {{ lotes|length }}</p>
+                    <p><strong>Ítems Directos:</strong> {{ items_directos|length }}</p>
+                    <hr>
+                    <p><strong>Creado por:</strong> {{ contrato.creado_por.get_full_name|default:contrato.creado_por.username }}</p>
+                    <p><strong>Fecha creación:</strong> {{ contrato.creado_en|date:"d/m/Y H:i" }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

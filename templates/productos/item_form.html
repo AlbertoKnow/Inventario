@@ -1,0 +1,312 @@
+{% extends "base.html" %}
+
+{% block title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'productos:dashboard' %}">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'productos:item-list' %}">Inventario</a></li>
+            <li class="breadcrumb-item active">{{ titulo }}</li>
+        </ol>
+    </nav>
+    
+    <div class="page-header mb-4">
+        <h1>{{ titulo }}</h1>
+    </div>
+    
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        
+        {% if form.errors %}
+        <div class="alert alert-danger mb-4">
+            <i class="fas fa-exclamation-circle me-2"></i>
+            Por favor corrige los errores indicados.
+            <ul class="mb-0 mt-2">
+                {% for field in form %}
+                    {% for error in field.errors %}
+                    <li><strong>{{ field.label }}:</strong> {{ error }}</li>
+                    {% endfor %}
+                {% endfor %}
+                {% for error in form.non_field_errors %}
+                <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        
+        <div class="row">
+            <div class="col-lg-8">
+                <!-- Información Básica -->
+                <div class="card mb-4">
+                    <div class="card-header">Información Básica</div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Número de Serie <span class="text-danger">*</span></label>
+                                {{ form.serie }}
+                                {% if form.serie.errors %}
+                                <div class="text-danger small">{{ form.serie.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Nombre <span class="text-danger">*</span></label>
+                                {{ form.nombre }}
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Descripción</label>
+                                {{ form.descripcion }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Clasificación -->
+                <div class="card mb-4">
+                    <div class="card-header">Clasificación</div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Área <span class="text-danger">*</span></label>
+                                {{ form.area }}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Tipo de Ítem <span class="text-danger">*</span></label>
+                                {{ form.tipo_item }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Ubicación -->
+                <div class="card mb-4">
+                    <div class="card-header">Ubicación</div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Campus</label>
+                                {{ form.campus }}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Sede</label>
+                                {{ form.sede }}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Pabellón</label>
+                                {{ form.pabellon }}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Ambiente</label>
+                                {{ form.ambiente }}
+                            </div>
+                        </div>
+                        <small class="text-muted mt-2 d-block">
+                            <i class="fas fa-info-circle me-1"></i>
+                            Seleccione Campus → Sede → Pabellón → Ambiente de forma jerárquica
+                        </small>
+                    </div>
+                </div>
+                
+                <!-- Estado y Asignación -->
+                <div class="card mb-4">
+                    <div class="card-header">Estado y Asignación</div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Estado <span class="text-danger">*</span></label>
+                                {{ form.estado }}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Usuario Asignado</label>
+                                {{ form.usuario_asignado }}
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Observaciones</label>
+                                {{ form.observaciones }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Información Económica -->
+                <div class="card mb-4">
+                    <div class="card-header">Información Económica</div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Fecha de Adquisición <span class="text-danger">*</span></label>
+                                {{ form.fecha_adquisicion }}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Precio (S/.) <span class="text-danger">*</span></label>
+                                {{ form.precio }}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Garantía hasta</label>
+                                {{ form.garantia_hasta }}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Lote</label>
+                                {{ form.lote }}
+                                <small class="text-muted d-block mt-1">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    Agrupa ítems adquiridos en la misma compra
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Leasing -->
+                <div class="card mb-4">
+                    <div class="card-header">Leasing</div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <div class="form-check">
+                                    {{ form.es_leasing }}
+                                    <label class="form-check-label" for="id_es_leasing">Es un ítem en leasing</label>
+                                </div>
+                            </div>
+                            <div class="col-md-4" id="leasing-fields">
+                                <label class="form-label">Empresa de Leasing</label>
+                                {{ form.leasing_empresa }}
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Número de Contrato</label>
+                                {{ form.leasing_contrato }}
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Vencimiento</label>
+                                {{ form.leasing_vencimiento }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-lg-4">
+                <!-- Ayuda -->
+                <div class="card mb-4">
+                    <div class="card-header">Ayuda</div>
+                    <div class="card-body">
+                        <p class="text-muted small mb-3">
+                            Complete los campos requeridos marcados con <span class="text-danger">*</span>
+                        </p>
+                        <ul class="text-muted small ps-3 mb-0">
+                            <li>El código UTP se genera automáticamente</li>
+                            <li>El número de serie debe ser único</li>
+                            <li>Seleccione el área antes del tipo de ítem</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <!-- Acciones -->
+                <div class="card">
+                    <div class="card-body">
+                        <button type="submit" class="btn btn-primary w-100 mb-2">
+                            <i class="fas fa-save me-1"></i> Guardar
+                        </button>
+                        <a href="{% url 'productos:item-list' %}" class="btn btn-light w-100">
+                            Cancelar
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Actualizar tipos de ítem según el área seleccionada
+    const areaSelect = document.getElementById('id_area');
+    const tipoSelect = document.getElementById('id_tipo_item');
+    
+    if (areaSelect && tipoSelect) {
+        areaSelect.addEventListener('change', function() {
+            const areaId = this.value;
+            if (areaId) {
+                fetch(`/productos/api/tipos-item/?area=${areaId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        tipoSelect.innerHTML = '<option value="">---------</option>';
+                        data.tipos.forEach(tipo => {
+                            const option = document.createElement('option');
+                            option.value = tipo.id;
+                            option.textContent = tipo.nombre;
+                            tipoSelect.appendChild(option);
+                        });
+                    });
+            }
+        });
+    }
+    
+    // ========================================
+    // Dropdowns en cascada para ubicación
+    // ========================================
+    const campusSelect = document.getElementById('id_campus');
+    const sedeSelect = document.getElementById('id_sede');
+    const pabellonSelect = document.getElementById('id_pabellon');
+    const ambienteSelect = document.getElementById('id_ambiente');
+    
+    function loadOptions(url, params, targetSelect, placeholder) {
+        const urlWithParams = url + '?' + new URLSearchParams(params);
+        
+        fetch(urlWithParams)
+            .then(response => response.json())
+            .then(data => {
+                targetSelect.innerHTML = '<option value="">-- ' + placeholder + ' --</option>';
+                data.forEach(item => {
+                    const option = document.createElement('option');
+                    option.value = item.id;
+                    option.textContent = item.nombre;
+                    targetSelect.appendChild(option);
+                });
+            })
+            .catch(error => console.error('Error:', error));
+    }
+    
+    // Cuando cambia el Campus, cargar Sedes
+    if (campusSelect) {
+        campusSelect.addEventListener('change', function() {
+            const campusId = this.value;
+            sedeSelect.innerHTML = '<option value="">-- Seleccione Sede --</option>';
+            pabellonSelect.innerHTML = '<option value="">-- Seleccione Pabellón --</option>';
+            ambienteSelect.innerHTML = '<option value="">-- Seleccione Ambiente --</option>';
+            
+            if (campusId) {
+                loadOptions('/productos/api/sedes/', {campus_id: campusId}, sedeSelect, 'Seleccione Sede');
+            }
+        });
+    }
+    
+    // Cuando cambia la Sede, cargar Pabellones
+    if (sedeSelect) {
+        sedeSelect.addEventListener('change', function() {
+            const sedeId = this.value;
+            pabellonSelect.innerHTML = '<option value="">-- Seleccione Pabellón --</option>';
+            ambienteSelect.innerHTML = '<option value="">-- Seleccione Ambiente --</option>';
+            
+            if (sedeId) {
+                loadOptions('/productos/api/pabellones/', {sede_id: sedeId}, pabellonSelect, 'Seleccione Pabellón');
+            }
+        });
+    }
+    
+    // Cuando cambia el Pabellón, cargar Ambientes
+    if (pabellonSelect) {
+        pabellonSelect.addEventListener('change', function() {
+            const pabellonId = this.value;
+            ambienteSelect.innerHTML = '<option value="">-- Seleccione Ambiente --</option>';
+            
+            if (pabellonId) {
+                loadOptions('/productos/api/ambientes/', {pabellon_id: pabellonId}, ambienteSelect, 'Seleccione Ambiente');
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,21 @@
+[Unit]
+Description=Gunicorn daemon para Inventario UTP
+After=network.target
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/inventario
+Environment="PATH=/var/www/inventario/venv/bin"
+ExecStart=/var/www/inventario/venv/bin/gunicorn \
+    --workers 3 \
+    --bind unix:/var/www/inventario/inventario.sock \
+    --access-logfile /var/www/inventario/logs/gunicorn-access.log \
+    --error-logfile /var/www/inventario/logs/gunicorn-error.log \
+    config.wsgi:application
+
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

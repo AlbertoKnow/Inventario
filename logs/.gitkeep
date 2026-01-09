@@ -1,0 +1,2 @@
+# Este archivo existe para que Git incluya el directorio logs
+# Los archivos de log serán ignorados por .gitignore

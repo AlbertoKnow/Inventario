@@ -1,0 +1,277 @@
+{% extends 'base.html' %}
+
+{% block title %}Inicio{% endblock %}
+
+{% block extra_css %}
+<style>
+    .hero {
+        background: linear-gradient(135deg, var(--gray-900) 0%, var(--gray-800) 100%);
+        padding: 5rem 0;
+        margin-top: -2rem;
+    }
+    
+    .hero h1 {
+        font-size: 2.75rem;
+        font-weight: 700;
+        color: white;
+        margin-bottom: 1rem;
+    }
+    
+    .hero p {
+        font-size: 1.125rem;
+        color: var(--gray-400);
+        max-width: 600px;
+    }
+    
+    .hero .btn-primary {
+        padding: 0.75rem 2rem;
+        font-size: 1rem;
+    }
+    
+    .hero .btn-outline-light {
+        padding: 0.75rem 2rem;
+        font-size: 1rem;
+        border-color: var(--gray-600);
+        color: white;
+    }
+    
+    .hero .btn-outline-light:hover {
+        background-color: var(--gray-700);
+        border-color: var(--gray-600);
+    }
+    
+    .feature-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 1.5rem;
+        margin-top: 3rem;
+    }
+    
+    .feature-card {
+        background: white;
+        border: 1px solid var(--gray-200);
+        border-radius: 12px;
+        padding: 1.75rem;
+        transition: all 0.2s ease;
+    }
+    
+    .feature-card:hover {
+        border-color: var(--accent);
+        box-shadow: 0 8px 30px rgba(59, 130, 246, 0.1);
+    }
+    
+    .feature-card .icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+        margin-bottom: 1rem;
+    }
+    
+    .feature-card h3 {
+        font-size: 1.125rem;
+        font-weight: 600;
+        color: var(--gray-900);
+        margin-bottom: 0.5rem;
+    }
+    
+    .feature-card p {
+        font-size: 0.875rem;
+        color: var(--gray-500);
+        margin: 0;
+    }
+    
+    .stats-section {
+        background: var(--gray-100);
+        padding: 4rem 0;
+        margin: 4rem 0;
+    }
+    
+    .stat-item {
+        text-align: center;
+    }
+    
+    .stat-item .number {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: var(--gray-900);
+        line-height: 1;
+    }
+    
+    .stat-item .label {
+        font-size: 0.875rem;
+        color: var(--gray-500);
+        margin-top: 0.5rem;
+    }
+    
+    .cta-section {
+        text-align: center;
+        padding: 4rem 0;
+    }
+    
+    .cta-section h2 {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--gray-900);
+        margin-bottom: 1rem;
+    }
+    
+    .cta-section p {
+        color: var(--gray-500);
+        max-width: 500px;
+        margin: 0 auto 1.5rem;
+    }
+    
+    @media (max-width: 768px) {
+        .hero h1 {
+            font-size: 2rem;
+        }
+        
+        .hero {
+            padding: 3rem 0;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<div class="hero">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-lg-7">
+                <h1>Sistema de Gestión de Inventario</h1>
+                <p class="mb-4">
+                    Plataforma centralizada para el control y seguimiento de equipos electrónicos 
+                    y mobiliario de la Universidad Tecnológica del Perú.
+                </p>
+                <div class="d-flex gap-3 flex-wrap">
+                    {% if user.is_authenticated %}
+                    <a href="{% url 'productos:dashboard' %}" class="btn btn-primary">
+                        <i class="fas fa-th-large me-2"></i>Ir al Dashboard
+                    </a>
+                    <a href="{% url 'productos:item-list' %}" class="btn btn-outline-light">
+                        <i class="fas fa-list me-2"></i>Ver Inventario
+                    </a>
+                    {% else %}
+                    <a href="{% url 'login' %}" class="btn btn-primary">
+                        <i class="fas fa-sign-in-alt me-2"></i>Iniciar Sesión
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container">
+    {% if user.is_authenticated %}
+    
+    <!-- Features Grid -->
+    <div class="feature-grid">
+        <a href="{% url 'productos:item-list' %}" class="feature-card text-decoration-none">
+            <div class="icon bg-blue-50 text-blue-600">
+                <i class="fas fa-boxes"></i>
+            </div>
+            <h3>Inventario</h3>
+            <p>Gestiona todos los ítems del inventario en un solo lugar</p>
+        </a>
+        
+        <a href="{% url 'productos:item-list' %}?area=1" class="feature-card text-decoration-none">
+            <div class="icon bg-purple-50 text-purple-600">
+                <i class="fas fa-laptop"></i>
+            </div>
+            <h3>Sistemas</h3>
+            <p>Laptops, monitores, impresoras y equipos tecnológicos</p>
+        </a>
+        
+        <a href="{% url 'productos:item-list' %}?area=2" class="feature-card text-decoration-none">
+            <div class="icon bg-green-50 text-green-600">
+                <i class="fas fa-chair"></i>
+            </div>
+            <h3>Operaciones</h3>
+            <p>Escritorios, sillas, estantes y mobiliario institucional</p>
+        </a>
+        
+        <a href="{% url 'productos:movimiento-list' %}" class="feature-card text-decoration-none">
+            <div class="icon bg-yellow-50 text-yellow-600">
+                <i class="fas fa-exchange-alt"></i>
+            </div>
+            <h3>Movimientos</h3>
+            <p>Seguimiento de entradas, salidas y traslados</p>
+        </a>
+    </div>
+    
+    <!-- Quick Actions -->
+    <div class="mt-5 p-4 bg-white rounded-3 border">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+            <div>
+                <h5 class="mb-1">Acciones Rápidas</h5>
+                <p class="text-muted small mb-0">Accede directamente a las funciones principales</p>
+            </div>
+            <div class="d-flex gap-2 flex-wrap">
+                <a href="{% url 'productos:item-create' %}" class="btn btn-primary btn-sm">
+                    <i class="fas fa-plus me-1"></i> Nuevo Ítem
+                </a>
+                <a href="{% url 'productos:movimiento-create' %}" class="btn btn-outline-primary btn-sm">
+                    <i class="fas fa-exchange-alt me-1"></i> Nuevo Movimiento
+                </a>
+                <a href="{% url 'productos:movimiento-pendientes' %}" class="btn btn-outline-warning btn-sm">
+                    <i class="fas fa-clock me-1"></i> Pendientes
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    {% else %}
+    
+    <!-- Features for non-authenticated users -->
+    <div class="feature-grid">
+        <div class="feature-card">
+            <div class="icon bg-blue-50 text-blue-600">
+                <i class="fas fa-shield-alt"></i>
+            </div>
+            <h3>Control Seguro</h3>
+            <p>Acceso controlado con autenticación para proteger la información</p>
+        </div>
+        
+        <div class="feature-card">
+            <div class="icon bg-green-50 text-green-600">
+                <i class="fas fa-sync-alt"></i>
+            </div>
+            <h3>Tiempo Real</h3>
+            <p>Seguimiento actualizado del estado de cada producto</p>
+        </div>
+        
+        <div class="feature-card">
+            <div class="icon bg-purple-50 text-purple-600">
+                <i class="fas fa-history"></i>
+            </div>
+            <h3>Historial Completo</h3>
+            <p>Registro de todos los movimientos y mantenimientos</p>
+        </div>
+        
+        <div class="feature-card">
+            <div class="icon bg-yellow-50 text-yellow-600">
+                <i class="fas fa-chart-pie"></i>
+            </div>
+            <h3>Reportes</h3>
+            <p>Estadísticas y métricas para toma de decisiones</p>
+        </div>
+    </div>
+    
+    <!-- CTA Section -->
+    <div class="cta-section">
+        <h2>¿Listo para comenzar?</h2>
+        <p>Inicia sesión para acceder al sistema de inventario y gestionar los activos de la universidad.</p>
+        <a href="{% url 'login' %}" class="btn btn-dark btn-lg">
+            <i class="fas fa-sign-in-alt me-2"></i>Iniciar Sesión
+        </a>
+    </div>
+    
+    {% endif %}
+</div>
+{% endblock %}

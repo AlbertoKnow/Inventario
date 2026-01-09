@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+
+{% block title %}Notificaciones{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'productos:dashboard' %}">Dashboard</a></li>
+            <li class="breadcrumb-item active">Notificaciones</li>
+        </ol>
+    </nav>
+    
+    <div class="page-header mb-4">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+                <h1>Notificaciones</h1>
+                <p class="text-muted mb-0">{{ no_leidas }} sin leer</p>
+            </div>
+            {% if notificaciones %}
+            <form method="post" action="{% url 'productos:notificacion-leer-todas' %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-light">
+                    <i class="fas fa-check-double me-1"></i> Marcar todas como leídas
+                </button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+    
+    {% if messages %}
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endfor %}
+    {% endif %}
+    
+    <!-- Lista de Notificaciones -->
+    <div class="card">
+        <div class="list-group list-group-flush">
+            {% for notificacion in notificaciones %}
+            <div class="list-group-item {% if not notificacion.leida %}bg-light{% endif %}">
+                <div class="d-flex align-items-start gap-3">
+                    <div class="flex-shrink-0">
+                        {% if notificacion.tipo == 'movimiento_pendiente' %}
+                        <div class="rounded-circle bg-warning bg-opacity-10 p-2">
+                            <i class="fas fa-clock text-warning"></i>
+                        </div>
+                        {% elif notificacion.tipo == 'movimiento_aprobado' %}
+                        <div class="rounded-circle bg-success bg-opacity-10 p-2">
+                            <i class="fas fa-check text-success"></i>
+                        </div>
+                        {% elif notificacion.tipo == 'movimiento_rechazado' %}
+                        <div class="rounded-circle bg-danger bg-opacity-10 p-2">
+                            <i class="fas fa-times text-danger"></i>
+                        </div>
+                        {% elif notificacion.tipo == 'recordatorio_24h' %}
+                        <div class="rounded-circle bg-info bg-opacity-10 p-2">
+                            <i class="fas fa-bell text-info"></i>
+                        </div>
+                        {% elif notificacion.tipo == 'escalamiento_48h' %}
+                        <div class="rounded-circle bg-danger bg-opacity-10 p-2">
+                            <i class="fas fa-exclamation-triangle text-danger"></i>
+                        </div>
+                        {% elif notificacion.tipo == 'garantia_proxima' %}
+                        <div class="rounded-circle bg-warning bg-opacity-10 p-2">
+                            <i class="fas fa-shield-alt text-warning"></i>
+                        </div>
+                        {% else %}
+                        <div class="rounded-circle bg-secondary bg-opacity-10 p-2">
+                            <i class="fas fa-info text-secondary"></i>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="flex-grow-1">
+                        <div class="d-flex justify-content-between align-items-start mb-1">
+                            <h6 class="mb-0 {% if not notificacion.leida %}fw-bold{% endif %}">
+                                {{ notificacion.titulo }}
+                            </h6>
+                            <small class="text-muted">{{ notificacion.fecha_creacion|timesince }} atrás</small>
+                        </div>
+                        <p class="mb-2 text-muted">{{ notificacion.mensaje }}</p>
+                        <div class="d-flex gap-2">
+                            {% if notificacion.movimiento %}
+                            <a href="{% url 'productos:movimiento-detail' notificacion.movimiento.pk %}" class="btn btn-sm btn-light">
+                                <i class="fas fa-eye me-1"></i> Ver movimiento
+                            </a>
+                            {% endif %}
+                            {% if not notificacion.leida %}
+                            <form method="post" action="{% url 'productos:notificacion-leer' notificacion.pk %}" class="d-inline">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-check me-1"></i> Marcar como leída
+                                </button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="list-group-item text-center py-5">
+                <i class="fas fa-bell-slash text-muted mb-3" style="font-size: 3rem;"></i>
+                <p class="text-muted mb-0">No tienes notificaciones</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <!-- Paginación -->
+    {% if notificaciones.has_other_pages %}
+    <nav class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if notificaciones.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ notificaciones.previous_page_number }}">&laquo;</a>
+            </li>
+            {% endif %}
+            {% for num in notificaciones.paginator.page_range %}
+            <li class="page-item {% if notificaciones.number == num %}active{% endif %}">
+                <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+            </li>
+            {% endfor %}
+            {% if notificaciones.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ notificaciones.next_page_number }}">&raquo;</a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</div>
+{% endblock %}

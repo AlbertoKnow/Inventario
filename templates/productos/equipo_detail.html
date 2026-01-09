@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+
+{% block title %}{{ equipo.nombre }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Page Header -->
+    <div class="page-header">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a href="{% url 'home' %}">Inicio</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'productos:equipo-list' %}">Equipos</a></li>
+                <li class="breadcrumb-item active">{{ equipo.codigo_interno }}</li>
+            </ol>
+        </nav>
+    </div>
+    
+    <div class="row g-4">
+        <!-- Main Info -->
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>Información del Equipo</span>
+                    <a href="{% url 'productos:equipo-update' equipo.pk %}" class="btn btn-light btn-sm">
+                        <i class="fas fa-edit me-1"></i> Editar
+                    </a>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-4">
+                        <div>
+                            <h2 class="mb-1">{{ equipo.nombre }}</h2>
+                            <code class="fs-6">{{ equipo.codigo_interno }}</code>
+                        </div>
+                        {% if equipo.condicion %}
+                        <span class="badge" style="background-color: {{ equipo.condicion.color }};">
+                            {{ equipo.condicion.nombre }}
+                        </span>
+                        {% endif %}
+                    </div>
+                    
+                    <hr>
+                    
+                    <!-- Technical Specs -->
+                    <h6 class="text-muted mb-3">Especificaciones Técnicas</h6>
+                    <div class="row g-4 mb-4">
+                        <div class="col-sm-6">
+                            <div class="text-muted small mb-1">Marca</div>
+                            <div class="fw-medium">{{ equipo.marca|default:"—" }}</div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="text-muted small mb-1">Modelo</div>
+                            <div class="fw-medium">{{ equipo.modelo|default:"—" }}</div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="text-muted small mb-1">Número de Serie</div>
+                            <div class="fw-medium font-monospace">{{ equipo.numero_serie|default:"—" }}</div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="text-muted small mb-1">Procesador</div>
+                            <div class="fw-medium">{{ equipo.procesador|default:"—" }}</div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="text-muted small mb-1">Memoria RAM</div>
+                            <div class="fw-medium">{{ equipo.memoria_ram|default:"—" }}</div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="text-muted small mb-1">Almacenamiento</div>
+                            <div class="fw-medium">{{ equipo.almacenamiento|default:"—" }}</div>
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    
+                    <!-- Location & Status -->
+                    <h6 class="text-muted mb-3">Ubicación y Estado</h6>
+                    <div class="row g-4">
+                        <div class="col-sm-6">
+                            <div class="text-muted small mb-1">Ubicación</div>
+                            <div class="fw-medium">{{ equipo.ubicacion.nombre|default:"—" }}</div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="text-muted small mb-1">Responsable</div>
+                            <div class="fw-medium">{{ equipo.responsable|default:"—" }}</div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="text-muted small mb-1">Fecha de Garantía</div>
+                            <div class="fw-medium">{{ equipo.fecha_garantia|date:"d/m/Y"|default:"—" }}</div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="text-muted small mb-1">Precio</div>
+                            <div class="fw-medium">S/. {{ equipo.precio_unitario|floatformat:2 }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Movimientos -->
+            {% if movimientos %}
+            <div class="card mt-4">
+                <div class="card-header">Historial de Movimientos</div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Tipo</th>
+                                    <th>Cantidad</th>
+                                    <th>Razón</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for mov in movimientos %}
+                                <tr>
+                                    <td>{{ mov.fecha|date:"d/m/Y H:i" }}</td>
+                                    <td>
+                                        {% if mov.tipo == 'entrada' %}
+                                        <span class="badge bg-success">Entrada</span>
+                                        {% else %}
+                                        <span class="badge bg-danger">Salida</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ mov.cantidad }}</td>
+                                    <td class="text-muted">{{ mov.razon|default:"—" }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">Información del Sistema</div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted small">Creado</span>
+                        <span class="small">{{ equipo.fecha_creacion|date:"d/m/Y H:i" }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span class="text-muted small">Actualizado</span>
+                        <span class="small">{{ equipo.fecha_actualizacion|date:"d/m/Y H:i" }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Back Button -->
+    <div class="mt-4">
+        <a href="{% url 'productos:equipo-list' %}" class="btn btn-light">
+            <i class="fas fa-arrow-left me-1"></i> Volver a equipos
+        </a>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+
+{% block title %}{{ proveedor.razon_social }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'productos:proveedor-list' %}">Proveedores</a></li>
+            <li class="breadcrumb-item active">{{ proveedor.razon_social }}</li>
+        </ol>
+    </nav>
+    
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-building me-2"></i>Información del Proveedor</span>
+                    <a href="{% url 'productos:proveedor-update' proveedor.pk %}" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-edit me-1"></i> Editar
+                    </a>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>RUC:</strong> {{ proveedor.ruc }}</p>
+                            <p><strong>Razón Social:</strong> {{ proveedor.razon_social }}</p>
+                            <p><strong>Nombre Comercial:</strong> {{ proveedor.nombre_comercial|default:"No especificado" }}</p>
+                            <p><strong>Estado:</strong> 
+                                {% if proveedor.activo %}
+                                <span class="badge bg-success">Activo</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Inactivo</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Dirección:</strong> {{ proveedor.direccion|default:"No especificada" }}</p>
+                            <p><strong>Teléfono:</strong> {{ proveedor.telefono|default:"-" }}</p>
+                            <p><strong>Email:</strong> {{ proveedor.email|default:"-" }}</p>
+                            <p><strong>Contacto:</strong> {{ proveedor.contacto|default:"-" }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Contratos -->
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-file-contract me-2"></i>Contratos</span>
+                    <a href="{% url 'productos:contrato-create' %}?proveedor={{ proveedor.pk }}" class="btn btn-sm btn-primary">
+                        <i class="fas fa-plus me-1"></i> Nuevo Contrato
+                    </a>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Número</th>
+                                    <th>Fecha Inicio</th>
+                                    <th>Monto</th>
+                                    <th>Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for contrato in contratos %}
+                                <tr>
+                                    <td>
+                                        <a href="{% url 'productos:contrato-detail' contrato.pk %}">
+                                            {{ contrato.numero_contrato }}
+                                        </a>
+                                    </td>
+                                    <td>{{ contrato.fecha_inicio|date:"d/m/Y" }}</td>
+                                    <td>S/ {{ contrato.monto_total|floatformat:2 }}</td>
+                                    <td>
+                                        {% if contrato.esta_vigente %}
+                                        <span class="badge bg-success">Vigente</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">{{ contrato.get_estado_display }}</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted py-4">
+                                        No hay contratos registrados
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-chart-pie me-2"></i>Resumen
+                </div>
+                <div class="card-body">
+                    <p><strong>Total Contratos:</strong> {{ proveedor.contratos.count }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

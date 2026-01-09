@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Editar{% else %}Nuevo{% endif %} Proveedor{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'productos:proveedor-list' %}">Proveedores</a></li>
+            <li class="breadcrumb-item active">{% if object %}Editar{% else %}Nuevo{% endif %}</li>
+        </ol>
+    </nav>
+    
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-building me-2"></i>{% if object %}Editar Proveedor{% else %}Nuevo Proveedor{% endif %}
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label for="id_ruc" class="form-label">RUC *</label>
+                                <input type="text" name="ruc" id="id_ruc" class="form-control" 
+                                       value="{{ form.ruc.value|default:'' }}" required maxlength="20">
+                            </div>
+                            <div class="col-md-8">
+                                <label for="id_razon_social" class="form-label">Razón Social *</label>
+                                <input type="text" name="razon_social" id="id_razon_social" class="form-control" 
+                                       value="{{ form.razon_social.value|default:'' }}" required>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="id_nombre_comercial" class="form-label">Nombre Comercial</label>
+                            <input type="text" name="nombre_comercial" id="id_nombre_comercial" class="form-control" 
+                                   value="{{ form.nombre_comercial.value|default:'' }}">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="id_direccion" class="form-label">Dirección</label>
+                            <textarea name="direccion" id="id_direccion" class="form-control" rows="2">{{ form.direccion.value|default:'' }}</textarea>
+                        </div>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label for="id_telefono" class="form-label">Teléfono</label>
+                                <input type="text" name="telefono" id="id_telefono" class="form-control" 
+                                       value="{{ form.telefono.value|default:'' }}">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="id_email" class="form-label">Email</label>
+                                <input type="email" name="email" id="id_email" class="form-control" 
+                                       value="{{ form.email.value|default:'' }}">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="id_contacto" class="form-label">Contacto</label>
+                                <input type="text" name="contacto" id="id_contacto" class="form-control" 
+                                       value="{{ form.contacto.value|default:'' }}" placeholder="Nombre del contacto">
+                            </div>
+                        </div>
+                        
+                        {% if object %}
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input type="checkbox" name="activo" id="id_activo" class="form-check-input"
+                                       {% if form.activo.value %}checked{% endif %}>
+                                <label for="id_activo" class="form-check-label">Proveedor activo</label>
+                            </div>
+                        </div>
+                        {% endif %}
+                        
+                        <hr>
+                        
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-1"></i> Guardar
+                            </button>
+                            <a href="{% url 'productos:proveedor-list' %}" class="btn btn-secondary">Cancelar</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

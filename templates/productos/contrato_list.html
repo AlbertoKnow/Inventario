@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}Contratos{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div>
+            <h1>Contratos</h1>
+            <p class="text-muted mb-0">Gestión de contratos con proveedores</p>
+        </div>
+        <a href="{% url 'productos:contrato-create' %}" class="btn btn-primary">
+            <i class="fas fa-plus me-1"></i> Nuevo Contrato
+        </a>
+    </div>
+    
+    <!-- Filtros -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-6">
+                    <input type="text" name="q" class="form-control" 
+                           placeholder="Buscar por número o proveedor..." 
+                           value="{{ request.GET.q }}">
+                </div>
+                <div class="col-md-4">
+                    <select name="estado" class="form-select">
+                        <option value="">Todos los estados</option>
+                        {% for value, label in estados %}
+                        <option value="{{ value }}" {% if request.GET.estado == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-secondary w-100">
+                        <i class="fas fa-search me-1"></i> Filtrar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Tabla -->
+    <div class="card">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Número</th>
+                            <th>Proveedor</th>
+                            <th>Fecha Inicio</th>
+                            <th>Fecha Fin</th>
+                            <th>Monto Total</th>
+                            <th>Estado</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for contrato in contratos %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'productos:contrato-detail' contrato.pk %}" class="fw-semibold text-decoration-none">
+                                    {{ contrato.numero_contrato }}
+                                </a>
+                            </td>
+                            <td>
+                                <a href="{% url 'productos:proveedor-detail' contrato.proveedor.pk %}">
+                                    {{ contrato.proveedor.razon_social|truncatechars:30 }}
+                                </a>
+                            </td>
+                            <td>{{ contrato.fecha_inicio|date:"d/m/Y" }}</td>
+                            <td>{{ contrato.fecha_fin|date:"d/m/Y"|default:"-" }}</td>
+                            <td>S/ {{ contrato.monto_total|floatformat:2 }}</td>
+                            <td>
+                                {% if contrato.esta_vigente %}
+                                <span class="badge bg-success">Vigente</span>
+                                {% elif contrato.estado == 'vencido' %}
+                                <span class="badge bg-warning">Vencido</span>
+                                {% elif contrato.estado == 'anulado' %}
+                                <span class="badge bg-danger">Anulado</span>
+                                {% else %}
+                                <span class="badge bg-secondary">{{ contrato.get_estado_display }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{% url 'productos:contrato-detail' contrato.pk %}" class="btn btn-outline-secondary" title="Ver">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    <a href="{% url 'productos:contrato-update' contrato.pk %}" class="btn btn-outline-secondary" title="Editar">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-5">
+                                <i class="fas fa-file-contract fa-3x mb-3 d-block"></i>
+                                No se encontraron contratos
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

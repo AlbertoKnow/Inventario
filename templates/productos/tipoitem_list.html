@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block title %}Tipos de Ítem{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'productos:dashboard' %}">Dashboard</a></li>
+            <li class="breadcrumb-item active">Tipos de Ítem</li>
+        </ol>
+    </nav>
+    
+    <div class="page-header mb-4">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <h1>Tipos de Ítem</h1>
+            <a href="{% url 'productos:tipoitem-create' %}" class="btn btn-primary">
+                <i class="fas fa-plus me-1"></i> Nuevo Tipo
+            </a>
+        </div>
+    </div>
+    
+    {% if messages %}
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endfor %}
+    {% endif %}
+    
+    <!-- Filtros -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Buscar</label>
+                    <input type="text" name="q" class="form-control" value="{{ request.GET.q }}" placeholder="Nombre del tipo...">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Área</label>
+                    <select name="area" class="form-select">
+                        <option value="">Todas</option>
+                        {% for area in areas %}
+                        <option value="{{ area.id }}" {% if request.GET.area == area.id|stringformat:"d" %}selected{% endif %}>
+                            {{ area.nombre }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-filter me-1"></i> Filtrar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Lista de Tipos -->
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Nombre</th>
+                        <th>Área</th>
+                        <th>Descripción</th>
+                        <th class="text-center">Ítems</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for tipo in tipos %}
+                    <tr>
+                        <td>
+                            <strong>{{ tipo.nombre }}</strong>
+                        </td>
+                        <td>
+                            <span class="badge bg-primary">{{ tipo.area.nombre }}</span>
+                        </td>
+                        <td class="text-muted">{{ tipo.descripcion|default:"-"|truncatewords:10 }}</td>
+                        <td class="text-center">
+                            <span class="badge bg-light text-dark">{{ tipo.items.count }}</span>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="text-center py-5">
+                            <i class="fas fa-tag text-muted mb-3" style="font-size: 3rem;"></i>
+                            <p class="text-muted">No hay tipos de ítem registrados</p>
+                            <a href="{% url 'productos:tipoitem-create' %}" class="btn btn-primary">
+                                <i class="fas fa-plus me-1"></i> Crear el primero
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- Paginación -->
+    {% if tipos.has_other_pages %}
+    <nav class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if tipos.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ tipos.previous_page_number }}&{{ request.GET.urlencode }}">&laquo;</a>
+            </li>
+            {% endif %}
+            {% for num in tipos.paginator.page_range %}
+            <li class="page-item {% if tipos.number == num %}active{% endif %}">
+                <a class="page-link" href="?page={{ num }}&{{ request.GET.urlencode }}">{{ num }}</a>
+            </li>
+            {% endfor %}
+            {% if tipos.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ tipos.next_page_number }}&{{ request.GET.urlencode }}">&raquo;</a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</div>
+{% endblock %}

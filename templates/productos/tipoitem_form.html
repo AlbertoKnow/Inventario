@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'productos:dashboard' %}">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'productos:tipoitem-list' %}">Tipos de Ítem</a></li>
+            <li class="breadcrumb-item active">{{ titulo }}</li>
+        </ol>
+    </nav>
+    
+    <div class="row justify-content-center">
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-tag me-2"></i>{{ titulo }}
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        {% if form.errors %}
+                        <div class="alert alert-danger mb-4">
+                            <i class="fas fa-exclamation-circle me-2"></i>
+                            Por favor corrige los errores indicados.
+                            <ul class="mb-0 mt-2">
+                                {% for field in form %}
+                                    {% for error in field.errors %}
+                                    <li><strong>{{ field.label }}:</strong> {{ error }}</li>
+                                    {% endfor %}
+                                {% endfor %}
+                                {% for error in form.non_field_errors %}
+                                <li>{{ error }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
+                        
+                        {% if advertencia_similares %}
+                        <div class="alert alert-warning mb-4">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            {{ advertencia_similares }}
+                        </div>
+                        {% endif %}
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Nombre del Tipo <span class="text-danger">*</span></label>
+                            {{ form.nombre }}
+                            <small class="text-muted">Ej: Osciloscopio, Proyector, Impresora</small>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Área <span class="text-danger">*</span></label>
+                            {{ form.area }}
+                            {% if request.user.perfil.rol != 'admin' and request.user.perfil.area %}
+                            <small class="text-muted">El tipo se creará en tu área asignada.</small>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label class="form-label">Descripción (opcional)</label>
+                            {{ form.descripcion }}
+                        </div>
+                        
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-1"></i> Guardar
+                            </button>
+                            <a href="{% url 'productos:tipoitem-list' %}" class="btn btn-light">
+                                Cancelar
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Ayuda -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <i class="fas fa-info-circle me-2"></i>¿Cuándo crear un nuevo tipo?
+                </div>
+                <div class="card-body">
+                    <ul class="text-muted small mb-0">
+                        <li>Cuando recibas un ítem que no encaja en ninguna categoría existente</li>
+                        <li>Verifica primero que no exista un tipo similar</li>
+                        <li>Usa nombres claros y específicos</li>
+                        <li>Los supervisores pueden unificar tipos duplicados después</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

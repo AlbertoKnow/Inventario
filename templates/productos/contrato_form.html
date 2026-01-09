@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block title %}{% if editando %}Editar{% else %}Nuevo{% endif %} Contrato{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'productos:contrato-list' %}">Contratos</a></li>
+            <li class="breadcrumb-item active">{% if editando %}Editar{% else %}Nuevo{% endif %}</li>
+        </ol>
+    </nav>
+    
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-file-contract me-2"></i>{% if editando %}Editar Contrato{% else %}Nuevo Contrato{% endif %}
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="id_numero_contrato" class="form-label">Número de Contrato *</label>
+                                <input type="text" name="numero_contrato" id="id_numero_contrato" 
+                                       class="form-control" value="{{ form.numero_contrato.value|default:'' }}" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="id_proveedor" class="form-label">Proveedor *</label>
+                                <div class="input-group">
+                                    <select name="proveedor" id="id_proveedor" class="form-select" required>
+                                        <option value="">Seleccionar proveedor...</option>
+                                        {% for proveedor in proveedores %}
+                                        <option value="{{ proveedor.pk }}" {% if form.proveedor.value == proveedor.pk or request.GET.proveedor == proveedor.pk|stringformat:"i" %}selected{% endif %}>
+                                            {{ proveedor.razon_social }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                    <a href="{% url 'productos:proveedor-create' %}" class="btn btn-outline-secondary" title="Crear nuevo proveedor">
+                                        <i class="fas fa-plus"></i>
+                                    </a>
+                                </div>
+                                {% if not proveedores %}
+                                <small class="text-muted">No hay proveedores. <a href="{% url 'productos:proveedor-create' %}">Crear uno nuevo</a></small>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="id_descripcion" class="form-label">Descripción</label>
+                            <textarea name="descripcion" id="id_descripcion" class="form-control" rows="2">{{ form.descripcion.value|default:'' }}</textarea>
+                        </div>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label for="id_fecha_inicio" class="form-label">Fecha Inicio *</label>
+                                <input type="date" name="fecha_inicio" id="id_fecha_inicio" 
+                                       class="form-control" value="{{ form.fecha_inicio.value|default:'' }}" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="id_fecha_fin" class="form-label">Fecha Fin</label>
+                                <input type="date" name="fecha_fin" id="id_fecha_fin" 
+                                       class="form-control" value="{{ form.fecha_fin.value|default:'' }}">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="id_monto_total" class="form-label">Monto Total (S/) *</label>
+                                <input type="number" name="monto_total" id="id_monto_total" 
+                                       class="form-control" value="{{ form.monto_total.value|default:'' }}" 
+                                       step="0.01" min="0" required>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="id_estado" class="form-label">Estado *</label>
+                            <select name="estado" id="id_estado" class="form-select" required>
+                                <option value="vigente" {% if form.estado.value == 'vigente' %}selected{% endif %}>Vigente</option>
+                                <option value="en_proceso" {% if form.estado.value == 'en_proceso' %}selected{% endif %}>En Proceso</option>
+                                <option value="vencido" {% if form.estado.value == 'vencido' %}selected{% endif %}>Vencido</option>
+                                <option value="anulado" {% if form.estado.value == 'anulado' %}selected{% endif %}>Anulado</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="id_observaciones" class="form-label">Observaciones</label>
+                            <textarea name="observaciones" id="id_observaciones" class="form-control" rows="3">{{ form.observaciones.value|default:'' }}</textarea>
+                        </div>
+                        
+                        <hr>
+                        
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-1"></i> Guardar
+                            </button>
+                            <a href="{% url 'productos:contrato-list' %}" class="btn btn-secondary">Cancelar</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

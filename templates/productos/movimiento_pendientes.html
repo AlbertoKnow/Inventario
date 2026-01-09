@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+
+{% block title %}Movimientos Pendientes{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'productos:dashboard' %}">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'productos:movimiento-list' %}">Movimientos</a></li>
+            <li class="breadcrumb-item active">Pendientes</li>
+        </ol>
+    </nav>
+    
+    <div class="page-header mb-4">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+                <h1>Movimientos Pendientes</h1>
+                <p class="text-muted mb-0">Solicitudes que requieren tu aprobación</p>
+            </div>
+            <span class="badge bg-warning text-dark fs-5">{{ movimientos|length }} pendiente{{ movimientos|length|pluralize }}</span>
+        </div>
+    </div>
+    
+    {% if messages %}
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endfor %}
+    {% endif %}
+    
+    <!-- Lista de Movimientos Pendientes -->
+    {% for movimiento in movimientos %}
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="row align-items-center">
+                <div class="col-lg-8">
+                    <div class="d-flex align-items-start gap-3">
+                        <div class="flex-shrink-0">
+                            {% if movimiento.tipo == 'entrada' %}
+                            <div class="rounded-circle bg-success bg-opacity-10 p-3">
+                                <i class="fas fa-arrow-down text-success fa-lg"></i>
+                            </div>
+                            {% elif movimiento.tipo == 'salida' %}
+                            <div class="rounded-circle bg-danger bg-opacity-10 p-3">
+                                <i class="fas fa-arrow-up text-danger fa-lg"></i>
+                            </div>
+                            {% elif movimiento.tipo == 'traslado' %}
+                            <div class="rounded-circle bg-info bg-opacity-10 p-3">
+                                <i class="fas fa-exchange-alt text-info fa-lg"></i>
+                            </div>
+                            {% elif movimiento.tipo == 'baja' %}
+                            <div class="rounded-circle bg-dark bg-opacity-10 p-3">
+                                <i class="fas fa-times-circle text-dark fa-lg"></i>
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="flex-grow-1">
+                            <div class="d-flex flex-wrap gap-2 align-items-center mb-1">
+                                <h5 class="mb-0">{{ movimiento.get_tipo_display }}</h5>
+                                {% if movimiento.es_emergencia %}
+                                <span class="badge bg-danger">
+                                    <i class="fas fa-bolt me-1"></i>Emergencia
+                                </span>
+                                {% endif %}
+                            </div>
+                            <p class="text-muted mb-2">
+                                <a href="{% url 'productos:item-detail' movimiento.item.pk %}" class="text-decoration-none">
+                                    <strong>{{ movimiento.item.codigo_utp }}</strong>
+                                </a>
+                                - {{ movimiento.item.nombre }}
+                            </p>
+                            <div class="row g-2 text-muted small">
+                                <div class="col-auto">
+                                    <i class="fas fa-user me-1"></i>
+                                    {{ movimiento.solicitado_por.get_full_name|default:movimiento.solicitado_por.username }}
+                                </div>
+                                <div class="col-auto">
+                                    <i class="fas fa-clock me-1"></i>
+                                    {{ movimiento.fecha_solicitud|date:"d/m/Y H:i" }}
+                                </div>
+                                {% if movimiento.ambiente_origen or movimiento.ambiente_destino %}
+                                <div class="col-auto">
+                                    <i class="fas fa-map-marker-alt me-1"></i>
+                                    {{ movimiento.ambiente_origen.nombre|default:"Origen" }}
+                                    {% if movimiento.ambiente_destino %}
+                                    <i class="fas fa-arrow-right mx-1"></i>
+                                    {{ movimiento.ambiente_destino.nombre }}
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% if movimiento.motivo %}
+                            <p class="mt-2 mb-0 small">
+                                <strong>Motivo:</strong> {{ movimiento.motivo|truncatewords:20 }}
+                            </p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-4 mt-3 mt-lg-0">
+                    <div class="d-flex gap-2 justify-content-lg-end">
+                        <a href="{% url 'productos:movimiento-detail' movimiento.pk %}" class="btn btn-light">
+                            <i class="fas fa-eye me-1"></i> Ver
+                        </a>
+                        <form method="post" action="{% url 'productos:movimiento-aprobar' movimiento.pk %}" class="d-inline">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-check me-1"></i> Aprobar
+                            </button>
+                        </form>
+                        <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#rechazarModal{{ movimiento.pk }}">
+                            <i class="fas fa-times me-1"></i> Rechazar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal Rechazar -->
+    <div class="modal fade" id="rechazarModal{{ movimiento.pk }}" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="post" action="{% url 'productos:movimiento-rechazar' movimiento.pk %}">
+                    {% csrf_token %}
+                    <div class="modal-header">
+                        <h5 class="modal-title">Rechazar Movimiento</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>Vas a rechazar el movimiento de <strong>{{ movimiento.item.codigo_utp }}</strong>.</p>
+                        <div class="mb-3">
+                            <label class="form-label">Motivo del rechazo <span class="text-danger">*</span></label>
+                            <textarea name="motivo_rechazo" class="form-control" rows="3" required placeholder="Indica el motivo del rechazo..."></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-danger">Rechazar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="card">
+        <div class="card-body text-center py-5">
+            <i class="fas fa-check-circle text-success mb-3" style="font-size: 4rem;"></i>
+            <h4>¡Todo al día!</h4>
+            <p class="text-muted">No hay movimientos pendientes de aprobación.</p>
+            <a href="{% url 'productos:movimiento-list' %}" class="btn btn-primary">
+                Ver historial completo
+            </a>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
