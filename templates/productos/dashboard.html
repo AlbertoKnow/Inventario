@@ -213,7 +213,7 @@
                                 {% for mov in ultimos_movimientos %}
                                 <tr>
                                     <td>
-                                        <a href="{% url 'productos:item-detail' mov.item.pk %}">
+                                        <a href="{% url 'productos:item-detail' mov.item.codigo_utp %}">
                                             {{ mov.item.codigo_utp }}
                                         </a>
                                     </td>

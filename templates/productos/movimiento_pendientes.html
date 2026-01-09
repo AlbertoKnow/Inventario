@@ -68,7 +68,7 @@
                                 {% endif %}
                             </div>
                             <p class="text-muted mb-2">
-                                <a href="{% url 'productos:item-detail' movimiento.item.pk %}" class="text-decoration-none">
+                                <a href="{% url 'productos:item-detail' movimiento.item.codigo_utp %}" class="text-decoration-none">
                                     <strong>{{ movimiento.item.codigo_utp }}</strong>
                                 </a>
                                 - {{ movimiento.item.nombre }}

@@ -170,7 +170,7 @@
                             <tbody>
                                 {% for item in items_directos %}
                                 <tr>
-                                    <td><a href="{% url 'productos:item-detail' item.pk %}">{{ item.codigo_utp }}</a></td>
+                                    <td><a href="{% url 'productos:item-detail' item.codigo_utp %}">{{ item.codigo_utp }}</a></td>
                                     <td>{{ item.nombre|truncatechars:40 }}</td>
                                     <td>
                                         <span class="badge bg-{% if item.estado == 'nuevo' %}success{% elif item.estado == 'instalado' %}primary{% else %}secondary{% endif %}">

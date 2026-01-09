@@ -192,9 +192,15 @@ class ItemListView(PerfilRequeridoMixin, ListView):
         
         perfil = getattr(self.request.user, 'perfil', None)
         
-        # Filtrar por área si no es admin
+        # Filtrar por área si no es admin - SIEMPRE aplicar esta restricción
         if perfil and perfil.rol != 'admin' and perfil.area:
+            # Operadores y supervisores SOLO ven su área, no pueden filtrar otras
             queryset = queryset.filter(area=perfil.area)
+        else:
+            # Solo admin puede filtrar por cualquier área
+            area = self.request.GET.get('area')
+            if area:
+                queryset = queryset.filter(area__codigo=area)
         
         # Filtros de búsqueda
         search = self.request.GET.get('q')
@@ -204,11 +210,6 @@ class ItemListView(PerfilRequeridoMixin, ListView):
                 Q(serie__icontains=search) |
                 Q(nombre__icontains=search)
             )
-        
-        # Filtro por área
-        area = self.request.GET.get('area')
-        if area:
-            queryset = queryset.filter(area__codigo=area)
         
         # Filtro por estado
         estado = self.request.GET.get('estado')
@@ -250,6 +251,18 @@ class ItemDetailView(PerfilRequeridoMixin, DetailView):
     model = Item
     template_name = 'productos/item_detail.html'
     context_object_name = 'item'
+    slug_field = 'codigo_utp'
+    slug_url_kwarg = 'codigo'
+    
+    def get_queryset(self):
+        """Restringir acceso por área si no es admin."""
+        queryset = super().get_queryset()
+        perfil = getattr(self.request.user, 'perfil', None)
+        
+        if perfil and perfil.rol != 'admin' and perfil.area:
+            queryset = queryset.filter(area=perfil.area)
+        
+        return queryset
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -281,6 +294,16 @@ class ItemCreateView(PerfilRequeridoMixin, CreateView):
         kwargs['user'] = self.request.user
         return kwargs
     
+    def get_initial(self):
+        """Pre-seleccionar el área del usuario si no es admin."""
+        initial = super().get_initial()
+        perfil = getattr(self.request.user, 'perfil', None)
+        
+        if perfil and perfil.rol != 'admin' and perfil.area:
+            initial['area'] = perfil.area
+        
+        return initial
+    
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['titulo'] = 'Nuevo Ítem'
@@ -292,6 +315,11 @@ class ItemCreateView(PerfilRequeridoMixin, CreateView):
         item.creado_por = self.request.user
         item.modificado_por = self.request.user
         
+        # Si no es admin, forzar el área del usuario
+        perfil = getattr(self.request.user, 'perfil', None)
+        if perfil and perfil.rol != 'admin' and perfil.area:
+            item.area = perfil.area
+        
         # Auto-generar código UTP
         if not item.codigo_utp:
             item.codigo_utp = Item.generar_codigo_utp(item.area.codigo)
@@ -299,7 +327,7 @@ class ItemCreateView(PerfilRequeridoMixin, CreateView):
         item.save()
         
         messages.success(self.request, f'Ítem {item.codigo_utp} creado correctamente.')
-        return redirect('productos:item-detail', pk=item.pk)
+        return redirect('productos:item-detail', codigo=item.codigo_utp)
 
 
 class ItemUpdateView(PerfilRequeridoMixin, UpdateView):
@@ -307,6 +335,18 @@ class ItemUpdateView(PerfilRequeridoMixin, UpdateView):
     model = Item
     form_class = ItemForm
     template_name = 'productos/item_form.html'
+    slug_field = 'codigo_utp'
+    slug_url_kwarg = 'codigo'
+    
+    def get_queryset(self):
+        """Restringir acceso por área si no es admin."""
+        queryset = super().get_queryset()
+        perfil = getattr(self.request.user, 'perfil', None)
+        
+        if perfil and perfil.rol != 'admin' and perfil.area:
+            queryset = queryset.filter(area=perfil.area)
+        
+        return queryset
     
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -325,7 +365,7 @@ class ItemUpdateView(PerfilRequeridoMixin, UpdateView):
         item.save()
         
         messages.success(self.request, f'Ítem {item.codigo_utp} actualizado correctamente.')
-        return redirect('productos:item-detail', pk=item.pk)
+        return redirect('productos:item-detail', codigo=item.codigo_utp)
 
 
 class ItemDeleteView(AdminRequeridoMixin, DeleteView):
@@ -333,6 +373,8 @@ class ItemDeleteView(AdminRequeridoMixin, DeleteView):
     model = Item
     template_name = 'productos/item_confirm_delete.html'
     success_url = reverse_lazy('productos:item-list')
+    slug_field = 'codigo_utp'
+    slug_url_kwarg = 'codigo'
     
     def delete(self, request, *args, **kwargs):
         item = self.get_object()

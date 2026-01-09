@@ -85,7 +85,7 @@
                         {% for item in items %}
                         <tr>
                             <td>
-                                <a href="{% url 'productos:item-detail' item.pk %}" class="fw-semibold text-decoration-none">
+                                <a href="{% url 'productos:item-detail' item.codigo_utp %}" class="fw-semibold text-decoration-none">
                                     {{ item.codigo_utp }}
                                 </a>
                             </td>
@@ -126,10 +126,10 @@
                             </td>
                             <td class="text-end">
                                 <div class="btn-group btn-group-sm">
-                                    <a href="{% url 'productos:item-detail' item.pk %}" class="btn btn-outline-secondary" title="Ver">
+                                    <a href="{% url 'productos:item-detail' item.codigo_utp %}" class="btn btn-outline-secondary" title="Ver">
                                         <i class="fas fa-eye"></i>
                                     </a>
-                                    <a href="{% url 'productos:item-update' item.pk %}" class="btn btn-outline-secondary" title="Editar">
+                                    <a href="{% url 'productos:item-update' item.codigo_utp %}" class="btn btn-outline-secondary" title="Editar">
                                         <i class="fas fa-edit"></i>
                                     </a>
                                     <a href="{% url 'productos:movimiento-create' %}?item={{ item.pk }}" class="btn btn-outline-secondary" title="Nuevo movimiento">

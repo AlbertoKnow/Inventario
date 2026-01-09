@@ -40,7 +40,7 @@
             <a href="{% url 'productos:movimiento-create' %}?item={{ item.pk }}" class="btn btn-outline-primary">
                 <i class="fas fa-exchange-alt me-1"></i> Nuevo Movimiento
             </a>
-            <a href="{% url 'productos:item-update' item.pk %}" class="btn btn-primary">
+            <a href="{% url 'productos:item-update' item.codigo_utp %}" class="btn btn-primary">
                 <i class="fas fa-edit me-1"></i> Editar
             </a>
         </div>

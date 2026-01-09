@@ -498,10 +498,19 @@
                             <i class="fas fa-box me-1"></i> Inventario
                         </a>
                         <ul class="dropdown-menu">
+                            {% if perfil.rol == 'admin' %}
+                            {# Admin ve todas las áreas #}
                             <li><a class="dropdown-item" href="{% url 'productos:item-list' %}"><i class="fas fa-list me-2"></i>Todos los ítems</a></li>
-                            <li><a class="dropdown-item" href="{% url 'productos:item-list' %}?area=1"><i class="fas fa-laptop me-2"></i>Sistemas</a></li>
-                            <li><a class="dropdown-item" href="{% url 'productos:item-list' %}?area=2"><i class="fas fa-chair me-2"></i>Operaciones</a></li>
-                            <li><a class="dropdown-item" href="{% url 'productos:item-list' %}?area=3"><i class="fas fa-flask me-2"></i>Laboratorio</a></li>
+                            <li><a class="dropdown-item" href="{% url 'productos:item-list' %}?area=sistemas"><i class="fas fa-laptop me-2"></i>Sistemas</a></li>
+                            <li><a class="dropdown-item" href="{% url 'productos:item-list' %}?area=operaciones"><i class="fas fa-chair me-2"></i>Operaciones</a></li>
+                            <li><a class="dropdown-item" href="{% url 'productos:item-list' %}?area=laboratorio"><i class="fas fa-flask me-2"></i>Laboratorio</a></li>
+                            {% else %}
+                            {# Operadores y supervisores solo ven su área #}
+                            <li><a class="dropdown-item" href="{% url 'productos:item-list' %}">
+                                {% if perfil.area.codigo == 'sistemas' %}<i class="fas fa-laptop me-2"></i>{% elif perfil.area.codigo == 'operaciones' %}<i class="fas fa-chair me-2"></i>{% elif perfil.area.codigo == 'laboratorio' %}<i class="fas fa-flask me-2"></i>{% else %}<i class="fas fa-list me-2"></i>{% endif %}
+                                Ítems de {{ perfil.area.nombre|default:"Mi área" }}
+                            </a></li>
+                            {% endif %}
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="{% url 'productos:lote-list' %}"><i class="fas fa-boxes me-2"></i>Lotes</a></li>
                             <li><a class="dropdown-item" href="{% url 'productos:tipoitem-list' %}"><i class="fas fa-tags me-2"></i>Tipos de Ítem</a></li>
