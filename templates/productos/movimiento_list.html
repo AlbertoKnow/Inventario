@@ -88,7 +88,7 @@
                             <small class="text-muted">{{ movimiento.fecha_solicitud|time:"H:i" }}</small>
                         </td>
                         <td>
-                            <a href="{% url 'productos:item-detail' movimiento.item.pk %}">
+                            <a href="{% url 'productos:item-detail' movimiento.item.codigo_utp %}">
                                 {{ movimiento.item.codigo_utp }}
                             </a>
                             <br>

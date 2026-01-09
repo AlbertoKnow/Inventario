@@ -71,7 +71,7 @@
                                 {% for item in items %}
                                 <tr>
                                     <td>
-                                        <a href="{% url 'productos:item-detail' item.pk %}">{{ item.codigo_utp }}</a>
+                                        <a href="{% url 'productos:item-detail' item.codigo_utp %}">{{ item.codigo_utp }}</a>
                                     </td>
                                     <td>{{ item.nombre|truncatechars:30 }}</td>
                                     <td>{{ item.tipo_item.nombre }}</td>
