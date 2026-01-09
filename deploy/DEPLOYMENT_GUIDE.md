@@ -22,7 +22,11 @@
 
 3. Anotar la IP del servidor
 
----
+---ufw allow OpenSSH
+ufw allow 'Nginx Full'
+ufw --force enableufw allow OpenSSH
+ufw allow 'Nginx Full'
+ufw --force enable
 
 ## PASO 2: Conectar al Servidor
 
