@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{% block title %}{{ producto.nombre }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Page Header -->
+    <div class="page-header">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a href="{% url 'home' %}">Inicio</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'productos:producto-list' %}">Productos</a></li>
+                <li class="breadcrumb-item active">{{ producto.codigo_interno }}</li>
+            </ol>
+        </nav>
+    </div>
+    
+    <div class="row g-4">
+        <!-- Main Info -->
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>Información del Producto</span>
+                    <div class="btn-group btn-group-sm">
+                        <a href="{% url 'productos:producto-update' producto.pk %}" class="btn btn-light">
+                            <i class="fas fa-edit me-1"></i> Editar
+                        </a>
+                        <a href="{% url 'productos:producto-delete' producto.pk %}" class="btn btn-light text-danger">
+                            <i class="fas fa-trash me-1"></i> Eliminar
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-4">
+                        <div>
+                            <h2 class="mb-1">{{ producto.nombre }}</h2>
+                            <code class="fs-6">{{ producto.codigo_interno }}</code>
+                        </div>
+                        {% if producto.activo %}
+                        <span class="badge bg-success">Activo</span>
+                        {% else %}
+                        <span class="badge bg-secondary">Inactivo</span>
+                        {% endif %}
+                    </div>
+                    
+                    {% if producto.descripcion %}
+                    <p class="text-muted">{{ producto.descripcion }}</p>
+                    {% endif %}
+                    
+                    <hr>
+                    
+                    <div class="row g-4">
+                        <div class="col-sm-6">
+                            <div class="text-muted small mb-1">Categoría</div>
+                            <div class="fw-medium">{{ producto.categoria.nombre|default:"—" }}</div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="text-muted small mb-1">Tipo</div>
+                            <div class="fw-medium">{{ producto.tipo.nombre|default:"—" }}</div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="text-muted small mb-1">Precio Unitario</div>
+                            <div class="fw-medium">S/. {{ producto.precio_unitario|floatformat:2 }}</div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="text-muted small mb-1">Stock Disponible</div>
+                            <div class="fw-medium">
+                                {% if producto.cantidad_stock <= 5 %}
+                                <span class="text-danger">{{ producto.cantidad_stock }} unidades</span>
+                                {% else %}
+                                {{ producto.cantidad_stock }} unidades
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="text-muted small mb-1">Fecha de Adquisición</div>
+                            <div class="fw-medium">{{ producto.fecha_adquisicion|date:"d/m/Y"|default:"—" }}</div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="text-muted small mb-1">Valor Total</div>
+                            <div class="fw-medium">S/. {{ producto.valor_total|floatformat:2 }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <!-- Quick Stats -->
+            <div class="card mb-4">
+                <div class="card-header">Resumen</div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between mb-3">
+                        <span class="text-muted">Stock actual</span>
+                        <span class="fw-semibold">{{ producto.cantidad_stock }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-3">
+                        <span class="text-muted">Precio unitario</span>
+                        <span class="fw-semibold">S/. {{ producto.precio_unitario|floatformat:2 }}</span>
+                    </div>
+                    <hr>
+                    <div class="d-flex justify-content-between">
+                        <span class="text-muted">Valor total</span>
+                        <span class="fw-bold text-primary">S/. {{ producto.valor_total|floatformat:2 }}</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Metadata -->
+            <div class="card">
+                <div class="card-header">Información del Sistema</div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted small">Creado</span>
+                        <span class="small">{{ producto.fecha_creacion|date:"d/m/Y H:i" }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span class="text-muted small">Actualizado</span>
+                        <span class="small">{{ producto.fecha_actualizacion|date:"d/m/Y H:i" }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Back Button -->
+    <div class="mt-4">
+        <a href="{% url 'productos:producto-list' %}" class="btn btn-light">
+            <i class="fas fa-arrow-left me-1"></i> Volver a productos
+        </a>
+    </div>
+</div>
+{% endblock %}

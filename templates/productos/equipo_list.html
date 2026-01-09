@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+
+{% block title %}Equipos Electrónicos{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Page Header -->
+    <div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a href="{% url 'home' %}">Inicio</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'productos:producto-list' %}">Productos</a></li>
+                    <li class="breadcrumb-item active">Equipos</li>
+                </ol>
+            </nav>
+            <h1>Equipos Electrónicos</h1>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'productos:equipo-create' %}" class="btn btn-primary">
+                <i class="fas fa-plus me-1"></i> Nuevo Equipo
+            </a>
+        </div>
+    </div>
+    
+    <!-- Results -->
+    <div class="card">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table mb-0">
+                    <thead>
+                        <tr>
+                            <th>Código</th>
+                            <th>Equipo</th>
+                            <th>Marca / Modelo</th>
+                            <th>N° Serie</th>
+                            <th>Ubicación</th>
+                            <th>Estado</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for equipo in equipos %}
+                        <tr>
+                            <td>
+                                <span class="fw-medium font-monospace">{{ equipo.codigo_interno }}</span>
+                            </td>
+                            <td>
+                                <a href="{% url 'productos:equipo-detail' equipo.pk %}" class="text-decoration-none text-dark fw-medium">
+                                    {{ equipo.nombre }}
+                                </a>
+                            </td>
+                            <td>
+                                <div>{{ equipo.marca }}</div>
+                                <div class="text-muted small">{{ equipo.modelo }}</div>
+                            </td>
+                            <td><code>{{ equipo.numero_serie }}</code></td>
+                            <td>
+                                {% if equipo.ubicacion %}
+                                <span class="badge bg-light text-dark">{{ equipo.ubicacion.nombre }}</span>
+                                {% else %}
+                                <span class="text-muted">—</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if equipo.condicion %}
+                                <span class="badge" style="background-color: {{ equipo.condicion.color }};">
+                                    {{ equipo.condicion.nombre }}
+                                </span>
+                                {% else %}
+                                <span class="text-muted">—</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{% url 'productos:equipo-detail' equipo.pk %}" class="btn btn-light" title="Ver">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    <a href="{% url 'productos:equipo-update' equipo.pk %}" class="btn btn-light" title="Editar">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center py-5">
+                                <div class="text-muted">
+                                    <i class="fas fa-laptop fa-3x mb-3 d-block opacity-25"></i>
+                                    No hay equipos electrónicos registrados
+                                </div>
+                                <a href="{% url 'productos:equipo-create' %}" class="btn btn-primary btn-sm mt-2">
+                                    <i class="fas fa-plus me-1"></i> Agregar Equipo
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        {% if equipos %}
+        <div class="card-footer bg-white border-top py-3">
+            <span class="text-muted small">{{ equipos|length }} equipo(s)</span>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

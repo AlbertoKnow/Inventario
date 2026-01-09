@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+{% load productos_filters %}
+
+{% block title %}{{ ambiente.nombre }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'productos:dashboard' %}">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'productos:ubicacion-list' %}">Ubicaciones</a></li>
+            <li class="breadcrumb-item active">{{ ambiente.nombre }}</li>
+        </ol>
+    </nav>
+    
+    <!-- Botones de accion -->
+    {% if request.user.perfil.es_supervisor or request.user.perfil.es_admin %}
+    <div class="d-flex justify-content-end mb-3">
+        <a href="{% url 'productos:ubicacion-update' ambiente.pk %}" class="btn btn-primary">
+            <i class="fas fa-edit me-1"></i> Editar Ambiente
+        </a>
+    </div>
+    {% endif %}
+    
+    <div class="row">
+        <div class="col-lg-4">
+            <!-- Info de Ambiente -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="fas fa-map-marker-alt me-2"></i>Informacion
+                </div>
+                <div class="card-body">
+                    <div class="text-center mb-4">
+                        {% if ambiente.tipo == 'aula_teorica' %}
+                        <div class="rounded-circle bg-info bg-opacity-10 p-4 d-inline-flex mb-3">
+                            <i class="fas fa-chalkboard fa-3x text-info"></i>
+                        </div>
+                        {% elif ambiente.tipo == 'lab_computo' %}
+                        <div class="rounded-circle bg-primary bg-opacity-10 p-4 d-inline-flex mb-3">
+                            <i class="fas fa-desktop fa-3x text-primary"></i>
+                        </div>
+                        {% elif ambiente.tipo == 'lab_especializado' %}
+                        <div class="rounded-circle bg-success bg-opacity-10 p-4 d-inline-flex mb-3">
+                            <i class="fas fa-flask fa-3x text-success"></i>
+                        </div>
+                        {% elif ambiente.tipo == 'administrativo' %}
+                        <div class="rounded-circle bg-secondary bg-opacity-10 p-4 d-inline-flex mb-3">
+                            <i class="fas fa-building fa-3x text-secondary"></i>
+                        </div>
+                        {% endif %}
+                        <h4>{{ ambiente.nombre }}</h4>
+                        <span class="badge bg-primary fs-6">{{ ambiente.get_tipo_display }}</span>
+                    </div>
+                    
+                    <hr>
+                    
+                    <div class="mb-3">
+                        <small class="text-muted d-block">Codigo</small>
+                        <code class="fs-6">{{ ambiente.codigo }}</code>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <small class="text-muted d-block">Campus</small>
+                            <span>{{ ambiente.pabellon.sede.campus.nombre }}</span>
+                        </div>
+                        <div class="col-6">
+                            <small class="text-muted d-block">Sede</small>
+                            <span>{{ ambiente.pabellon.sede.nombre }}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <small class="text-muted d-block">Pabellon</small>
+                            <span>{{ ambiente.pabellon.nombre }}</span>
+                        </div>
+                        <div class="col-6">
+                            <small class="text-muted d-block">Piso</small>
+                            <span>{{ ambiente.piso|piso_display }}</span>
+                        </div>
+                    </div>
+                    
+                    {% if ambiente.capacidad %}
+                    <div class="mb-3">
+                        <small class="text-muted d-block">Capacidad</small>
+                        <span>{{ ambiente.capacidad }} personas</span>
+                    </div>
+                    {% endif %}
+                    
+                    {% if ambiente.descripcion %}
+                    <div class="mb-3">
+                        <small class="text-muted d-block">Descripcion</small>
+                        <span>{{ ambiente.descripcion }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-8">
+            <!-- Items en este ambiente -->
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-boxes me-2"></i>Items en este ambiente</span>
+                    <span class="badge bg-primary">{{ items.count }}</span>
+                </div>
+                <div class="card-body p-0">
+                    {% if items %}
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Codigo</th>
+                                    <th>Nombre</th>
+                                    <th>Tipo</th>
+                                    <th>Estado</th>
+                                    <th>Asignado a</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in items %}
+                                <tr>
+                                    <td>
+                                        <a href="{% url 'productos:item-detail' item.pk %}">
+                                            <code>{{ item.codigo_utp }}</code>
+                                        </a>
+                                    </td>
+                                    <td>{{ item.nombre }}</td>
+                                    <td>
+                                        <span class="badge bg-light text-dark">{{ item.tipo_item.nombre }}</span>
+                                    </td>
+                                    <td>
+                                        {% if item.estado == 'nuevo' %}
+                                        <span class="badge bg-success">Nuevo</span>
+                                        {% elif item.estado == 'instalado' %}
+                                        <span class="badge bg-primary">Instalado</span>
+                                        {% elif item.estado == 'danado' %}
+                                        <span class="badge bg-danger">Danado</span>
+                                        {% elif item.estado == 'obsoleto' %}
+                                        <span class="badge bg-secondary">Obsoleto</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if item.usuario_asignado %}
+                                        {{ item.usuario_asignado.get_full_name|default:item.usuario_asignado.username }}
+                                        {% else %}
+                                        <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-box-open text-muted mb-3" style="font-size: 3rem;"></i>
+                        <p class="text-muted">No hay items en este ambiente</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

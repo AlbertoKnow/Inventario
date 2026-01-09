@@ -1,0 +1,309 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Alertas clickeables */
+    a.alert {
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+        cursor: pointer;
+    }
+    a.alert:hover {
+        transform: translateX(5px);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    /* Notificaciones clickeables */
+    .list-group-item a:hover {
+        background-color: #f8f9fa;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Page Header -->
+    <div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div>
+            <h1>Dashboard</h1>
+            <p class="text-muted mb-0">Resumen del inventario institucional</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'productos:item-create' %}" class="btn btn-primary">
+                <i class="fas fa-plus me-1"></i> Nuevo Ítem
+            </a>
+        </div>
+    </div>
+    
+    <!-- Stats Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-sm-6 col-lg-3">
+            <div class="stat-card">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="stat-value">{{ total_items }}</div>
+                        <div class="stat-label">Total Ítems</div>
+                    </div>
+                    <div class="stat-icon bg-blue-50 text-blue-600">
+                        <i class="fas fa-box"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-sm-6 col-lg-3">
+            <div class="stat-card">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="stat-value">{{ items_por_estado.instalado }}</div>
+                        <div class="stat-label">Instalados</div>
+                    </div>
+                    <div class="stat-icon bg-green-50 text-green-600">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-sm-6 col-lg-3">
+            <div class="stat-card">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="stat-value">{{ items_por_estado.dañado }}</div>
+                        <div class="stat-label">Dañados</div>
+                    </div>
+                    <div class="stat-icon bg-orange-50 text-orange-600">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-sm-6 col-lg-3">
+            <div class="stat-card">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="stat-value">S/. {{ valor_total|floatformat:0 }}</div>
+                        <div class="stat-label">Valor Total</div>
+                    </div>
+                    <div class="stat-icon bg-purple-50 text-purple-600">
+                        <i class="fas fa-coins"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row g-4">
+        <!-- Alertas y Pendientes -->
+        <div class="col-lg-4">
+            <!-- Movimientos Pendientes -->
+            {% if movimientos_pendientes %}
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-clock me-2"></i>Pendientes de Aprobar</span>
+                    <span class="badge bg-warning">{{ movimientos_pendientes|length }}</span>
+                </div>
+                <div class="card-body p-0">
+                    <ul class="list-group list-group-flush">
+                        {% for mov in movimientos_pendientes %}
+                        <li class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <strong>{{ mov.get_tipo_display }}</strong>
+                                    <div class="small text-muted">{{ mov.item.codigo_utp }}</div>
+                                </div>
+                                <a href="{% url 'productos:movimiento-detail' mov.pk %}" class="btn btn-sm btn-outline-primary">
+                                    Ver
+                                </a>
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                <div class="card-footer">
+                    <a href="{% url 'productos:movimiento-pendientes' %}" class="text-decoration-none">
+                        Ver todos los pendientes <i class="fas fa-arrow-right ms-1"></i>
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- Alertas -->
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-bell me-2"></i>Alertas
+                </div>
+                <div class="card-body">
+                    {% if garantias_proximas %}
+                    <a href="{% url 'productos:item-list' %}?garantia_proxima=1" class="alert alert-warning mb-2 d-block text-decoration-none">
+                        <i class="fas fa-shield-alt me-2"></i>
+                        <strong>{{ garantias_proximas }}</strong> ítem(s) con garantía por vencer
+                    </a>
+                    {% endif %}
+                    
+                    {% if items_por_estado.dañado > 0 %}
+                    <a href="{% url 'productos:item-list' %}?estado=dañado" class="alert alert-danger mb-2 d-block text-decoration-none">
+                        <i class="fas fa-tools me-2"></i>
+                        <strong>{{ items_por_estado.dañado }}</strong> ítem(s) dañados
+                    </a>
+                    {% endif %}
+                    
+                    {% if not garantias_proximas and items_por_estado.dañado == 0 %}
+                    <p class="text-muted mb-0">
+                        <i class="fas fa-check-circle text-success me-2"></i>
+                        Sin alertas pendientes
+                    </p>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Notificaciones -->
+            {% if notificaciones %}
+            <div class="card mt-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-envelope me-2"></i>Notificaciones</span>
+                    <span class="badge bg-primary">{{ notificaciones|length }}</span>
+                </div>
+                <div class="card-body p-0">
+                    <ul class="list-group list-group-flush">
+                        {% for notif in notificaciones %}
+                        <li class="list-group-item {% if notif.urgente %}border-start border-danger border-3{% endif %} p-0">
+                            <a href="{% if notif.movimiento %}{% url 'productos:movimiento-detail' notif.movimiento.pk %}{% else %}{% url 'productos:notificacion-list' %}{% endif %}" 
+                               class="d-block p-3 text-decoration-none text-dark">
+                                <div class="small text-muted">{{ notif.fecha|date:"d/m H:i" }}</div>
+                                <strong>{{ notif.titulo }}</strong>
+                                <div class="small text-muted">{{ notif.mensaje|truncatechars:50 }}</div>
+                            </a>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                <div class="card-footer">
+                    <a href="{% url 'productos:notificacion-list' %}" class="text-decoration-none">
+                        Ver todas <i class="fas fa-arrow-right ms-1"></i>
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- Últimos Movimientos -->
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-history me-2"></i>Últimos Movimientos</span>
+                    <a href="{% url 'productos:movimiento-list' %}" class="btn btn-sm btn-outline-primary">
+                        Ver todos
+                    </a>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Ítem</th>
+                                    <th>Tipo</th>
+                                    <th>Estado</th>
+                                    <th>Solicitado por</th>
+                                    <th>Fecha</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for mov in ultimos_movimientos %}
+                                <tr>
+                                    <td>
+                                        <a href="{% url 'productos:item-detail' mov.item.pk %}">
+                                            {{ mov.item.codigo_utp }}
+                                        </a>
+                                    </td>
+                                    <td>{{ mov.get_tipo_display }}</td>
+                                    <td>
+                                        {% if mov.estado == 'pendiente' %}
+                                        <span class="badge bg-warning">Pendiente</span>
+                                        {% elif mov.estado == 'aprobado' %}
+                                        <span class="badge bg-success">Aprobado</span>
+                                        {% elif mov.estado == 'rechazado' %}
+                                        <span class="badge bg-danger">Rechazado</span>
+                                        {% elif mov.estado == 'ejecutado' %}
+                                        <span class="badge bg-primary">Ejecutado</span>
+                                        {% elif mov.estado == 'ejecutado_emergencia' %}
+                                        <span class="badge bg-purple">Emergencia</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">{{ mov.get_estado_display }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ mov.solicitado_por.get_short_name|default:mov.solicitado_por.username }}</td>
+                                    <td>{{ mov.fecha_solicitud|date:"d/m/Y H:i" }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted py-4">
+                                        No hay movimientos registrados
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Ítems por Área -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <i class="fas fa-chart-pie me-2"></i>Distribución por Área
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        {% for area in items_por_area %}
+                        <div class="col-md-4">
+                            <div class="p-3 bg-light rounded">
+                                <div class="h4 mb-1">{{ area.total }}</div>
+                                <div class="text-muted">{{ area.nombre }}</div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .stat-card {
+        background: white;
+        border: 1px solid var(--gray-200);
+        border-radius: 12px;
+        padding: 1.25rem;
+    }
+    .stat-value {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--gray-900);
+    }
+    .stat-label {
+        font-size: 0.875rem;
+        color: var(--gray-500);
+    }
+    .stat-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+    }
+    .bg-blue-50 { background-color: #eff6ff; }
+    .text-blue-600 { color: #2563eb; }
+    .bg-green-50 { background-color: #f0fdf4; }
+    .text-green-600 { color: #16a34a; }
+    .bg-orange-50 { background-color: #fff7ed; }
+    .text-orange-600 { color: #ea580c; }
+    .bg-purple-50 { background-color: #faf5ff; }
+    .text-purple-600 { color: #9333ea; }
+    .bg-purple { background-color: #9333ea; }
+</style>
+{% endblock %}

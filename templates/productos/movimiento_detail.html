@@ -1,0 +1,411 @@
+{% extends "base.html" %}
+
+{% block title %}Movimiento #{{ movimiento.pk }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'productos:dashboard' %}">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'productos:movimiento-list' %}">Movimientos</a></li>
+            {% if movimiento.estado == 'pendiente' or from_pendientes %}
+            <li class="breadcrumb-item"><a href="{% url 'productos:movimiento-pendientes' %}">Pendientes</a></li>
+            {% endif %}
+            <li class="breadcrumb-item active">Movimiento #{{ movimiento.pk }}</li>
+        </ol>
+    </nav>
+    
+    {% if messages %}
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endfor %}
+    {% endif %}
+    
+    <div class="row">
+        <div class="col-lg-8">
+            <!-- Header -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+                        <div>
+                            <div class="d-flex align-items-center gap-2 mb-2">
+                                <h2 class="mb-0">{{ movimiento.get_tipo_display }}</h2>
+                                {% if movimiento.es_emergencia %}
+                                <span class="badge bg-danger">
+                                    <i class="fas fa-bolt me-1"></i>Emergencia
+                                </span>
+                                {% endif %}
+                            </div>
+                            <p class="text-muted mb-0">
+                                Movimiento #{{ movimiento.pk }} • Solicitado el {{ movimiento.fecha_solicitud|date:"d/m/Y" }} a las {{ movimiento.fecha_solicitud|time:"H:i" }}
+                            </p>
+                        </div>
+                        <div>
+                            {% if movimiento.estado == 'pendiente' %}
+                            <span class="badge bg-warning text-dark fs-6">
+                                <i class="fas fa-clock me-1"></i>Pendiente
+                            </span>
+                            {% elif movimiento.estado == 'aprobado' %}
+                            <span class="badge bg-success fs-6">
+                                <i class="fas fa-check me-1"></i>Aprobado
+                            </span>
+                            {% elif movimiento.estado == 'rechazado' %}
+                            <span class="badge bg-danger fs-6">
+                                <i class="fas fa-times me-1"></i>Rechazado
+                            </span>
+                            {% elif movimiento.estado == 'ejecutado' %}
+                            <span class="badge bg-primary fs-6">
+                                <i class="fas fa-check-double me-1"></i>Ejecutado
+                            </span>
+                            {% elif movimiento.estado == 'ejecutado_emergencia' %}
+                            <span class="badge bg-orange fs-6">
+                                <i class="fas fa-bolt me-1"></i>Ejecutado (Emergencia)
+                            </span>
+                            {% elif movimiento.estado == 'revertido' %}
+                            <span class="badge bg-secondary fs-6">
+                                <i class="fas fa-undo me-1"></i>Revertido
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- Botón de navegación para pendientes -->
+                    {% if movimiento.estado == 'pendiente' %}
+                    <hr>
+                    <div class="d-flex">
+                        <a href="{% url 'productos:movimiento-pendientes' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left me-1"></i> Volver a Pendientes
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Ítem -->
+            <div class="card mb-4">
+                <div class="card-header">Ítem Afectado</div>
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <div class="rounded-circle p-3" style="background-color: {{ movimiento.item.area.color }}20;">
+                                <i class="fas fa-box fa-lg" style="color: {{ movimiento.item.area.color }};"></i>
+                            </div>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h5 class="mb-1">
+                                <a href="{% url 'productos:item-detail' movimiento.item.pk %}">
+                                    {{ movimiento.item.codigo_utp }}
+                                </a>
+                            </h5>
+                            <p class="mb-0 text-muted">{{ movimiento.item.nombre }}</p>
+                            <span class="badge" style="background-color: {{ movimiento.item.area.color }};">
+                                {{ movimiento.item.area.nombre }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Ubicaciones -->
+            <div class="card mb-4">
+                <div class="card-header">Ubicaciones</div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-5">
+                            <small class="text-muted d-block mb-2">Origen</small>
+                            {% if movimiento.ambiente_origen %}
+                            <div class="p-3 bg-light rounded">
+                                <i class="fas fa-map-marker-alt text-danger mb-2 d-block"></i>
+                                <strong>{{ movimiento.ambiente_origen.nombre }}</strong>
+                                <small class="d-block text-muted">
+                                    {{ movimiento.ambiente_origen.pabellon.sede.campus.codigo }} &raquo;
+                                    {{ movimiento.ambiente_origen.pabellon.sede.nombre }} &raquo;
+                                    Pab. {{ movimiento.ambiente_origen.pabellon.nombre }}
+                                </small>
+                            </div>
+                            {% elif movimiento.item.ambiente %}
+                            <div class="p-3 bg-light rounded">
+                                <i class="fas fa-map-marker-alt text-danger mb-2 d-block"></i>
+                                <strong>{{ movimiento.item.ambiente.nombre }}</strong>
+                                <small class="d-block text-muted">
+                                    {{ movimiento.item.ambiente.pabellon.sede.campus.codigo }} &raquo;
+                                    {{ movimiento.item.ambiente.pabellon.sede.nombre }} &raquo;
+                                    Pab. {{ movimiento.item.ambiente.pabellon.nombre }}
+                                </small>
+                            </div>
+                            {% else %}
+                            <div class="p-3 bg-light rounded text-muted">
+                                <i class="fas fa-minus mb-2 d-block"></i>
+                                No especificado
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="col-2 d-flex align-items-center justify-content-center">
+                            <i class="fas fa-arrow-right fa-2x text-primary"></i>
+                        </div>
+                        <div class="col-5">
+                            <small class="text-muted d-block mb-2">Destino</small>
+                            {% if movimiento.ambiente_destino %}
+                            <div class="p-3 bg-light rounded">
+                                <i class="fas fa-map-marker-alt text-success mb-2 d-block"></i>
+                                <strong>{{ movimiento.ambiente_destino.nombre }}</strong>
+                                <small class="d-block text-muted">
+                                    {{ movimiento.ambiente_destino.pabellon.sede.campus.codigo }} &raquo;
+                                    {{ movimiento.ambiente_destino.pabellon.sede.nombre }} &raquo;
+                                    Pab. {{ movimiento.ambiente_destino.pabellon.nombre }}
+                                </small>
+                            </div>
+                            {% else %}
+                            <div class="p-3 bg-light rounded text-muted">
+                                <i class="fas fa-minus mb-2 d-block"></i>
+                                No especificado
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Motivo -->
+            <div class="card mb-4">
+                <div class="card-header">Motivo</div>
+                <div class="card-body">
+                    <p class="mb-0">{{ movimiento.motivo }}</p>
+                </div>
+            </div>
+            
+            <!-- Foto Evidencia -->
+            {% if movimiento.foto_evidencia %}
+            <div class="card mb-4">
+                <div class="card-header">Evidencia Fotográfica</div>
+                <div class="card-body text-center">
+                    <a href="{{ movimiento.foto_evidencia.url }}" target="_blank">
+                        <img src="{{ movimiento.foto_evidencia.url }}" class="img-fluid rounded" style="max-height: 400px;">
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- Motivo de Rechazo -->
+            {% if movimiento.estado == 'rechazado' and movimiento.motivo_rechazo %}
+            <div class="card mb-4 border-danger">
+                <div class="card-header bg-danger text-white">
+                    <i class="fas fa-times-circle me-2"></i>Motivo del Rechazo
+                </div>
+                <div class="card-body">
+                    <p class="mb-0">{{ movimiento.motivo_rechazo }}</p>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="col-lg-4">
+            <!-- Acciones para pendientes -->
+            {% if movimiento.estado == 'pendiente' and perfil %}
+            {% if perfil.rol == 'supervisor' or perfil.rol == 'admin' or user.is_superuser %}
+            <div class="card mb-4 border-warning">
+                <div class="card-header bg-warning text-dark">
+                    <i class="fas fa-tasks me-2"></i>Acciones Pendientes
+                </div>
+                <div class="card-body">
+                    <p class="small text-muted mb-3">Este movimiento requiere tu aprobación.</p>
+                    <form method="post" action="{% url 'productos:movimiento-aprobar' movimiento.pk %}" class="mb-2">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-success w-100">
+                            <i class="fas fa-check me-1"></i> Aprobar
+                        </button>
+                    </form>
+                    <button type="button" class="btn btn-danger w-100" data-bs-toggle="modal" data-bs-target="#rechazarModal">
+                        <i class="fas fa-times me-1"></i> Rechazar
+                    </button>
+                </div>
+            </div>
+            {% endif %}
+            {% endif %}
+            
+            {% if movimiento.estado == 'aprobado' %}
+            <div class="card mb-4">
+                <div class="card-header">Acciones</div>
+                <div class="card-body">
+                    <form method="post" action="{% url 'productos:movimiento-ejecutar' movimiento.pk %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-play me-1"></i> Ejecutar Movimiento
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- Información -->
+            <div class="card mb-4">
+                <div class="card-header">Información</div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <small class="text-muted d-block">Solicitado por</small>
+                        <span>{{ movimiento.solicitado_por.get_full_name|default:movimiento.solicitado_por.username }}</span>
+                    </div>
+                    <div class="mb-3">
+                        <small class="text-muted d-block">Fecha de solicitud</small>
+                        <span>{{ movimiento.fecha_solicitud|date:"d/m/Y H:i" }}</span>
+                    </div>
+                    {% if movimiento.aprobado_por %}
+                    <div class="mb-3">
+                        <small class="text-muted d-block">
+                            {% if movimiento.estado == 'rechazado' %}Rechazado{% else %}Aprobado{% endif %} por
+                        </small>
+                        <span>{{ movimiento.aprobado_por.get_full_name|default:movimiento.aprobado_por.username }}</span>
+                    </div>
+                    {% endif %}
+                    {% if movimiento.fecha_aprobacion %}
+                    <div class="mb-3">
+                        <small class="text-muted d-block">
+                            Fecha de {% if movimiento.estado == 'rechazado' %}rechazo{% else %}aprobación{% endif %}
+                        </small>
+                        <span>{{ movimiento.fecha_aprobacion|date:"d/m/Y H:i" }}</span>
+                    </div>
+                    {% endif %}
+                    {% if movimiento.fecha_ejecucion %}
+                    <div class="mb-3">
+                        <small class="text-muted d-block">Fecha de ejecución</small>
+                        <span>{{ movimiento.fecha_ejecucion|date:"d/m/Y H:i" }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Timeline -->
+            <div class="card">
+                <div class="card-header">Timeline</div>
+                <div class="card-body">
+                    <div class="timeline">
+                        <div class="timeline-item completed">
+                            <div class="timeline-marker bg-success"></div>
+                            <div class="timeline-content">
+                                <small class="text-muted">{{ movimiento.fecha_solicitud|date:"d/m H:i" }}</small>
+                                <p class="mb-0">Solicitud creada</p>
+                            </div>
+                        </div>
+                        
+                        {% if movimiento.estado == 'pendiente' %}
+                        <div class="timeline-item active">
+                            <div class="timeline-marker bg-warning"></div>
+                            <div class="timeline-content">
+                                <small class="text-muted">Esperando</small>
+                                <p class="mb-0">Pendiente de aprobación</p>
+                            </div>
+                        </div>
+                        {% elif movimiento.estado == 'rechazado' %}
+                        <div class="timeline-item">
+                            <div class="timeline-marker bg-danger"></div>
+                            <div class="timeline-content">
+                                <small class="text-muted">{{ movimiento.fecha_aprobacion|date:"d/m H:i" }}</small>
+                                <p class="mb-0">Rechazado</p>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="timeline-item completed">
+                            <div class="timeline-marker bg-success"></div>
+                            <div class="timeline-content">
+                                <small class="text-muted">{{ movimiento.fecha_aprobacion|date:"d/m H:i" }}</small>
+                                <p class="mb-0">
+                                    {% if movimiento.es_emergencia %}
+                                    Ejecutado (Emergencia)
+                                    {% else %}
+                                    Aprobado
+                                    {% endif %}
+                                </p>
+                            </div>
+                        </div>
+                        
+                        {% if movimiento.estado in 'ejecutado,ejecutado_emergencia' %}
+                        <div class="timeline-item completed">
+                            <div class="timeline-marker bg-primary"></div>
+                            <div class="timeline-content">
+                                <small class="text-muted">{{ movimiento.fecha_ejecucion|date:"d/m H:i" }}</small>
+                                <p class="mb-0">Ejecutado</p>
+                            </div>
+                        </div>
+                        {% endif %}
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Rechazar -->
+<div class="modal fade" id="rechazarModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="{% url 'productos:movimiento-rechazar' movimiento.pk %}">
+                {% csrf_token %}
+                <div class="modal-header">
+                    <h5 class="modal-title">Rechazar Movimiento</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Vas a rechazar este movimiento de <strong>{{ movimiento.item.codigo_utp }}</strong>.</p>
+                    <div class="mb-3">
+                        <label class="form-label">Motivo del rechazo <span class="text-danger">*</span></label>
+                        <textarea name="motivo_rechazo" class="form-control" rows="3" required placeholder="Indica el motivo del rechazo..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-danger">Rechazar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+.bg-orange {
+    background-color: #fd7e14 !important;
+    color: white;
+}
+
+.timeline {
+    position: relative;
+    padding-left: 30px;
+}
+
+.timeline::before {
+    content: '';
+    position: absolute;
+    left: 10px;
+    top: 5px;
+    bottom: 5px;
+    width: 2px;
+    background: #dee2e6;
+}
+
+.timeline-item {
+    position: relative;
+    padding-bottom: 20px;
+}
+
+.timeline-item:last-child {
+    padding-bottom: 0;
+}
+
+.timeline-marker {
+    position: absolute;
+    left: -24px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    top: 5px;
+}
+
+.timeline-content {
+    padding-left: 5px;
+}
+</style>
+{% endblock %}

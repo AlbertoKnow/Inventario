@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+
+{% block title %}{{ lote.codigo_interno }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'productos:lote-list' %}">Lotes</a></li>
+            <li class="breadcrumb-item active">{{ lote.codigo_interno }}</li>
+        </ol>
+    </nav>
+    
+    <div class="row">
+        <div class="col-lg-8">
+            <!-- Info Principal -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-box me-2"></i>Información del Lote</span>
+                    {% if perfil.rol == 'admin' or perfil.rol == 'supervisor' %}
+                    <a href="{% url 'productos:lote-update' lote.pk %}" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-edit me-1"></i> Editar
+                    </a>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>Código Interno:</strong> {{ lote.codigo_interno }}</p>
+                            <p><strong>Código Lote:</strong> {{ lote.codigo_lote|default:"No asignado" }}</p>
+                            <p><strong>Descripción:</strong> {{ lote.descripcion }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Fecha Adquisición:</strong> {{ lote.fecha_adquisicion|date:"d/m/Y" }}</p>
+                            <p><strong>Total Ítems:</strong> <span class="badge bg-primary">{{ lote.cantidad_items }}</span></p>
+                            <p><strong>Estado:</strong> 
+                                {% if lote.activo %}
+                                <span class="badge bg-success">Activo</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Inactivo</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                    {% if lote.observaciones %}
+                    <hr>
+                    <p><strong>Observaciones:</strong></p>
+                    <p class="text-muted">{{ lote.observaciones }}</p>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Ítems del Lote -->
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-list me-2"></i>Ítems del Lote
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Código</th>
+                                    <th>Nombre</th>
+                                    <th>Tipo</th>
+                                    <th>Estado</th>
+                                    <th>Garantía</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in items %}
+                                <tr>
+                                    <td>
+                                        <a href="{% url 'productos:item-detail' item.pk %}">{{ item.codigo_utp }}</a>
+                                    </td>
+                                    <td>{{ item.nombre|truncatechars:30 }}</td>
+                                    <td>{{ item.tipo_item.nombre }}</td>
+                                    <td>
+                                        {% if item.estado == 'nuevo' %}
+                                        <span class="badge bg-success">Nuevo</span>
+                                        {% elif item.estado == 'instalado' %}
+                                        <span class="badge bg-primary">Instalado</span>
+                                        {% elif item.estado == 'dañado' %}
+                                        <span class="badge bg-warning">Dañado</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">{{ item.get_estado_display }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if item.garantia_hasta %}
+                                            {% with dias=item.dias_garantia_restantes %}
+                                                {% if dias < 0 %}
+                                                <span class="badge bg-secondary">Vencida</span>
+                                                {% elif dias <= 30 %}
+                                                <span class="badge bg-danger">{{ dias }}d</span>
+                                                {% elif dias <= 90 %}
+                                                <span class="badge bg-warning text-dark">{{ dias }}d</span>
+                                                {% else %}
+                                                <span class="badge bg-success">{{ dias }}d</span>
+                                                {% endif %}
+                                            {% endwith %}
+                                        {% else %}
+                                        <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted py-4">
+                                        No hay ítems en este lote
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-4">
+            {% if mostrar_contrato and lote.contrato %}
+            <!-- Info Contrato (solo supervisor/admin) -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="fas fa-file-contract me-2"></i>Contrato
+                </div>
+                <div class="card-body">
+                    <p><strong>Número:</strong> 
+                        <a href="{% url 'productos:contrato-detail' lote.contrato.pk %}">
+                            {{ lote.contrato.numero_contrato }}
+                        </a>
+                    </p>
+                    <p><strong>Proveedor:</strong> {{ lote.contrato.proveedor.razon_social }}</p>
+                    <p><strong>Estado:</strong> 
+                        {% if lote.contrato.esta_vigente %}
+                        <span class="badge bg-success">Vigente</span>
+                        {% else %}
+                        <span class="badge bg-secondary">{{ lote.contrato.get_estado_display }}</span>
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- Alertas de Garantía -->
+            {% if alertas_garantia %}
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-shield-alt me-2"></i>Alertas de Garantía
+                </div>
+                <div class="card-body p-0">
+                    <ul class="list-group list-group-flush">
+                        {% for alerta in alertas_garantia %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span>{{ alerta.garantia_hasta|date:"d/m/Y" }}</span>
+                            <span class="badge bg-primary">{{ alerta.cantidad }} ítems</span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

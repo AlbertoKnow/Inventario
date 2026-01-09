@@ -1,0 +1,326 @@
+{% extends "base.html" %}
+
+{% block title %}{{ item.codigo_utp }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'productos:dashboard' %}">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'productos:item-list' %}">Inventario</a></li>
+            <li class="breadcrumb-item active">{{ item.codigo_utp }}</li>
+        </ol>
+    </nav>
+    
+    <!-- Header -->
+    <div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-3 mb-4">
+        <div>
+            <h1>{{ item.nombre }}</h1>
+            <div class="d-flex gap-2 align-items-center mt-2">
+                <code class="fs-6">{{ item.codigo_utp }}</code>
+                {% if item.estado == 'nuevo' %}
+                <span class="badge bg-success">Nuevo</span>
+                {% elif item.estado == 'instalado' %}
+                <span class="badge bg-primary">Instalado</span>
+                {% elif item.estado == 'dañado' %}
+                <span class="badge bg-warning">Dañado</span>
+                {% elif item.estado == 'obsoleto' %}
+                <span class="badge bg-danger">Obsoleto</span>
+                {% endif %}
+                {% if item.en_garantia %}
+                <span class="badge bg-info">En Garantía</span>
+                {% endif %}
+                {% if item.es_leasing %}
+                <span class="badge bg-purple">Leasing</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'productos:movimiento-create' %}?item={{ item.pk }}" class="btn btn-outline-primary">
+                <i class="fas fa-exchange-alt me-1"></i> Nuevo Movimiento
+            </a>
+            <a href="{% url 'productos:item-update' item.pk %}" class="btn btn-primary">
+                <i class="fas fa-edit me-1"></i> Editar
+            </a>
+        </div>
+    </div>
+    
+    <div class="row g-4">
+        <!-- Información Principal -->
+        <div class="col-lg-8">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="fas fa-info-circle me-2"></i>Información General
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="text-muted small">Número de Serie</label>
+                            <div class="fw-semibold">{{ item.serie }}</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small">Área</label>
+                            <div class="fw-semibold">{{ item.area.nombre }}</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small">Tipo</label>
+                            <div class="fw-semibold">{{ item.tipo_item.nombre }}</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small">Ubicación</label>
+                            <div class="fw-semibold">{{ item.ambiente.nombre|default:"Sin asignar" }}</div>
+                            {% if item.ambiente %}
+                            <small class="text-muted">{{ item.ambiente.pabellon.sede.campus.codigo }} &raquo; {{ item.ambiente.pabellon.sede.nombre }} &raquo; Pab. {{ item.ambiente.pabellon.nombre }}</small>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small">Usuario Asignado</label>
+                            <div class="fw-semibold">{{ item.usuario_asignado.get_full_name|default:"Sin asignar" }}</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small">Fecha de Adquisición</label>
+                            <div class="fw-semibold">{{ item.fecha_adquisicion|date:"d/m/Y" }}</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small">Precio</label>
+                            <div class="fw-semibold">S/. {{ item.precio|floatformat:2 }}</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small">Garantía hasta</label>
+                            <div class="fw-semibold">
+                                {% if item.garantia_hasta %}
+                                    {{ item.garantia_hasta|date:"d/m/Y" }}
+                                    {% if item.en_garantia %}
+                                    <span class="text-success"><i class="fas fa-check-circle"></i></span>
+                                    {% else %}
+                                    <span class="text-danger"><i class="fas fa-times-circle"></i> Vencida</span>
+                                    {% endif %}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% if item.lote %}
+                        <div class="col-md-6">
+                            <label class="text-muted small">Lote</label>
+                            <div class="fw-semibold">
+                                <a href="{% url 'productos:lote-detail' item.lote.pk %}">
+                                    {{ item.lote.codigo_interno }}
+                                </a>
+                            </div>
+                            {% if item.lote.descripcion %}
+                            <small class="text-muted">{{ item.lote.descripcion }}</small>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                        {% if item.descripcion %}
+                        <div class="col-12">
+                            <label class="text-muted small">Descripción</label>
+                            <div>{{ item.descripcion }}</div>
+                        </div>
+                        {% endif %}
+                        {% if item.observaciones %}
+                        <div class="col-12">
+                            <label class="text-muted small">Observaciones</label>
+                            <div>{{ item.observaciones }}</div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Especificaciones Técnicas (Solo Sistemas) -->
+            {% if especificaciones %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="fas fa-microchip me-2"></i>Especificaciones Técnicas
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        {% if especificaciones.marca %}
+                        <div class="col-md-6">
+                            <label class="text-muted small">Marca</label>
+                            <div class="fw-semibold">{{ especificaciones.marca }}</div>
+                        </div>
+                        {% endif %}
+                        {% if especificaciones.modelo %}
+                        <div class="col-md-6">
+                            <label class="text-muted small">Modelo</label>
+                            <div class="fw-semibold">{{ especificaciones.modelo }}</div>
+                        </div>
+                        {% endif %}
+                        {% if especificaciones.procesador %}
+                        <div class="col-md-6">
+                            <label class="text-muted small">Procesador</label>
+                            <div class="fw-semibold">{{ especificaciones.procesador }}</div>
+                        </div>
+                        {% endif %}
+                        {% if especificaciones.generacion_procesador %}
+                        <div class="col-md-6">
+                            <label class="text-muted small">Generación</label>
+                            <div class="fw-semibold">{{ especificaciones.generacion_procesador }}</div>
+                        </div>
+                        {% endif %}
+                        {% if especificaciones.ram_total_gb %}
+                        <div class="col-md-6">
+                            <label class="text-muted small">Memoria RAM</label>
+                            <div class="fw-semibold">{{ especificaciones.ram_display }}</div>
+                        </div>
+                        {% endif %}
+                        {% if especificaciones.almacenamiento_gb %}
+                        <div class="col-md-6">
+                            <label class="text-muted small">Almacenamiento</label>
+                            <div class="fw-semibold">{{ especificaciones.almacenamiento_display }}</div>
+                        </div>
+                        {% endif %}
+                        {% if especificaciones.sistema_operativo %}
+                        <div class="col-md-6">
+                            <label class="text-muted small">Sistema Operativo</label>
+                            <div class="fw-semibold">{{ especificaciones.sistema_operativo }}</div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- Leasing -->
+            {% if item.es_leasing %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="fas fa-file-contract me-2"></i>Información de Leasing
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="text-muted small">Empresa</label>
+                            <div class="fw-semibold">{{ item.leasing_empresa|default:"-" }}</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="text-muted small">Contrato</label>
+                            <div class="fw-semibold">{{ item.leasing_contrato|default:"-" }}</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="text-muted small">Vencimiento</label>
+                            <div class="fw-semibold">
+                                {{ item.leasing_vencimiento|date:"d/m/Y"|default:"-" }}
+                                {% if item.leasing_vigente %}
+                                <span class="text-success"><i class="fas fa-check-circle"></i></span>
+                                {% elif item.leasing_vencimiento %}
+                                <span class="text-danger"><i class="fas fa-times-circle"></i> Vencido</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- Historial de Movimientos -->
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-history me-2"></i>Historial de Movimientos</span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Tipo</th>
+                                    <th>Estado</th>
+                                    <th>Solicitado por</th>
+                                    <th>Autorizado por</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for mov in movimientos %}
+                                <tr>
+                                    <td>{{ mov.fecha_solicitud|date:"d/m/Y H:i" }}</td>
+                                    <td>{{ mov.get_tipo_display }}</td>
+                                    <td>
+                                        {% if mov.estado == 'pendiente' %}
+                                        <span class="badge bg-warning">Pendiente</span>
+                                        {% elif mov.estado == 'aprobado' or mov.estado == 'ejecutado' %}
+                                        <span class="badge bg-success">{{ mov.get_estado_display }}</span>
+                                        {% elif mov.estado == 'rechazado' %}
+                                        <span class="badge bg-danger">Rechazado</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">{{ mov.get_estado_display }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{% if mov.solicitado_por %}{{ mov.solicitado_por.get_short_name|default:mov.solicitado_por.username }}{% else %}-{% endif %}</td>
+                                    <td>{% if mov.autorizado_por %}{{ mov.autorizado_por.get_short_name|default:mov.autorizado_por.username }}{% else %}-{% endif %}</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted py-4">
+                                        No hay movimientos registrados
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <!-- Auditoría -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="fas fa-user-clock me-2"></i>Auditoría
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="text-muted small">Creado por</label>
+                        <div>{% if item.creado_por %}{{ item.creado_por.get_full_name|default:item.creado_por.username }}{% else %}-{% endif %}</div>
+                        <div class="small text-muted">{{ item.creado_en|date:"d/m/Y H:i" }}</div>
+                    </div>
+                    <div>
+                        <label class="text-muted small">Última modificación</label>
+                        <div>{% if item.modificado_por %}{{ item.modificado_por.get_full_name|default:item.modificado_por.username }}{% else %}-{% endif %}</div>
+                        <div class="small text-muted">{{ item.modificado_en|date:"d/m/Y H:i" }}</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Historial de Cambios -->
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-list-alt me-2"></i>Historial de Cambios
+                </div>
+                <div class="card-body p-0">
+                    <ul class="list-group list-group-flush">
+                        {% for cambio in historial %}
+                        <li class="list-group-item">
+                            <div class="d-flex justify-content-between">
+                                <strong>{{ cambio.campo }}</strong>
+                                <small class="text-muted">{{ cambio.fecha|date:"d/m H:i" }}</small>
+                            </div>
+                            <div class="small">
+                                <span class="text-danger">{{ cambio.valor_anterior|truncatechars:30 }}</span>
+                                <i class="fas fa-arrow-right mx-1"></i>
+                                <span class="text-success">{{ cambio.valor_nuevo|truncatechars:30 }}</span>
+                            </div>
+                            <div class="small text-muted">por {% if cambio.usuario %}{{ cambio.usuario.get_short_name|default:cambio.usuario.username }}{% else %}Sistema{% endif %}</div>
+                        </li>
+                        {% empty %}
+                        <li class="list-group-item text-center text-muted py-3">
+                            Sin cambios registrados
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .bg-purple { background-color: #9333ea; }
+</style>
+{% endblock %}

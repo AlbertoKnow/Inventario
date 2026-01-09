@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+
+{% block title %}{% if form.instance.pk %}Editar{% else %}Nuevo{% endif %} Producto{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Page Header -->
+    <div class="page-header">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a href="{% url 'home' %}">Inicio</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'productos:producto-list' %}">Productos</a></li>
+                <li class="breadcrumb-item active">{% if form.instance.pk %}Editar{% else %}Nuevo{% endif %}</li>
+            </ol>
+        </nav>
+        <h1>{% if form.instance.pk %}Editar Producto{% else %}Nuevo Producto{% endif %}</h1>
+    </div>
+    
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-body">
+                    <form method="post" novalidate>
+                        {% csrf_token %}
+                        
+                        {% if form.errors %}
+                        <div class="alert alert-danger mb-4">
+                            <i class="fas fa-exclamation-circle me-2"></i>
+                            Por favor corrige los errores indicados.
+                        </div>
+                        {% endif %}
+                        
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Código Interno <span class="text-danger">*</span></label>
+                                <input type="text" name="codigo_interno" 
+                                       class="form-control {% if form.codigo_interno.errors %}is-invalid{% endif %}"
+                                       value="{{ form.codigo_interno.value|default:'' }}" required>
+                                {% if form.codigo_interno.errors %}
+                                <div class="invalid-feedback">{{ form.codigo_interno.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <label class="form-label">Nombre <span class="text-danger">*</span></label>
+                                <input type="text" name="nombre" 
+                                       class="form-control {% if form.nombre.errors %}is-invalid{% endif %}"
+                                       value="{{ form.nombre.value|default:'' }}" required>
+                                {% if form.nombre.errors %}
+                                <div class="invalid-feedback">{{ form.nombre.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="col-12">
+                                <label class="form-label">Descripción</label>
+                                <textarea name="descripcion" class="form-control" rows="3">{{ form.descripcion.value|default:'' }}</textarea>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <label class="form-label">Categoría</label>
+                                {{ form.categoria }}
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <label class="form-label">Tipo de Producto</label>
+                                {{ form.tipo }}
+                            </div>
+                            
+                            <div class="col-md-4">
+                                <label class="form-label">Precio Unitario <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <span class="input-group-text">S/.</span>
+                                    <input type="number" name="precio_unitario" step="0.01" min="0"
+                                           class="form-control {% if form.precio_unitario.errors %}is-invalid{% endif %}"
+                                           value="{{ form.precio_unitario.value|default:'0.00' }}" required>
+                                </div>
+                                {% if form.precio_unitario.errors %}
+                                <div class="text-danger small mt-1">{{ form.precio_unitario.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="col-md-4">
+                                <label class="form-label">Stock <span class="text-danger">*</span></label>
+                                <input type="number" name="cantidad_stock" min="0"
+                                       class="form-control {% if form.cantidad_stock.errors %}is-invalid{% endif %}"
+                                       value="{{ form.cantidad_stock.value|default:'0' }}" required>
+                                {% if form.cantidad_stock.errors %}
+                                <div class="invalid-feedback">{{ form.cantidad_stock.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="col-md-4">
+                                <label class="form-label">Fecha de Adquisición</label>
+                                <input type="date" name="fecha_adquisicion" class="form-control"
+                                       value="{{ form.fecha_adquisicion.value|date:'Y-m-d'|default:'' }}">
+                            </div>
+                            
+                            <div class="col-12">
+                                <div class="form-check">
+                                    <input type="checkbox" name="activo" class="form-check-input" id="activo"
+                                           {% if form.instance.pk and form.instance.activo or not form.instance.pk %}checked{% endif %}>
+                                    <label class="form-check-label" for="activo">Producto activo</label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <hr class="my-4">
+                        
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-1"></i> Guardar
+                            </button>
+                            <a href="{% url 'productos:producto-list' %}" class="btn btn-light">Cancelar</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">Ayuda</div>
+                <div class="card-body">
+                    <p class="text-muted small mb-3">
+                        Complete los campos requeridos marcados con <span class="text-danger">*</span>
+                    </p>
+                    <ul class="text-muted small ps-3">
+                        <li>El código interno debe ser único</li>
+                        <li>El precio debe ser mayor a 0</li>
+                        <li>El stock no puede ser negativo</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block extra_css %}
+<style>
+    select.form-control, select.form-select {
+        border: 1px solid var(--gray-300);
+        border-radius: 8px;
+        padding: 0.625rem 0.875rem;
+        font-size: 0.875rem;
+    }
+</style>
+{% endblock %}
+{% endblock %}

@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block title %}Muebles{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Page Header -->
+    <div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a href="{% url 'home' %}">Inicio</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'productos:producto-list' %}">Productos</a></li>
+                    <li class="breadcrumb-item active">Muebles</li>
+                </ol>
+            </nav>
+            <h1>Muebles</h1>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'productos:mueble-create' %}" class="btn btn-primary">
+                <i class="fas fa-plus me-1"></i> Nuevo Mueble
+            </a>
+        </div>
+    </div>
+    
+    <!-- Results -->
+    <div class="card">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table mb-0">
+                    <thead>
+                        <tr>
+                            <th>Código</th>
+                            <th>Mueble</th>
+                            <th>Material</th>
+                            <th>Color</th>
+                            <th>Ubicación</th>
+                            <th>Estado</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for mueble in muebles %}
+                        <tr>
+                            <td>
+                                <span class="fw-medium font-monospace">{{ mueble.codigo_interno }}</span>
+                            </td>
+                            <td>
+                                <a href="{% url 'productos:mueble-detail' mueble.pk %}" class="text-decoration-none text-dark fw-medium">
+                                    {{ mueble.nombre }}
+                                </a>
+                            </td>
+                            <td>{{ mueble.material|default:"—" }}</td>
+                            <td>
+                                {% if mueble.color %}
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="rounded-circle" style="width:12px;height:12px;background:{{ mueble.color }};border:1px solid #ccc;"></span>
+                                    {{ mueble.color }}
+                                </div>
+                                {% else %}
+                                <span class="text-muted">—</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if mueble.ubicacion %}
+                                <span class="badge bg-light text-dark">{{ mueble.ubicacion.nombre }}</span>
+                                {% else %}
+                                <span class="text-muted">—</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if mueble.condicion %}
+                                <span class="badge" style="background-color: {{ mueble.condicion.color }};">
+                                    {{ mueble.condicion.nombre }}
+                                </span>
+                                {% else %}
+                                <span class="text-muted">—</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{% url 'productos:mueble-detail' mueble.pk %}" class="btn btn-light" title="Ver">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    <a href="{% url 'productos:mueble-update' mueble.pk %}" class="btn btn-light" title="Editar">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center py-5">
+                                <div class="text-muted">
+                                    <i class="fas fa-chair fa-3x mb-3 d-block opacity-25"></i>
+                                    No hay muebles registrados
+                                </div>
+                                <a href="{% url 'productos:mueble-create' %}" class="btn btn-primary btn-sm mt-2">
+                                    <i class="fas fa-plus me-1"></i> Agregar Mueble
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        {% if muebles %}
+        <div class="card-footer bg-white border-top py-3">
+            <span class="text-muted small">{{ muebles|length }} mueble(s)</span>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

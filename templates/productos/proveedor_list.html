@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}Proveedores{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div>
+            <h1>Proveedores</h1>
+            <p class="text-muted mb-0">Gestión de proveedores</p>
+        </div>
+        <a href="{% url 'productos:proveedor-create' %}" class="btn btn-primary">
+            <i class="fas fa-plus me-1"></i> Nuevo Proveedor
+        </a>
+    </div>
+    
+    <!-- Búsqueda -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-9">
+                    <input type="text" name="q" class="form-control" 
+                           placeholder="Buscar por RUC, razón social..." 
+                           value="{{ request.GET.q }}">
+                </div>
+                <div class="col-md-3">
+                    <button type="submit" class="btn btn-secondary w-100">
+                        <i class="fas fa-search me-1"></i> Buscar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Tabla -->
+    <div class="card">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>RUC</th>
+                            <th>Razón Social</th>
+                            <th>Contacto</th>
+                            <th>Teléfono</th>
+                            <th>Email</th>
+                            <th>Estado</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for proveedor in proveedores %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'productos:proveedor-detail' proveedor.pk %}" class="fw-semibold text-decoration-none">
+                                    {{ proveedor.ruc }}
+                                </a>
+                            </td>
+                            <td>{{ proveedor.razon_social }}</td>
+                            <td>{{ proveedor.contacto|default:"-" }}</td>
+                            <td>{{ proveedor.telefono|default:"-" }}</td>
+                            <td>{{ proveedor.email|default:"-" }}</td>
+                            <td>
+                                {% if proveedor.activo %}
+                                <span class="badge bg-success">Activo</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Inactivo</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{% url 'productos:proveedor-detail' proveedor.pk %}" class="btn btn-outline-secondary" title="Ver">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    <a href="{% url 'productos:proveedor-update' proveedor.pk %}" class="btn btn-outline-secondary" title="Editar">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-5">
+                                <i class="fas fa-building fa-3x mb-3 d-block"></i>
+                                No se encontraron proveedores
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

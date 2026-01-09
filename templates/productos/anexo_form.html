@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}Nuevo Anexo{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'productos:contrato-list' %}">Contratos</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'productos:contrato-detail' contrato.pk %}">{{ contrato.numero_contrato }}</a></li>
+            <li class="breadcrumb-item active">Nuevo Anexo</li>
+        </ol>
+    </nav>
+    
+    <div class="row justify-content-center">
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-paperclip me-2"></i>Nuevo Anexo de Contrato
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <strong>Contrato:</strong> {{ contrato.numero_contrato }} - {{ contrato.proveedor.razon_social }}
+                    </div>
+                    
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="id_numero_anexo" class="form-label">Número de Anexo *</label>
+                                <input type="text" name="numero_anexo" id="id_numero_anexo" 
+                                       class="form-control" placeholder="Ej: ANEXO-001" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="id_fecha" class="form-label">Fecha *</label>
+                                <input type="date" name="fecha" id="id_fecha" class="form-control" required>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="id_descripcion" class="form-label">Descripción *</label>
+                            <textarea name="descripcion" id="id_descripcion" class="form-control" rows="3" required
+                                      placeholder="Describa el propósito del anexo..."></textarea>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="id_monto_modificacion" class="form-label">Monto Modificación (S/)</label>
+                            <input type="number" name="monto_modificacion" id="id_monto_modificacion" 
+                                   class="form-control" step="0.01" value="0.00">
+                            <small class="text-muted">Use valores negativos para reducciones</small>
+                        </div>
+                        
+                        <hr>
+                        
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-1"></i> Guardar
+                            </button>
+                            <a href="{% url 'productos:contrato-detail' contrato.pk %}" class="btn btn-secondary">Cancelar</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
