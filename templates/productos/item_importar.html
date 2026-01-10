@@ -233,14 +233,14 @@
                             </td>
                             <td>
                                 {% if item.errores %}
-                                <ul class="mb-0 text-danger" style="font-size: 0.85em;">
+                                <ul class="mb-0" style="font-size: 0.85em; color: #721c24;">
                                     {% for error in item.errores %}
                                     <li>{{ error }}</li>
                                     {% endfor %}
                                 </ul>
                                 {% endif %}
                                 {% if item.advertencias %}
-                                <ul class="mb-0 text-warning" style="font-size: 0.85em;">
+                                <ul class="mb-0" style="font-size: 0.85em; color: {% if item.estado == 'error' %}#f8f9fa{% else %}#856404{% endif %};">
                                     {% for adv in item.advertencias %}
                                     <li>{{ adv }}</li>
                                     {% endfor %}
