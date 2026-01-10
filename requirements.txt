@@ -32,6 +32,7 @@ python-decouple==3.8      # Variables de entorno
 # UTILIDADES
 # ------------------------------------------------------------------------------
 Pillow==10.1.0            # Procesamiento de imágenes
+openpyxl==3.1.2           # Lectura y escritura de archivos Excel
 
 # ------------------------------------------------------------------------------
 # DESARROLLO (comentar en producción)

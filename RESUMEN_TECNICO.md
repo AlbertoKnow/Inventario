@@ -121,13 +121,18 @@ Campus → Sede → Pabellón → Ambiente
 | UI | Diseño responsive | ✅ |
 | Deployment | Digital Ocean + Cloudflare SSL | ✅ |
 
+### IMPLEMENTADO RECIENTEMENTE (10 Enero 2026)
+
+| Funcionalidad | Estado | Notas |
+|---------------|--------|-------|
+| Importación masiva Excel | ✅ Completado | Ver IMPORTACION_EXCEL.md |
+
 ### PENDIENTE / EN DISCUSIÓN
 
 | Funcionalidad | Prioridad | Notas |
 |---------------|-----------|-------|
-| Importación masiva Excel | Alta | Discutido, no implementado |
-| Duplicar ítem | Media | Para lotes similares |
 | Exportar a Excel/PDF | Media | Reportes |
+| Duplicar ítem | Media | Para lotes similares |
 | Búsqueda avanzada | Baja | Filtros ya existen |
 | Especificaciones Sistemas | Media | Modelo existe, falta formulario dinámico |
 
@@ -170,39 +175,29 @@ Campus → Sede → Pabellón → Ambiente
 
 ---
 
-## 5. PRÓXIMO PASO INMEDIATO
+## 5. FUNCIONALIDAD DE IMPORTACIÓN MASIVA ✅
 
-### Importación Masiva desde Excel
+### Implementación Completada (10 Enero 2026)
 
-**Plantilla Excel descargable con columnas:**
+**Documentación completa**: Ver [IMPORTACION_EXCEL.md](IMPORTACION_EXCEL.md)
 
-- serie* (único)
-- nombre*
-- area* (sistemas/operaciones/laboratorio)
-- tipo_item*
-- ambiente (opcional, código del ambiente)
-- precio*
-- fecha_adquisicion*
-- garantia_hasta (opcional)
-- observaciones (opcional)
+**Características implementadas:**
 
-**Flujo propuesto:**
+✅ Descarga de plantilla Excel con instrucciones
+✅ Validación automática de datos
+✅ Vista previa interactiva con código de colores
+✅ Importación con transacciones atómicas
+✅ Soporte para especificaciones técnicas (Sistemas)
+✅ Creación/asociación de lotes durante importación
+✅ Restricciones por rol y área
+✅ Límite de 1000 ítems por archivo
 
-1. Descargar plantilla
-2. Llenar offline
-3. Subir archivo
-4. Preview con validación
-5. Confirmar importación
+**Rutas implementadas:**
+- `/productos/items/importar/` - Interfaz principal
+- `/productos/items/importar/plantilla/` - Descarga plantilla
+- `/productos/items/importar/confirmar/` - Procesar importación
 
-**Validaciones necesarias:**
-
-- Serie única (no duplicada en BD)
-- Área válida
-- Tipo de ítem existe para esa área
-- Formato de fechas correcto
-- Precio numérico positivo
-
-**Librería sugerida**: openpyxl para leer Excel
+**Acceso**: Solo supervisores y administradores
 
 ---
 
