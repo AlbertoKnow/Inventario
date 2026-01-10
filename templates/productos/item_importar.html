@@ -240,7 +240,7 @@
                                 </ul>
                                 {% endif %}
                                 {% if item.advertencias %}
-                                <ul class="mb-0" style="font-size: 0.85em; color: {% if item.estado == 'error' %}#f8f9fa{% else %}#856404{% endif %};">
+                                <ul class="mb-0" style="font-size: 0.85em; color: {% if item.estado == 'error' %}#FFF3CD{% else %}#856404{% endif %};">
                                     {% for adv in item.advertencias %}
                                     <li>{{ adv }}</li>
                                     {% endfor %}
