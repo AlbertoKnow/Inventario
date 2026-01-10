@@ -10,6 +10,9 @@ urlpatterns = [
     # Items (usando codigo_utp como slug)
     path('', views.ItemListView.as_view(), name='item-list'),
     path('items/crear/', views.ItemCreateView.as_view(), name='item-create'),
+    path('items/importar/', views.ItemImportarView.as_view(), name='item-importar'),
+    path('items/importar/plantilla/', views.ItemImportarPlantillaView.as_view(), name='item-importar-plantilla'),
+    path('items/importar/confirmar/', views.ItemImportarConfirmarView.as_view(), name='item-importar-confirmar'),
     path('items/<str:codigo>/', views.ItemDetailView.as_view(), name='item-detail'),
     path('items/<str:codigo>/editar/', views.ItemUpdateView.as_view(), name='item-update'),
     path('items/<str:codigo>/eliminar/', views.ItemDeleteView.as_view(), name='item-delete'),

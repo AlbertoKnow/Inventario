@@ -1521,19 +1521,588 @@ class LoteUpdateView(SupervisorRequeridoMixin, UpdateView):
     model = Lote
     template_name = 'productos/lote_form.html'
     fields = ['codigo_lote', 'contrato', 'descripcion', 'fecha_adquisicion', 'observaciones', 'activo']
-    
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['editando'] = True
         context['contratos'] = Contrato.objects.filter(estado='vigente')
         context['mostrar_contrato'] = True
         return context
-    
+
     def get_success_url(self):
         return reverse('productos:lote-detail', kwargs={'pk': self.object.pk})
-    
+
     def form_valid(self, form):
         messages.success(self.request, 'Lote actualizado exitosamente.')
         return super().form_valid(form)
+
+
+# ============================================================================
+# IMPORTACIÓN MASIVA DESDE EXCEL
+# ============================================================================
+
+from openpyxl import Workbook, load_workbook
+from openpyxl.styles import Font, PatternFill, Alignment
+from django.http import HttpResponse
+from django.db import transaction
+from datetime import datetime
+import io
+
+
+class ItemImportarPlantillaView(SupervisorRequeridoMixin, View):
+    """Descargar plantilla Excel para importación masiva."""
+
+    def get(self, request):
+        # Crear libro de Excel
+        wb = Workbook()
+
+        # Hoja 1: Plantilla de datos
+        ws = wb.active
+        ws.title = "Plantilla Items"
+
+        # Definir encabezados
+        headers_obligatorios = [
+            'serie', 'nombre', 'area', 'tipo_item', 'precio', 'fecha_adquisicion'
+        ]
+        headers_opcionales = [
+            'descripcion', 'ambiente_codigo', 'estado', 'garantia_hasta',
+            'observaciones', 'lote_codigo', 'es_leasing', 'leasing_empresa',
+            'leasing_contrato', 'leasing_vencimiento'
+        ]
+        headers_sistemas = [
+            'marca', 'modelo', 'procesador', 'generacion_procesador',
+            'ram_total_gb', 'ram_configuracion', 'ram_tipo',
+            'almacenamiento_gb', 'almacenamiento_tipo', 'sistema_operativo'
+        ]
+
+        headers = headers_obligatorios + headers_opcionales + headers_sistemas
+
+        # Estilo para encabezados obligatorios
+        fill_obligatorio = PatternFill(start_color="C8102E", end_color="C8102E", fill_type="solid")
+        font_obligatorio = Font(bold=True, color="FFFFFF")
+
+        # Estilo para encabezados opcionales
+        fill_opcional = PatternFill(start_color="4A4A4A", end_color="4A4A4A", fill_type="solid")
+        font_opcional = Font(bold=True, color="FFFFFF")
+
+        # Estilo para encabezados de sistemas
+        fill_sistemas = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
+        font_sistemas = Font(bold=True, color="FFFFFF")
+
+        # Escribir encabezados con estilos
+        for idx, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=idx, value=header)
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+
+            if header in headers_obligatorios:
+                cell.fill = fill_obligatorio
+                cell.font = font_obligatorio
+            elif header in headers_sistemas:
+                cell.fill = fill_sistemas
+                cell.font = font_sistemas
+            else:
+                cell.fill = fill_opcional
+                cell.font = font_opcional
+
+        # Ajustar ancho de columnas
+        for idx in range(1, len(headers) + 1):
+            ws.column_dimensions[ws.cell(row=1, column=idx).column_letter].width = 18
+
+        # Agregar filas de ejemplo
+        ejemplo1 = [
+            'SN123456789',  # serie
+            'Laptop Dell Latitude 5430',  # nombre
+            'sistemas',  # area
+            'Laptop',  # tipo_item
+            '3500.00',  # precio
+            '2026-01-10',  # fecha_adquisicion
+            'Laptop corporativa i7',  # descripcion
+            '',  # ambiente_codigo
+            'nuevo',  # estado
+            '2028-01-10',  # garantia_hasta
+            '',  # observaciones
+            '',  # lote_codigo
+            'NO',  # es_leasing
+            '',  # leasing_empresa
+            '',  # leasing_contrato
+            '',  # leasing_vencimiento
+            'Dell',  # marca
+            'Latitude 5430',  # modelo
+            'Intel Core i7-1365U',  # procesador
+            '13th Gen',  # generacion_procesador
+            '16',  # ram_total_gb
+            '2x8GB',  # ram_configuracion
+            'DDR4',  # ram_tipo
+            '512',  # almacenamiento_gb
+            'NVMe',  # almacenamiento_tipo
+            'Windows 11 Pro'  # sistema_operativo
+        ]
+
+        ejemplo2 = [
+            'SN987654321',  # serie
+            'Silla ergonómica',  # nombre
+            'operaciones',  # area
+            'Silla',  # tipo_item
+            '450.00',  # precio
+            '2026-01-10',  # fecha_adquisicion
+            'Silla de oficina con soporte lumbar',  # descripcion
+            '',  # ambiente_codigo
+            'nuevo',  # estado
+            '',  # garantia_hasta
+            '',  # observaciones
+            '',  # lote_codigo
+            'NO',  # es_leasing
+        ]
+        # Rellenar con vacíos para completar las columnas
+        ejemplo2.extend([''] * (len(headers) - len(ejemplo2)))
+
+        ws.append(ejemplo1)
+        ws.append(ejemplo2)
+
+        # Hoja 2: Instrucciones
+        ws_instrucciones = wb.create_sheet("Instrucciones")
+        instrucciones = [
+            ["INSTRUCCIONES PARA IMPORTACIÓN MASIVA DE ÍTEMS", ""],
+            ["", ""],
+            ["1. COLUMNAS OBLIGATORIAS (Rojo):", ""],
+            ["   - serie: Número de serie único del fabricante", ""],
+            ["   - nombre: Nombre descriptivo del ítem", ""],
+            ["   - area: sistemas, operaciones o laboratorio", ""],
+            ["   - tipo_item: Debe existir en el sistema para el área", ""],
+            ["   - precio: Precio en formato numérico (ej: 1500.00)", ""],
+            ["   - fecha_adquisicion: Formato YYYY-MM-DD (ej: 2026-01-10)", ""],
+            ["", ""],
+            ["2. COLUMNAS OPCIONALES (Gris):", ""],
+            ["   - descripcion: Descripción adicional", ""],
+            ["   - ambiente_codigo: Código del ambiente (ej: CLN-SP-A-P1-LC-001)", ""],
+            ["   - estado: nuevo, instalado, dañado u obsoleto (default: nuevo)", ""],
+            ["   - garantia_hasta: Fecha en formato YYYY-MM-DD", ""],
+            ["   - lote_codigo: Código del lote existente (ej: LOT-2026-0001)", ""],
+            ["   - es_leasing: SI o NO", ""],
+            ["", ""],
+            ["3. COLUMNAS PARA SISTEMAS (Azul):", ""],
+            ["   - Solo usar si area = sistemas", ""],
+            ["   - Especificaciones técnicas del equipo", ""],
+            ["", ""],
+            ["4. NOTAS IMPORTANTES:", ""],
+            ["   - El código UTP se genera automáticamente", ""],
+            ["   - La serie debe ser única en el sistema", ""],
+            ["   - Máximo 1000 ítems por archivo", ""],
+            ["   - Formato de archivo: .xlsx", ""],
+            ["", ""],
+            ["5. VALIDACIONES:", ""],
+            ["   - Serie única y no vacía", ""],
+            ["   - Área válida y coincide con tu perfil", ""],
+            ["   - Tipo de ítem existe para el área", ""],
+            ["   - Precio numérico positivo", ""],
+            ["   - Fechas en formato correcto", ""],
+        ]
+
+        for row_data in instrucciones:
+            ws_instrucciones.append(row_data)
+
+        # Ajustar ancho de columnas en instrucciones
+        ws_instrucciones.column_dimensions['A'].width = 60
+        ws_instrucciones.column_dimensions['B'].width = 20
+
+        # Estilo para el título
+        ws_instrucciones['A1'].font = Font(bold=True, size=14, color="C8102E")
+
+        # Preparar respuesta HTTP
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = 'attachment; filename=plantilla_items_inventario.xlsx'
+
+        wb.save(response)
+        return response
+
+
+class ItemImportarView(SupervisorRequeridoMixin, TemplateView):
+    """Vista para subir archivo Excel y mostrar preview con validaciones."""
+
+    template_name = 'productos/item_importar.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['areas'] = Area.objects.filter(activo=True)
+        context['lotes'] = Lote.objects.filter(activo=True)
+        return context
+
+    def post(self, request, *args, **kwargs):
+        archivo = request.FILES.get('archivo_excel')
+        crear_lote = request.POST.get('crear_lote') == 'on'
+        lote_descripcion = request.POST.get('lote_descripcion', '')
+        lote_existente_id = request.POST.get('lote_existente')
+
+        if not archivo:
+            messages.error(request, 'Debe seleccionar un archivo Excel.')
+            return redirect('productos:item-importar')
+
+        if not archivo.name.endswith('.xlsx'):
+            messages.error(request, 'El archivo debe ser formato .xlsx')
+            return redirect('productos:item-importar')
+
+        try:
+            # Cargar archivo Excel
+            wb = load_workbook(archivo, data_only=True)
+            ws = wb.active
+
+            # Leer encabezados
+            headers = [cell.value for cell in ws[1]]
+
+            # Validar que existan las columnas obligatorias
+            required_headers = ['serie', 'nombre', 'area', 'tipo_item', 'precio', 'fecha_adquisicion']
+            for header in required_headers:
+                if header not in headers:
+                    messages.error(request, f'Falta la columna obligatoria: {header}')
+                    return redirect('productos:item-importar')
+
+            # Procesar filas
+            items_preview = []
+            errores_globales = []
+
+            # Obtener perfil del usuario
+            perfil = request.user.perfil
+            area_usuario = perfil.area if perfil.rol != 'admin' else None
+
+            for idx, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
+                if not any(row):  # Fila vacía
+                    continue
+
+                if len(items_preview) >= 1000:
+                    errores_globales.append('Se alcanzó el límite de 1000 ítems. Las filas restantes no se procesaron.')
+                    break
+
+                # Crear diccionario de datos
+                item_data = dict(zip(headers, row))
+
+                # Validaciones
+                errores = []
+                advertencias = []
+
+                # Validar serie
+                serie = item_data.get('serie', '').strip()
+                if not serie:
+                    errores.append('Serie vacía')
+                elif Item.objects.filter(serie=serie).exists():
+                    errores.append(f'Serie {serie} ya existe en el sistema')
+
+                # Validar área
+                area_codigo = item_data.get('area', '').strip().lower()
+                if area_codigo not in ['sistemas', 'operaciones', 'laboratorio']:
+                    errores.append(f'Área inválida: {area_codigo}')
+                elif area_usuario and area_usuario.codigo != area_codigo:
+                    errores.append(f'No tienes permiso para crear ítems en el área {area_codigo}')
+
+                # Validar tipo_item
+                tipo_item_nombre = item_data.get('tipo_item', '').strip()
+                tipo_item = None
+                if tipo_item_nombre and area_codigo in ['sistemas', 'operaciones', 'laboratorio']:
+                    try:
+                        area_obj = Area.objects.get(codigo=area_codigo)
+                        tipo_item = TipoItem.objects.get(nombre__iexact=tipo_item_nombre, area=area_obj)
+                    except TipoItem.DoesNotExist:
+                        errores.append(f'Tipo de ítem "{tipo_item_nombre}" no existe para el área {area_codigo}')
+                    except Area.DoesNotExist:
+                        pass
+
+                # Validar precio
+                precio = item_data.get('precio', '')
+                try:
+                    precio_decimal = float(str(precio).replace(',', '')) if precio else 0
+                    if precio_decimal <= 0:
+                        errores.append('Precio debe ser mayor a 0')
+                except (ValueError, TypeError):
+                    errores.append(f'Precio inválido: {precio}')
+
+                # Validar fecha_adquisicion
+                fecha_adq = item_data.get('fecha_adquisicion', '')
+                fecha_adq_obj = None
+                if fecha_adq:
+                    try:
+                        if isinstance(fecha_adq, datetime):
+                            fecha_adq_obj = fecha_adq.date()
+                        else:
+                            fecha_adq_str = str(fecha_adq).strip()
+                            # Intentar parsear varios formatos
+                            for fmt in ['%Y-%m-%d', '%d/%m/%Y', '%d-%m-%Y']:
+                                try:
+                                    fecha_adq_obj = datetime.strptime(fecha_adq_str, fmt).date()
+                                    break
+                                except ValueError:
+                                    continue
+                            if not fecha_adq_obj:
+                                errores.append(f'Fecha de adquisición inválida: {fecha_adq}')
+                    except:
+                        errores.append(f'Fecha de adquisición inválida: {fecha_adq}')
+                else:
+                    errores.append('Fecha de adquisición vacía')
+
+                # Validar ambiente (opcional)
+                ambiente_codigo = item_data.get('ambiente_codigo', '').strip()
+                ambiente = None
+                if ambiente_codigo:
+                    try:
+                        ambiente = Ambiente.objects.get(codigo=ambiente_codigo, activo=True)
+                    except Ambiente.DoesNotExist:
+                        errores.append(f'Ambiente {ambiente_codigo} no existe')
+                else:
+                    advertencias.append('Sin ubicación asignada')
+
+                # Validar lote (opcional)
+                lote_codigo = item_data.get('lote_codigo', '').strip()
+                lote = None
+                if lote_codigo:
+                    try:
+                        lote = Lote.objects.get(codigo_interno=lote_codigo, activo=True)
+                    except Lote.DoesNotExist:
+                        errores.append(f'Lote {lote_codigo} no existe')
+
+                # Validar estado
+                estado = item_data.get('estado', 'nuevo').strip().lower()
+                if estado not in ['nuevo', 'instalado', 'dañado', 'obsoleto']:
+                    advertencias.append(f'Estado "{estado}" inválido, se usará "nuevo"')
+                    estado = 'nuevo'
+
+                # Validar garantía
+                garantia_hasta = item_data.get('garantia_hasta', '')
+                garantia_obj = None
+                if garantia_hasta:
+                    try:
+                        if isinstance(garantia_hasta, datetime):
+                            garantia_obj = garantia_hasta.date()
+                        else:
+                            garantia_str = str(garantia_hasta).strip()
+                            for fmt in ['%Y-%m-%d', '%d/%m/%Y', '%d-%m-%Y']:
+                                try:
+                                    garantia_obj = datetime.strptime(garantia_str, fmt).date()
+                                    break
+                                except ValueError:
+                                    continue
+                            if not garantia_obj:
+                                advertencias.append(f'Fecha de garantía inválida: {garantia_hasta}')
+                    except:
+                        advertencias.append(f'Fecha de garantía inválida: {garantia_hasta}')
+                else:
+                    advertencias.append('Sin fecha de garantía')
+
+                # Determinar estado de la fila
+                if errores:
+                    estado_fila = 'error'
+                elif advertencias:
+                    estado_fila = 'advertencia'
+                else:
+                    estado_fila = 'ok'
+
+                items_preview.append({
+                    'fila': idx,
+                    'data': item_data,
+                    'errores': errores,
+                    'advertencias': advertencias,
+                    'estado': estado_fila
+                })
+
+            # Contar estados
+            total = len(items_preview)
+            con_errores = sum(1 for item in items_preview if item['estado'] == 'error')
+            con_advertencias = sum(1 for item in items_preview if item['estado'] == 'advertencia')
+            validos = sum(1 for item in items_preview if item['estado'] == 'ok')
+
+            # Guardar en sesión para confirmar después
+            request.session['items_preview'] = items_preview
+            request.session['crear_lote'] = crear_lote
+            request.session['lote_descripcion'] = lote_descripcion
+            request.session['lote_existente_id'] = lote_existente_id
+
+            context = self.get_context_data()
+            context['items_preview'] = items_preview
+            context['total'] = total
+            context['con_errores'] = con_errores
+            context['con_advertencias'] = con_advertencias
+            context['validos'] = validos
+            context['puede_importar'] = con_errores == 0 and total > 0
+            context['errores_globales'] = errores_globales
+            context['crear_lote'] = crear_lote
+            context['lote_descripcion'] = lote_descripcion
+
+            return self.render_to_response(context)
+
+        except Exception as e:
+            messages.error(request, f'Error al procesar el archivo: {str(e)}')
+            return redirect('productos:item-importar')
+
+
+class ItemImportarConfirmarView(SupervisorRequeridoMixin, View):
+    """Confirmar y ejecutar la importación masiva."""
+
+    def post(self, request):
+        items_preview = request.session.get('items_preview', [])
+        crear_lote = request.session.get('crear_lote', False)
+        lote_descripcion = request.session.get('lote_descripcion', '')
+        lote_existente_id = request.session.get('lote_existente_id')
+
+        if not items_preview:
+            messages.error(request, 'No hay datos para importar. Por favor sube el archivo nuevamente.')
+            return redirect('productos:item-importar')
+
+        # Validar que no haya errores
+        items_validos = [item for item in items_preview if item['estado'] != 'error']
+
+        if not items_validos:
+            messages.error(request, 'No hay ítems válidos para importar.')
+            return redirect('productos:item-importar')
+
+        try:
+            with transaction.atomic():
+                # Crear lote si es necesario
+                lote = None
+                if crear_lote and lote_descripcion:
+                    lote = Lote.objects.create(
+                        descripcion=lote_descripcion,
+                        fecha_adquisicion=timezone.now().date(),
+                        creado_por=request.user
+                    )
+                elif lote_existente_id:
+                    lote = Lote.objects.get(pk=lote_existente_id)
+
+                items_creados = []
+
+                for item_info in items_validos:
+                    data = item_info['data']
+
+                    # Obtener área
+                    area = Area.objects.get(codigo=data.get('area', '').strip().lower())
+
+                    # Obtener tipo_item
+                    tipo_item = TipoItem.objects.get(
+                        nombre__iexact=data.get('tipo_item', '').strip(),
+                        area=area
+                    )
+
+                    # Generar código UTP
+                    codigo_utp = Item.generar_codigo_utp(area.codigo)
+
+                    # Parsear fecha de adquisición
+                    fecha_adq = data.get('fecha_adquisicion', '')
+                    if isinstance(fecha_adq, datetime):
+                        fecha_adq_obj = fecha_adq.date()
+                    else:
+                        fecha_adq_str = str(fecha_adq).strip()
+                        for fmt in ['%Y-%m-%d', '%d/%m/%Y', '%d-%m-%Y']:
+                            try:
+                                fecha_adq_obj = datetime.strptime(fecha_adq_str, fmt).date()
+                                break
+                            except ValueError:
+                                continue
+
+                    # Parsear garantía
+                    garantia_hasta = data.get('garantia_hasta', '')
+                    garantia_obj = None
+                    if garantia_hasta:
+                        try:
+                            if isinstance(garantia_hasta, datetime):
+                                garantia_obj = garantia_hasta.date()
+                            else:
+                                garantia_str = str(garantia_hasta).strip()
+                                for fmt in ['%Y-%m-%d', '%d/%m/%Y', '%d-%m-%Y']:
+                                    try:
+                                        garantia_obj = datetime.strptime(garantia_str, fmt).date()
+                                        break
+                                    except ValueError:
+                                        continue
+                        except:
+                            pass
+
+                    # Obtener ambiente
+                    ambiente = None
+                    ambiente_codigo = data.get('ambiente_codigo', '').strip()
+                    if ambiente_codigo:
+                        try:
+                            ambiente = Ambiente.objects.get(codigo=ambiente_codigo)
+                        except Ambiente.DoesNotExist:
+                            pass
+
+                    # Parsear precio
+                    precio = float(str(data.get('precio', 0)).replace(',', ''))
+
+                    # Estado
+                    estado = data.get('estado', 'nuevo').strip().lower()
+                    if estado not in ['nuevo', 'instalado', 'dañado', 'obsoleto']:
+                        estado = 'nuevo'
+
+                    # Leasing
+                    es_leasing_str = data.get('es_leasing', 'NO').strip().upper()
+                    es_leasing = es_leasing_str in ['SI', 'SÍ', 'YES', 'S', 'Y', '1', 'TRUE']
+
+                    # Crear ítem
+                    item = Item.objects.create(
+                        codigo_utp=codigo_utp,
+                        serie=data.get('serie', '').strip(),
+                        nombre=data.get('nombre', '').strip(),
+                        descripcion=data.get('descripcion', '').strip(),
+                        area=area,
+                        tipo_item=tipo_item,
+                        ambiente=ambiente,
+                        estado=estado,
+                        precio=precio,
+                        fecha_adquisicion=fecha_adq_obj,
+                        garantia_hasta=garantia_obj,
+                        observaciones=data.get('observaciones', '').strip(),
+                        lote=lote,
+                        es_leasing=es_leasing,
+                        leasing_empresa=data.get('leasing_empresa', '').strip() if es_leasing else '',
+                        leasing_contrato=data.get('leasing_contrato', '').strip() if es_leasing else '',
+                        creado_por=request.user
+                    )
+
+                    # Si es área de sistemas, crear especificaciones
+                    if area.codigo == 'sistemas':
+                        specs_data = {
+                            'marca': data.get('marca', '').strip(),
+                            'modelo': data.get('modelo', '').strip(),
+                            'procesador': data.get('procesador', '').strip(),
+                            'generacion_procesador': data.get('generacion_procesador', '').strip(),
+                            'ram_total_gb': data.get('ram_total_gb', None),
+                            'ram_configuracion': data.get('ram_configuracion', '').strip(),
+                            'ram_tipo': data.get('ram_tipo', '').strip(),
+                            'almacenamiento_gb': data.get('almacenamiento_gb', None),
+                            'almacenamiento_tipo': data.get('almacenamiento_tipo', '').strip(),
+                            'sistema_operativo': data.get('sistema_operativo', '').strip(),
+                        }
+
+                        # Limpiar valores None y vacíos
+                        specs_data = {k: v for k, v in specs_data.items() if v}
+
+                        if specs_data:
+                            EspecificacionesSistemas.objects.create(
+                                item=item,
+                                **specs_data
+                            )
+
+                    items_creados.append(item)
+
+                # Limpiar sesión
+                del request.session['items_preview']
+                if 'crear_lote' in request.session:
+                    del request.session['crear_lote']
+                if 'lote_descripcion' in request.session:
+                    del request.session['lote_descripcion']
+                if 'lote_existente_id' in request.session:
+                    del request.session['lote_existente_id']
+
+                # Mensaje de éxito
+                mensaje = f'Se importaron exitosamente {len(items_creados)} ítems.'
+                if lote:
+                    mensaje += f' Asociados al lote {lote.codigo_interno}.'
+
+                messages.success(request, mensaje)
+
+                # Redirigir a la lista de ítems
+                return redirect('productos:item-list')
+
+        except Exception as e:
+            messages.error(request, f'Error al importar ítems: {str(e)}')
+            return redirect('productos:item-importar')
 
 

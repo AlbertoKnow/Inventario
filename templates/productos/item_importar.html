@@ -1,0 +1,291 @@
+{% extends "base.html" %}
+
+{% block title %}Importar Ítems desde Excel{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'productos:dashboard' %}">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'productos:item-list' %}">Inventario</a></li>
+            <li class="breadcrumb-item active">Importar desde Excel</li>
+        </ol>
+    </nav>
+
+    <div class="page-header mb-4">
+        <h1><i class="fas fa-file-excel me-2"></i>Importación Masiva desde Excel</h1>
+        <p class="text-muted">Importe múltiples ítems al inventario desde un archivo Excel</p>
+    </div>
+
+    {% if not items_preview %}
+    <!-- Formulario de carga de archivo -->
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <i class="fas fa-upload me-2"></i>Subir Archivo Excel
+                </div>
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+
+                        <div class="mb-4">
+                            <label for="archivo_excel" class="form-label">
+                                Archivo Excel (.xlsx) <span class="text-danger">*</span>
+                            </label>
+                            <input type="file" class="form-control" id="archivo_excel" name="archivo_excel" accept=".xlsx" required>
+                            <small class="form-text text-muted">
+                                Tamaño máximo: 10MB. Solo archivos .xlsx. Máximo 1000 ítems por archivo.
+                            </small>
+                        </div>
+
+                        <div class="mb-4">
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" id="crear_lote" name="crear_lote" onchange="toggleLoteOptions()">
+                                <label class="form-check-label" for="crear_lote">
+                                    Crear un nuevo lote para estos ítems
+                                </label>
+                            </div>
+                        </div>
+
+                        <div id="lote_options" style="display: none;" class="mb-4">
+                            <label for="lote_descripcion" class="form-label">Descripción del Lote</label>
+                            <input type="text" class="form-control" id="lote_descripcion" name="lote_descripcion" placeholder="Ej: Compra de equipos enero 2026">
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label">O asociar a un lote existente</label>
+                            <select class="form-select" id="lote_existente" name="lote_existente">
+                                <option value="">-- Ninguno --</option>
+                                {% for lote in lotes %}
+                                <option value="{{ lote.id }}">{{ lote.codigo_interno }} - {{ lote.descripcion }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="d-grid gap-2 d-md-flex">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-eye me-2"></i>Vista Previa
+                            </button>
+                            <a href="{% url 'productos:item-list' %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-times me-2"></i>Cancelar
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <!-- Instrucciones -->
+            <div class="card mb-4 border-info">
+                <div class="card-header bg-info text-white">
+                    <i class="fas fa-info-circle me-2"></i>Instrucciones
+                </div>
+                <div class="card-body">
+                    <ol class="mb-0 ps-3">
+                        <li class="mb-2">Descarga la plantilla Excel</li>
+                        <li class="mb-2">Llena los datos siguiendo las instrucciones</li>
+                        <li class="mb-2">Sube el archivo completado</li>
+                        <li class="mb-2">Revisa la vista previa</li>
+                        <li class="mb-2">Confirma la importación</li>
+                    </ol>
+
+                    <hr>
+
+                    <a href="{% url 'productos:item-importar-plantilla' %}" class="btn btn-success w-100 mb-2">
+                        <i class="fas fa-download me-2"></i>Descargar Plantilla
+                    </a>
+
+                    <div class="alert alert-warning mb-0 mt-3" style="font-size: 0.9em;">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <strong>Importante:</strong> El archivo debe estar en formato .xlsx (Excel 2007+)
+                    </div>
+                </div>
+            </div>
+
+            <!-- Validaciones -->
+            <div class="card border-secondary">
+                <div class="card-header bg-secondary text-white">
+                    <i class="fas fa-check-circle me-2"></i>Validaciones
+                </div>
+                <div class="card-body">
+                    <p class="mb-2"><strong>Se validará:</strong></p>
+                    <ul class="mb-0" style="font-size: 0.9em;">
+                        <li>Series únicas</li>
+                        <li>Áreas válidas</li>
+                        <li>Tipos de ítem existentes</li>
+                        <li>Precios válidos</li>
+                        <li>Formatos de fecha</li>
+                        <li>Códigos de ambiente</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <!-- Vista previa de importación -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <span><i class="fas fa-table me-2"></i>Vista Previa de Importación</span>
+            <span class="badge bg-light text-dark">{{ total }} filas procesadas</span>
+        </div>
+        <div class="card-body">
+            <!-- Resumen -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card bg-success text-white text-center">
+                        <div class="card-body py-3">
+                            <h3 class="mb-0">{{ validos }}</h3>
+                            <small>Válidos</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-warning text-white text-center">
+                        <div class="card-body py-3">
+                            <h3 class="mb-0">{{ con_advertencias }}</h3>
+                            <small>Advertencias</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-danger text-white text-center">
+                        <div class="card-body py-3">
+                            <h3 class="mb-0">{{ con_errores }}</h3>
+                            <small>Con Errores</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-info text-white text-center">
+                        <div class="card-body py-3">
+                            <h3 class="mb-0">{{ total }}</h3>
+                            <small>Total</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {% if errores_globales %}
+            <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                <ul class="mb-0">
+                    {% for error in errores_globales %}
+                    <li>{{ error }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+
+            {% if puede_importar %}
+            <div class="alert alert-success">
+                <i class="fas fa-check-circle me-2"></i>
+                <strong>Listo para importar:</strong> {{ validos }} ítems válidos serán importados.
+                {% if con_advertencias > 0 %}
+                Hay {{ con_advertencias }} ítems con advertencias que también se importarán.
+                {% endif %}
+            </div>
+            {% else %}
+            <div class="alert alert-danger">
+                <i class="fas fa-times-circle me-2"></i>
+                <strong>No se puede importar:</strong> Corrige los errores en el archivo Excel y vuelve a subirlo.
+            </div>
+            {% endif %}
+
+            <!-- Tabla de preview -->
+            <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+                <table class="table table-sm table-hover">
+                    <thead class="table-dark sticky-top">
+                        <tr>
+                            <th style="width: 50px;">Fila</th>
+                            <th>Serie</th>
+                            <th>Nombre</th>
+                            <th>Área</th>
+                            <th>Tipo</th>
+                            <th>Precio</th>
+                            <th style="width: 100px;">Estado</th>
+                            <th style="width: 300px;">Observaciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in items_preview %}
+                        <tr class="
+                            {% if item.estado == 'ok' %}table-success
+                            {% elif item.estado == 'advertencia' %}table-warning
+                            {% else %}table-danger{% endif %}
+                        ">
+                            <td>{{ item.fila }}</td>
+                            <td>{{ item.data.serie|truncatechars:20 }}</td>
+                            <td>{{ item.data.nombre|truncatechars:30 }}</td>
+                            <td>{{ item.data.area }}</td>
+                            <td>{{ item.data.tipo_item|truncatechars:20 }}</td>
+                            <td>${{ item.data.precio }}</td>
+                            <td>
+                                {% if item.estado == 'ok' %}
+                                <span class="badge bg-success"><i class="fas fa-check me-1"></i>OK</span>
+                                {% elif item.estado == 'advertencia' %}
+                                <span class="badge bg-warning"><i class="fas fa-exclamation-triangle me-1"></i>Aviso</span>
+                                {% else %}
+                                <span class="badge bg-danger"><i class="fas fa-times me-1"></i>Error</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if item.errores %}
+                                <ul class="mb-0 text-danger" style="font-size: 0.85em;">
+                                    {% for error in item.errores %}
+                                    <li>{{ error }}</li>
+                                    {% endfor %}
+                                </ul>
+                                {% endif %}
+                                {% if item.advertencias %}
+                                <ul class="mb-0 text-warning" style="font-size: 0.85em;">
+                                    {% for adv in item.advertencias %}
+                                    <li>{{ adv }}</li>
+                                    {% endfor %}
+                                </ul>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Botones de acción -->
+            <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                <a href="{% url 'productos:item-importar' %}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-2"></i>Volver a Subir Archivo
+                </a>
+                {% if puede_importar %}
+                <form method="post" action="{% url 'productos:item-importar-confirmar' %}" class="d-inline">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-success" onclick="return confirm('¿Confirmar importación de {{ validos }} ítems?')">
+                        <i class="fas fa-check me-2"></i>Confirmar Importación ({{ validos }} ítems)
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+function toggleLoteOptions() {
+    const checkbox = document.getElementById('crear_lote');
+    const options = document.getElementById('lote_options');
+    const loteExistente = document.getElementById('lote_existente');
+
+    if (checkbox.checked) {
+        options.style.display = 'block';
+        loteExistente.disabled = true;
+        loteExistente.value = '';
+    } else {
+        options.style.display = 'none';
+        loteExistente.disabled = false;
+    }
+}
+</script>
+{% endblock %}
