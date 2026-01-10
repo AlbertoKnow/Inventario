@@ -1777,26 +1777,32 @@ class ItemImportarView(SupervisorRequeridoMixin, TemplateView):
                 # Crear diccionario de datos
                 item_data = dict(zip(headers, row))
 
+                # Función auxiliar para obtener valor como string
+                def get_str(value):
+                    if value is None:
+                        return ''
+                    return str(value).strip()
+
                 # Validaciones
                 errores = []
                 advertencias = []
 
                 # Validar serie
-                serie = item_data.get('serie', '').strip()
+                serie = get_str(item_data.get('serie'))
                 if not serie:
                     errores.append('Serie vacía')
                 elif Item.objects.filter(serie=serie).exists():
                     errores.append(f'Serie {serie} ya existe en el sistema')
 
                 # Validar área
-                area_codigo = item_data.get('area', '').strip().lower()
+                area_codigo = get_str(item_data.get('area')).lower()
                 if area_codigo not in ['sistemas', 'operaciones', 'laboratorio']:
                     errores.append(f'Área inválida: {area_codigo}')
                 elif area_usuario and area_usuario.codigo != area_codigo:
                     errores.append(f'No tienes permiso para crear ítems en el área {area_codigo}')
 
                 # Validar tipo_item
-                tipo_item_nombre = item_data.get('tipo_item', '').strip()
+                tipo_item_nombre = get_str(item_data.get('tipo_item'))
                 tipo_item = None
                 if tipo_item_nombre and area_codigo in ['sistemas', 'operaciones', 'laboratorio']:
                     try:
@@ -1840,7 +1846,7 @@ class ItemImportarView(SupervisorRequeridoMixin, TemplateView):
                     errores.append('Fecha de adquisición vacía')
 
                 # Validar ambiente (opcional)
-                ambiente_codigo = item_data.get('ambiente_codigo', '').strip()
+                ambiente_codigo = get_str(item_data.get('ambiente_codigo'))
                 ambiente = None
                 if ambiente_codigo:
                     try:
@@ -1851,7 +1857,7 @@ class ItemImportarView(SupervisorRequeridoMixin, TemplateView):
                     advertencias.append('Sin ubicación asignada')
 
                 # Validar lote (opcional)
-                lote_codigo = item_data.get('lote_codigo', '').strip()
+                lote_codigo = get_str(item_data.get('lote_codigo'))
                 lote = None
                 if lote_codigo:
                     try:
@@ -1860,7 +1866,7 @@ class ItemImportarView(SupervisorRequeridoMixin, TemplateView):
                         errores.append(f'Lote {lote_codigo} no existe')
 
                 # Validar estado
-                estado = item_data.get('estado', 'nuevo').strip().lower()
+                estado = get_str(item_data.get('estado', 'nuevo')).lower()
                 if estado not in ['nuevo', 'instalado', 'dañado', 'obsoleto']:
                     advertencias.append(f'Estado "{estado}" inválido, se usará "nuevo"')
                     estado = 'nuevo'
@@ -1937,6 +1943,12 @@ class ItemImportarConfirmarView(SupervisorRequeridoMixin, View):
     """Confirmar y ejecutar la importación masiva."""
 
     def post(self, request):
+        # Función auxiliar para obtener valor como string
+        def get_str(value):
+            if value is None:
+                return ''
+            return str(value).strip()
+
         items_preview = request.session.get('items_preview', [])
         crear_lote = request.session.get('crear_lote', False)
         lote_descripcion = request.session.get('lote_descripcion', '')
@@ -1972,11 +1984,11 @@ class ItemImportarConfirmarView(SupervisorRequeridoMixin, View):
                     data = item_info['data']
 
                     # Obtener área
-                    area = Area.objects.get(codigo=data.get('area', '').strip().lower())
+                    area = Area.objects.get(codigo=get_str(data.get('area')).lower())
 
                     # Obtener tipo_item
                     tipo_item = TipoItem.objects.get(
-                        nombre__iexact=data.get('tipo_item', '').strip(),
+                        nombre__iexact=get_str(data.get('tipo_item')),
                         area=area
                     )
 
@@ -2016,7 +2028,7 @@ class ItemImportarConfirmarView(SupervisorRequeridoMixin, View):
 
                     # Obtener ambiente
                     ambiente = None
-                    ambiente_codigo = data.get('ambiente_codigo', '').strip()
+                    ambiente_codigo = get_str(data.get('ambiente_codigo'))
                     if ambiente_codigo:
                         try:
                             ambiente = Ambiente.objects.get(codigo=ambiente_codigo)
@@ -2027,20 +2039,20 @@ class ItemImportarConfirmarView(SupervisorRequeridoMixin, View):
                     precio = float(str(data.get('precio', 0)).replace(',', ''))
 
                     # Estado
-                    estado = data.get('estado', 'nuevo').strip().lower()
+                    estado = get_str(data.get('estado', 'nuevo')).lower()
                     if estado not in ['nuevo', 'instalado', 'dañado', 'obsoleto']:
                         estado = 'nuevo'
 
                     # Leasing
-                    es_leasing_str = data.get('es_leasing', 'NO').strip().upper()
+                    es_leasing_str = get_str(data.get('es_leasing', 'NO')).upper()
                     es_leasing = es_leasing_str in ['SI', 'SÍ', 'YES', 'S', 'Y', '1', 'TRUE']
 
                     # Crear ítem
                     item = Item.objects.create(
                         codigo_utp=codigo_utp,
-                        serie=data.get('serie', '').strip(),
-                        nombre=data.get('nombre', '').strip(),
-                        descripcion=data.get('descripcion', '').strip(),
+                        serie=get_str(data.get('serie')),
+                        nombre=get_str(data.get('nombre')),
+                        descripcion=get_str(data.get('descripcion')),
                         area=area,
                         tipo_item=tipo_item,
                         ambiente=ambiente,
@@ -2048,27 +2060,27 @@ class ItemImportarConfirmarView(SupervisorRequeridoMixin, View):
                         precio=precio,
                         fecha_adquisicion=fecha_adq_obj,
                         garantia_hasta=garantia_obj,
-                        observaciones=data.get('observaciones', '').strip(),
+                        observaciones=get_str(data.get('observaciones')),
                         lote=lote,
                         es_leasing=es_leasing,
-                        leasing_empresa=data.get('leasing_empresa', '').strip() if es_leasing else '',
-                        leasing_contrato=data.get('leasing_contrato', '').strip() if es_leasing else '',
+                        leasing_empresa=get_str(data.get('leasing_empresa')) if es_leasing else '',
+                        leasing_contrato=get_str(data.get('leasing_contrato')) if es_leasing else '',
                         creado_por=request.user
                     )
 
                     # Si es área de sistemas, crear especificaciones
                     if area.codigo == 'sistemas':
                         specs_data = {
-                            'marca': data.get('marca', '').strip(),
-                            'modelo': data.get('modelo', '').strip(),
-                            'procesador': data.get('procesador', '').strip(),
-                            'generacion_procesador': data.get('generacion_procesador', '').strip(),
+                            'marca': get_str(data.get('marca')),
+                            'modelo': get_str(data.get('modelo')),
+                            'procesador': get_str(data.get('procesador')),
+                            'generacion_procesador': get_str(data.get('generacion_procesador')),
                             'ram_total_gb': data.get('ram_total_gb', None),
-                            'ram_configuracion': data.get('ram_configuracion', '').strip(),
-                            'ram_tipo': data.get('ram_tipo', '').strip(),
+                            'ram_configuracion': get_str(data.get('ram_configuracion')),
+                            'ram_tipo': get_str(data.get('ram_tipo')),
                             'almacenamiento_gb': data.get('almacenamiento_gb', None),
-                            'almacenamiento_tipo': data.get('almacenamiento_tipo', '').strip(),
-                            'sistema_operativo': data.get('sistema_operativo', '').strip(),
+                            'almacenamiento_tipo': get_str(data.get('almacenamiento_tipo')),
+                            'sistema_operativo': get_str(data.get('sistema_operativo')),
                         }
 
                         # Limpiar valores None y vacíos
