@@ -196,51 +196,57 @@
 
             <!-- Tabla de preview -->
             <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
-                <table class="table table-sm table-hover">
-                    <thead class="table-dark sticky-top">
+                <table class="table table-sm table-hover mb-0" style="background-color: white;">
+                    <thead class="sticky-top" style="background-color: #1a1a1a; color: white;">
                         <tr>
-                            <th style="width: 50px;">Fila</th>
-                            <th>Serie</th>
-                            <th>Nombre</th>
-                            <th>Área</th>
-                            <th>Tipo</th>
-                            <th>Precio</th>
-                            <th style="width: 100px;">Estado</th>
-                            <th style="width: 300px;">Observaciones</th>
+                            <th style="width: 50px; padding: 12px 8px; border-bottom: 2px solid #C8102E;">Fila</th>
+                            <th style="padding: 12px 8px; border-bottom: 2px solid #C8102E;">Serie</th>
+                            <th style="padding: 12px 8px; border-bottom: 2px solid #C8102E;">Nombre</th>
+                            <th style="padding: 12px 8px; border-bottom: 2px solid #C8102E;">Área</th>
+                            <th style="padding: 12px 8px; border-bottom: 2px solid #C8102E;">Tipo</th>
+                            <th style="padding: 12px 8px; border-bottom: 2px solid #C8102E;">Precio</th>
+                            <th style="width: 110px; padding: 12px 8px; border-bottom: 2px solid #C8102E;">Estado</th>
+                            <th style="width: 300px; padding: 12px 8px; border-bottom: 2px solid #C8102E;">Observaciones</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody style="background-color: white;">
                         {% for item in items_preview %}
-                        <tr class="
-                            {% if item.estado == 'ok' %}table-success
-                            {% elif item.estado == 'advertencia' %}table-warning
-                            {% else %}table-danger{% endif %}
+                        <tr style="
+                            {% if item.estado == 'ok' %}background-color: #d4edda; border-left: 4px solid #28a745;
+                            {% elif item.estado == 'advertencia' %}background-color: #fff3cd; border-left: 4px solid #ffc107;
+                            {% else %}background-color: #f8d7da; border-left: 4px solid #dc3545;{% endif %}
                         ">
-                            <td>{{ item.fila }}</td>
-                            <td>{{ item.data.serie|truncatechars:20 }}</td>
-                            <td>{{ item.data.nombre|truncatechars:30 }}</td>
-                            <td>{{ item.data.area }}</td>
-                            <td>{{ item.data.tipo_item|truncatechars:20 }}</td>
-                            <td>${{ item.data.precio }}</td>
-                            <td>
+                            <td style="padding: 10px 8px; color: #1a1a1a; font-weight: 600;">{{ item.fila }}</td>
+                            <td style="padding: 10px 8px; color: #1a1a1a; font-family: 'Courier New', monospace;">{{ item.data.serie|truncatechars:20 }}</td>
+                            <td style="padding: 10px 8px; color: #1a1a1a;">{{ item.data.nombre|truncatechars:30 }}</td>
+                            <td style="padding: 10px 8px; color: #1a1a1a; text-transform: capitalize;">{{ item.data.area }}</td>
+                            <td style="padding: 10px 8px; color: #1a1a1a;">{{ item.data.tipo_item|truncatechars:20 }}</td>
+                            <td style="padding: 10px 8px; color: #1a1a1a; font-weight: 600;">${{ item.data.precio }}</td>
+                            <td style="padding: 10px 8px;">
                                 {% if item.estado == 'ok' %}
-                                <span class="badge bg-success"><i class="fas fa-check me-1"></i>OK</span>
+                                <span class="badge" style="background-color: #28a745; color: white; font-size: 0.85em; padding: 6px 10px;">
+                                    <i class="fas fa-check-circle me-1"></i>OK
+                                </span>
                                 {% elif item.estado == 'advertencia' %}
-                                <span class="badge bg-warning"><i class="fas fa-exclamation-triangle me-1"></i>Aviso</span>
+                                <span class="badge" style="background-color: #ffc107; color: #1a1a1a; font-size: 0.85em; padding: 6px 10px;">
+                                    <i class="fas fa-exclamation-triangle me-1"></i>Aviso
+                                </span>
                                 {% else %}
-                                <span class="badge bg-danger"><i class="fas fa-times me-1"></i>Error</span>
+                                <span class="badge" style="background-color: #dc3545; color: white; font-size: 0.85em; padding: 6px 10px;">
+                                    <i class="fas fa-times-circle me-1"></i>Error
+                                </span>
                                 {% endif %}
                             </td>
-                            <td>
+                            <td style="padding: 10px 8px;">
                                 {% if item.errores %}
-                                <ul class="mb-0" style="font-size: 0.85em; color: #721c24;">
+                                <ul class="mb-0" style="font-size: 0.85em; color: #721c24; padding-left: 18px; line-height: 1.6;">
                                     {% for error in item.errores %}
-                                    <li>{{ error }}</li>
+                                    <li><strong>{{ error }}</strong></li>
                                     {% endfor %}
                                 </ul>
                                 {% endif %}
                                 {% if item.advertencias %}
-                                <ul class="mb-0" style="font-size: 0.85em; color: {% if item.estado == 'error' %}#FFF3CD{% else %}#856404{% endif %};">
+                                <ul class="mb-0" style="font-size: 0.85em; color: #856404; padding-left: 18px; line-height: 1.6; {% if item.errores %}margin-top: 8px;{% endif %}">
                                     {% for adv in item.advertencias %}
                                     <li>{{ adv }}</li>
                                     {% endfor %}
