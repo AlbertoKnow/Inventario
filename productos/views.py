@@ -1569,7 +1569,7 @@ class ItemImportarPlantillaView(SupervisorRequeridoMixin, View):
             'serie', 'nombre', 'area', 'tipo_item', 'precio', 'fecha_adquisicion'
         ]
         headers_opcionales = [
-            'descripcion', 'ambiente_codigo', 'estado', 'garantia_hasta',
+            'codigo_utp', 'descripcion', 'ambiente_codigo', 'estado', 'garantia_hasta',
             'observaciones', 'lote_codigo', 'es_leasing', 'leasing_empresa',
             'leasing_contrato', 'leasing_vencimiento'
         ]
@@ -1620,6 +1620,7 @@ class ItemImportarPlantillaView(SupervisorRequeridoMixin, View):
             'Laptop',  # tipo_item
             '3500.00',  # precio
             '2026-01-10',  # fecha_adquisicion
+            'UTP296375',  # codigo_utp (opcional, puede ser PENDIENTE o vacío)
             'Laptop corporativa i7',  # descripcion
             '',  # ambiente_codigo
             'nuevo',  # estado
@@ -1649,6 +1650,7 @@ class ItemImportarPlantillaView(SupervisorRequeridoMixin, View):
             'Silla',  # tipo_item
             '450.00',  # precio
             '2026-01-10',  # fecha_adquisicion
+            'PENDIENTE',  # codigo_utp (aún sin etiqueta de logística)
             'Silla de oficina con soporte lumbar',  # descripcion
             '',  # ambiente_codigo
             'nuevo',  # estado
@@ -1677,6 +1679,9 @@ class ItemImportarPlantillaView(SupervisorRequeridoMixin, View):
             ["   - fecha_adquisicion: Formato YYYY-MM-DD (ej: 2026-01-10)", ""],
             ["", ""],
             ["2. COLUMNAS OPCIONALES (Gris):", ""],
+            ["   - codigo_utp: Código de etiqueta física (ej: UTP296375)", ""],
+            ["     Dejar vacío o PENDIENTE si aún no tiene etiqueta de logística", ""],
+            ["     Formato: UTP seguido de números", ""],
             ["   - descripcion: Descripción adicional", ""],
             ["   - ambiente_codigo: Código del ambiente (ej: CLN-SP-A-P1-LC-001)", ""],
             ["   - estado: nuevo, instalado, dañado u obsoleto (default: nuevo)", ""],
@@ -1689,7 +1694,8 @@ class ItemImportarPlantillaView(SupervisorRequeridoMixin, View):
             ["   - Especificaciones técnicas del equipo", ""],
             ["", ""],
             ["4. NOTAS IMPORTANTES:", ""],
-            ["   - El código UTP se genera automáticamente", ""],
+            ["   - El código interno se genera automáticamente (ej: SIS-2026-0001)", ""],
+            ["   - El código UTP es la etiqueta física de logística (opcional)", ""],
             ["   - La serie debe ser única en el sistema", ""],
             ["   - Máximo 1000 ítems por archivo", ""],
             ["   - Formato de archivo: .xlsx", ""],
@@ -1811,6 +1817,22 @@ class ItemImportarView(SupervisorRequeridoMixin, TemplateView):
                 else:
                     # Agregar a lista de series procesadas
                     series_en_archivo.add(serie)
+
+                # Validar código UTP (opcional)
+                codigo_utp = get_str(item_data.get('codigo_utp', 'PENDIENTE')).upper()
+                if not codigo_utp:
+                    codigo_utp = 'PENDIENTE'
+                    advertencias.append('Código UTP pendiente - se asignará etiqueta de logística posteriormente')
+                elif codigo_utp != 'PENDIENTE':
+                    # Validar formato UTP + números
+                    import re
+                    if not re.match(r'^UTP\d+$', codigo_utp):
+                        errores.append(f'Código UTP "{codigo_utp}" inválido - debe ser UTP seguido de números (ej: UTP296375)')
+                    elif Item.objects.filter(codigo_utp=codigo_utp).exists():
+                        errores.append(f'Código UTP {codigo_utp} ya existe en el sistema')
+                else:
+                    # Es PENDIENTE
+                    advertencias.append('Código UTP pendiente - se asignará etiqueta de logística posteriormente')
 
                 # Validar área
                 area_codigo = get_str(item_data.get('area')).lower()
@@ -2020,8 +2042,10 @@ class ItemImportarConfirmarView(SupervisorRequeridoMixin, View):
                         area=area
                     )
 
-                    # Generar código UTP
-                    codigo_utp = Item.generar_codigo_utp(area.codigo)
+                    # Obtener código UTP del Excel (opcional, default PENDIENTE)
+                    codigo_utp = get_str(data.get('codigo_utp', 'PENDIENTE')).upper()
+                    if not codigo_utp:
+                        codigo_utp = 'PENDIENTE'
 
                     # Parsear fecha de adquisición
                     fecha_adq = data.get('fecha_adquisicion', '')

@@ -1,7 +1,9 @@
 from django.db import models
 from django.core.validators import MinValueValidator
+from django.core.exceptions import ValidationError
 from django.contrib.auth.models import User
 from django.utils import timezone
+import re
 
 
 # ============================================================================
@@ -438,14 +440,20 @@ class Item(models.Model):
     ]
     
     # Identificación (únicos e inmutables)
+    codigo_interno = models.CharField(
+        max_length=50,
+        unique=True,
+        editable=False,
+        help_text="Código interno autogenerado (ej: SIS-2026-0001)"
+    )
     codigo_utp = models.CharField(
-        max_length=50, 
-        unique=True, 
-        help_text="Código único UTP (ej: SIS-2026-0001)"
+        max_length=20,
+        default="PENDIENTE",
+        help_text="Código de etiqueta física de logística (ej: UTP296375) o PENDIENTE si aún no tiene"
     )
     serie = models.CharField(
-        max_length=100, 
-        unique=True, 
+        max_length=100,
+        unique=True,
         help_text="Número de serie del fabricante"
     )
     
@@ -537,14 +545,52 @@ class Item(models.Model):
         verbose_name_plural = "Ítems"
         ordering = ['-creado_en']
         indexes = [
+            models.Index(fields=['codigo_interno']),
             models.Index(fields=['codigo_utp']),
             models.Index(fields=['serie']),
             models.Index(fields=['area', 'estado']),
             models.Index(fields=['ambiente']),
         ]
-    
+
     def __str__(self):
-        return f"{self.codigo_utp} - {self.nombre}"
+        return f"{self.codigo_interno} - {self.nombre}"
+
+    def clean(self):
+        """Validaciones del modelo."""
+        super().clean()
+
+        # Validar formato de codigo_utp si no es PENDIENTE
+        if self.codigo_utp and self.codigo_utp != "PENDIENTE":
+            # Debe empezar con UTP seguido de números
+            if not re.match(r'^UTP\d+$', self.codigo_utp):
+                raise ValidationError({
+                    'codigo_utp': 'El código UTP debe tener el formato UTPxxxxxxxxx (UTP seguido de números)'
+                })
+
+            # Verificar unicidad de códigos UTP reales (excluyendo PENDIENTE)
+            if self.pk:
+                # Al editar, excluir el ítem actual de la búsqueda
+                duplicado = Item.objects.filter(
+                    codigo_utp=self.codigo_utp
+                ).exclude(pk=self.pk).exists()
+            else:
+                # Al crear, buscar cualquier duplicado
+                duplicado = Item.objects.filter(codigo_utp=self.codigo_utp).exists()
+
+            if duplicado:
+                raise ValidationError({
+                    'codigo_utp': f'El código UTP {self.codigo_utp} ya existe en el sistema'
+                })
+
+    def save(self, *args, **kwargs):
+        # Generar codigo_interno si no existe
+        if not self.codigo_interno:
+            self.codigo_interno = self.generar_codigo_interno(self.area.codigo)
+
+        # Ejecutar validaciones
+        self.full_clean()
+
+        super().save(*args, **kwargs)
     
     @property
     def en_garantia(self):
@@ -567,10 +613,15 @@ class Item(models.Model):
         if self.es_leasing and self.leasing_vencimiento:
             return self.leasing_vencimiento >= timezone.now().date()
         return False
-    
+
+    @property
+    def codigo_utp_pendiente(self):
+        """Indica si el ítem está esperando código UTP de logística."""
+        return self.codigo_utp == "PENDIENTE"
+
     @classmethod
-    def generar_codigo_utp(cls, area_codigo):
-        """Genera automáticamente el próximo código UTP para un área."""
+    def generar_codigo_interno(cls, area_codigo):
+        """Genera automáticamente el próximo código interno para un área."""
         prefijos = {
             'sistemas': 'SIS',
             'operaciones': 'OPE',
@@ -578,21 +629,21 @@ class Item(models.Model):
         }
         prefijo = prefijos.get(area_codigo, 'INV')
         año = timezone.now().year
-        
+
         # Buscar el último código del área y año
         ultimo = cls.objects.filter(
-            codigo_utp__startswith=f"{prefijo}-{año}-"
-        ).order_by('-codigo_utp').first()
-        
+            codigo_interno__startswith=f"{prefijo}-{año}-"
+        ).order_by('-codigo_interno').first()
+
         if ultimo:
             try:
-                ultimo_num = int(ultimo.codigo_utp.split('-')[-1])
+                ultimo_num = int(ultimo.codigo_interno.split('-')[-1])
                 nuevo_num = ultimo_num + 1
             except ValueError:
                 nuevo_num = 1
         else:
             nuevo_num = 1
-        
+
         return f"{prefijo}-{año}-{nuevo_num:04d}"
 
 
