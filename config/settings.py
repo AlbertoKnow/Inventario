@@ -132,6 +132,19 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+# ==============================================================================
+# CONFIGURACIONES DE ARCHIVOS Y UPLOADS
+# ==============================================================================
+
+# Límites de tamaño de archivos
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB
+FILE_UPLOAD_PERMISSIONS = 0o644
+FILE_UPLOAD_DIRECTORY_PERMISSIONS = 0o755
+
+# Configuración de importación masiva
+MAX_ITEMS_PER_IMPORT = 1000
+
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
@@ -185,6 +198,10 @@ LOGGING = {
             'format': '{levelname} {asctime} {module} {message}',
             'style': '{',
         },
+        'audit': {
+            'format': '{asctime} {levelname} {message}',
+            'style': '{',
+        },
     },
     'handlers': {
         'file': {
@@ -192,6 +209,14 @@ LOGGING = {
             'class': 'logging.FileHandler',
             'filename': BASE_DIR / 'logs' / 'django_errors.log',
             'formatter': 'verbose',
+        },
+        'audit_file': {
+            'level': 'INFO',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': BASE_DIR / 'logs' / 'audit.log',
+            'maxBytes': 10485760,  # 10MB
+            'backupCount': 5,
+            'formatter': 'audit',
         },
         'console': {
             'class': 'logging.StreamHandler',
@@ -205,6 +230,11 @@ LOGGING = {
     'loggers': {
         'django': {
             'handlers': ['console'] if DEBUG else ['file', 'console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'productos': {
+            'handlers': ['console', 'audit_file'] if not DEBUG else ['console'],
             'level': 'INFO',
             'propagate': False,
         },
