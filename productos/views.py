@@ -154,6 +154,9 @@ class DashboardView(PerfilRequeridoMixin, TemplateView):
             garantia_hasta__lte=fecha_limite,
             garantia_hasta__gte=timezone.now().date()
         ).count()
+
+        # Ítems sin código UTP (pendientes de etiqueta de logística)
+        context['items_sin_codigo_utp'] = items.filter(codigo_utp='PENDIENTE').count()
         
         # Últimos movimientos
         movimientos = Movimiento.objects.select_related('item', 'solicitado_por')

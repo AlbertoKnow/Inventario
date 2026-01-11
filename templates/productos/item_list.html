@@ -85,9 +85,14 @@
                         {% for item in items %}
                         <tr>
                             <td>
-                                <a href="{% url 'productos:item-detail' item.codigo_utp %}" class="fw-semibold text-decoration-none">
-                                    {{ item.codigo_utp }}
+                                <a href="{% url 'productos:item-detail' item.codigo_interno %}" class="fw-semibold text-decoration-none">
+                                    {{ item.codigo_interno }}
                                 </a>
+                                {% if item.codigo_utp_pendiente %}
+                                <br><span class="badge bg-warning text-dark" style="font-size: 0.7em;"><i class="fas fa-clock me-1"></i>UTP Pendiente</span>
+                                {% else %}
+                                <br><small class="text-muted">UTP: {{ item.codigo_utp }}</small>
+                                {% endif %}
                             </td>
                             <td>{{ item.nombre }}</td>
                             <td>
@@ -126,10 +131,10 @@
                             </td>
                             <td class="text-end">
                                 <div class="btn-group btn-group-sm">
-                                    <a href="{% url 'productos:item-detail' item.codigo_utp %}" class="btn btn-outline-secondary" title="Ver">
+                                    <a href="{% url 'productos:item-detail' item.codigo_interno %}" class="btn btn-outline-secondary" title="Ver">
                                         <i class="fas fa-eye"></i>
                                     </a>
-                                    <a href="{% url 'productos:item-update' item.codigo_utp %}" class="btn btn-outline-secondary" title="Editar">
+                                    <a href="{% url 'productos:item-update' item.codigo_interno %}" class="btn btn-outline-secondary" title="Editar">
                                         <i class="fas fa-edit"></i>
                                     </a>
                                     <a href="{% url 'productos:movimiento-create' %}?item={{ item.pk }}" class="btn btn-outline-secondary" title="Nuevo movimiento">
