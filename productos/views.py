@@ -1543,10 +1543,14 @@ class LoteUpdateView(SupervisorRequeridoMixin, UpdateView):
 
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font, PatternFill, Alignment
+from openpyxl.utils.exceptions import InvalidFileException
 from django.http import HttpResponse
 from django.db import transaction
 from datetime import datetime
 import io
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class ItemImportarPlantillaView(SupervisorRequeridoMixin, View):
@@ -1739,6 +1743,13 @@ class ItemImportarView(SupervisorRequeridoMixin, TemplateView):
             messages.error(request, 'Debe seleccionar un archivo Excel.')
             return redirect('productos:item-importar')
 
+        # CRÍTICO: Validar tamaño de archivo antes de procesarlo
+        MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+        if archivo.size > MAX_FILE_SIZE:
+            messages.error(request, f'El archivo es demasiado grande. Tamaño máximo: 10MB')
+            logger.warning(f'Usuario {request.user.username} intentó subir archivo de {archivo.size} bytes')
+            return redirect('productos:item-importar')
+
         if not archivo.name.endswith('.xlsx'):
             messages.error(request, 'El archivo debe ser formato .xlsx')
             return redirect('productos:item-importar')
@@ -1761,6 +1772,7 @@ class ItemImportarView(SupervisorRequeridoMixin, TemplateView):
             # Procesar filas
             items_preview = []
             errores_globales = []
+            series_en_archivo = set()  # CRÍTICO: Detectar series duplicadas dentro del Excel
 
             # Obtener perfil del usuario
             perfil = request.user.perfil
@@ -1791,8 +1803,14 @@ class ItemImportarView(SupervisorRequeridoMixin, TemplateView):
                 serie = get_str(item_data.get('serie'))
                 if not serie:
                     errores.append('Serie vacía')
+                elif serie in series_en_archivo:
+                    # CRÍTICO: Detectar duplicados dentro del mismo archivo
+                    errores.append(f'Serie {serie} duplicada dentro del archivo')
                 elif Item.objects.filter(serie=serie).exists():
                     errores.append(f'Serie {serie} ya existe en el sistema')
+                else:
+                    # Agregar a lista de series procesadas
+                    series_en_archivo.add(serie)
 
                 # Validar área
                 area_codigo = get_str(item_data.get('area')).lower()
@@ -1934,8 +1952,18 @@ class ItemImportarView(SupervisorRequeridoMixin, TemplateView):
 
             return self.render_to_response(context)
 
+        except InvalidFileException:
+            messages.error(request, 'El archivo Excel está corrupto o no es válido.')
+            logger.error(f'Archivo Excel inválido subido por {request.user.username}')
+            return redirect('productos:item-importar')
+        except MemoryError:
+            messages.error(request, 'El archivo es demasiado grande para procesar.')
+            logger.error(f'MemoryError al procesar archivo de {request.user.username}')
+            return redirect('productos:item-importar')
         except Exception as e:
-            messages.error(request, f'Error al procesar el archivo: {str(e)}')
+            # Log detallado para debugging, mensaje genérico para usuario
+            logger.exception(f'Error inesperado en importación de {request.user.username}: {e}')
+            messages.error(request, 'Ocurrió un error al procesar el archivo. Por favor, contacte al administrador.')
             return redirect('productos:item-importar')
 
 
@@ -2110,11 +2138,20 @@ class ItemImportarConfirmarView(SupervisorRequeridoMixin, View):
 
                 messages.success(request, mensaje)
 
+                # AUDITORÍA: Registrar importación exitosa
+                logger.info(
+                    f'IMPORT_SUCCESS: User={request.user.username}, '
+                    f'Items={len(items_creados)}, Area={perfil.area.codigo if perfil.area else "todas"}, '
+                    f'IP={request.META.get("REMOTE_ADDR")}, Lote={lote.codigo_interno if lote else "N/A"}'
+                )
+
                 # Redirigir a la lista de ítems
                 return redirect('productos:item-list')
 
         except Exception as e:
-            messages.error(request, f'Error al importar ítems: {str(e)}')
+            # Log detallado para debugging
+            logger.exception(f'Error al confirmar importación de {request.user.username}: {e}')
+            messages.error(request, 'Ocurrió un error al importar los ítems. Por favor, contacte al administrador.')
             return redirect('productos:item-importar')
 
 
