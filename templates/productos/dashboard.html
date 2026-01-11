@@ -92,6 +92,23 @@
                 </div>
             </div>
         </div>
+
+        <div class="col-sm-6 col-lg-3">
+            <div class="stat-card">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="stat-value">{{ items_sin_codigo_utp }}</div>
+                        <div class="stat-label">Sin Código UTP</div>
+                    </div>
+                    <div class="stat-icon bg-yellow-50 text-yellow-600">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                </div>
+                {% if items_sin_codigo_utp > 0 %}
+                <small class="text-muted mt-2 d-block">Pendientes de etiqueta de logística</small>
+                {% endif %}
+            </div>
+        </div>
     </div>
     
     <div class="row g-4">
