@@ -29,12 +29,16 @@ class ItemForm(forms.ModelForm):
     class Meta:
         model = Item
         fields = [
-            'serie', 'nombre', 'descripcion', 'area', 'tipo_item', 'ambiente',
+            'codigo_utp', 'serie', 'nombre', 'descripcion', 'area', 'tipo_item', 'ambiente',
             'estado', 'usuario_asignado', 'observaciones', 'fecha_adquisicion',
             'precio', 'garantia_hasta', 'es_leasing', 'leasing_empresa',
             'leasing_contrato', 'leasing_vencimiento', 'lote'
         ]
         widgets = {
+            'codigo_utp': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'UTP seguido de números (ej: UTP296375) o dejar PENDIENTE'
+            }),
             'serie': forms.TextInput(attrs={'class': 'form-control'}),
             'nombre': forms.TextInput(attrs={'class': 'form-control'}),
             'descripcion': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
