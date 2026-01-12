@@ -428,9 +428,9 @@ class ItemCreateView(PerfilRequeridoMixin, CreateView):
             item.codigo_utp = Item.generar_codigo_utp(item.area.codigo)
         
         item.save()
-        
-        messages.success(self.request, f'Ítem {item.codigo_utp} creado correctamente.')
-        return redirect('productos:item-detail', codigo=item.codigo_utp)
+
+        messages.success(self.request, f'Ítem {item.codigo_interno} creado correctamente.')
+        return redirect('productos:item-detail', codigo=item.codigo_interno)
 
 
 class ItemUpdateView(PerfilRequeridoMixin, UpdateView):
@@ -438,7 +438,7 @@ class ItemUpdateView(PerfilRequeridoMixin, UpdateView):
     model = Item
     form_class = ItemForm
     template_name = 'productos/item_form.html'
-    slug_field = 'codigo_utp'
+    slug_field = 'codigo_interno'
     slug_url_kwarg = 'codigo'
     
     def get_queryset(self):
@@ -466,9 +466,9 @@ class ItemUpdateView(PerfilRequeridoMixin, UpdateView):
         item = form.save(commit=False)
         item.modificado_por = self.request.user
         item.save()
-        
-        messages.success(self.request, f'Ítem {item.codigo_utp} actualizado correctamente.')
-        return redirect('productos:item-detail', codigo=item.codigo_utp)
+
+        messages.success(self.request, f'Ítem {item.codigo_interno} actualizado correctamente.')
+        return redirect('productos:item-detail', codigo=item.codigo_interno)
 
 
 class ItemDeleteView(AdminRequeridoMixin, DeleteView):
@@ -476,12 +476,12 @@ class ItemDeleteView(AdminRequeridoMixin, DeleteView):
     model = Item
     template_name = 'productos/item_confirm_delete.html'
     success_url = reverse_lazy('productos:item-list')
-    slug_field = 'codigo_utp'
+    slug_field = 'codigo_interno'
     slug_url_kwarg = 'codigo'
-    
+
     def delete(self, request, *args, **kwargs):
         item = self.get_object()
-        messages.success(request, f'Ítem {item.codigo_utp} eliminado.')
+        messages.success(request, f'Ítem {item.codigo_interno} eliminado.')
         return super().delete(request, *args, **kwargs)
 
 
