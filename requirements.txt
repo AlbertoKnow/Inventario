@@ -33,6 +33,7 @@ python-decouple==3.8      # Variables de entorno
 # ------------------------------------------------------------------------------
 Pillow==10.1.0            # Procesamiento de imágenes
 openpyxl==3.1.2           # Lectura y escritura de archivos Excel
+reportlab==4.0.7          # Generación de PDFs
 
 # ------------------------------------------------------------------------------
 # DESARROLLO (comentar en producción)

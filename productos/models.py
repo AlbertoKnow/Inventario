@@ -956,3 +956,215 @@ class Notificacion(models.Model):
         """Marca la notificación como leída."""
         self.leida = True
         self.save()
+
+
+# ==============================================================================
+# MANTENIMIENTO
+# ==============================================================================
+
+class Mantenimiento(models.Model):
+    """Registro de mantenimientos preventivos y correctivos"""
+    
+    TIPO_MANTENIMIENTO = [
+        ('preventivo', 'Preventivo'),
+        ('correctivo', 'Correctivo'),
+    ]
+    
+    ESTADO_MANTENIMIENTO = [
+        ('pendiente', 'Pendiente'),
+        ('en_proceso', 'En Proceso'),
+        ('completado', 'Completado'),
+        ('cancelado', 'Cancelado'),
+    ]
+    
+    RESULTADO = [
+        ('reparado', 'Reparado'),
+        ('reemplazado', 'Reemplazado'),
+        ('no_reparable', 'No Reparable'),
+        ('enviado_servicio_externo', 'Enviado a Servicio Externo'),
+    ]
+    
+    # Relaciones
+    item = models.ForeignKey(
+        Item,
+        on_delete=models.CASCADE,
+        related_name='mantenimientos',
+        help_text="Ítem al que se le realizará el mantenimiento"
+    )
+    
+    # Tipo y estado
+    tipo = models.CharField(
+        max_length=20,
+        choices=TIPO_MANTENIMIENTO,
+        help_text="Tipo de mantenimiento"
+    )
+    
+    estado = models.CharField(
+        max_length=20,
+        choices=ESTADO_MANTENIMIENTO,
+        default='pendiente',
+        help_text="Estado actual del mantenimiento"
+    )
+    
+    # Fechas
+    fecha_programada = models.DateField(
+        help_text="Fecha en que se programa el mantenimiento"
+    )
+    
+    fecha_inicio = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Fecha y hora en que inició el mantenimiento"
+    )
+    
+    fecha_finalizacion = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Fecha y hora en que finalizó el mantenimiento"
+    )
+    
+    # Descripción
+    descripcion_problema = models.TextField(
+        blank=True,
+        help_text="Descripción del problema o motivo del mantenimiento"
+    )
+    
+    trabajo_realizado = models.TextField(
+        blank=True,
+        help_text="Descripción del trabajo realizado"
+    )
+    
+    # Personal
+    responsable = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='mantenimientos_responsable',
+        help_text="Usuario responsable del mantenimiento"
+    )
+    
+    tecnico_asignado = models.CharField(
+        max_length=150,
+        blank=True,
+        help_text="Nombre del técnico que realizó el mantenimiento (puede ser externo)"
+    )
+    
+    # Costos
+    costo = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Costo del mantenimiento"
+    )
+    
+    proveedor_servicio = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Proveedor del servicio de mantenimiento"
+    )
+    
+    # Resultado
+    resultado = models.CharField(
+        max_length=30,
+        choices=RESULTADO,
+        blank=True,
+        help_text="Resultado del mantenimiento"
+    )
+    
+    observaciones = models.TextField(
+        blank=True,
+        help_text="Observaciones adicionales"
+    )
+    
+    # Próximo mantenimiento (solo para preventivos)
+    proximo_mantenimiento = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Fecha programada para el próximo mantenimiento preventivo"
+    )
+    
+    # Auditoría
+    creado_por = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='mantenimientos_creados'
+    )
+    
+    creado_en = models.DateTimeField(auto_now_add=True)
+    actualizado_en = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-fecha_programada']
+        verbose_name = 'Mantenimiento'
+        verbose_name_plural = 'Mantenimientos'
+        indexes = [
+            models.Index(fields=['item', 'estado']),
+            models.Index(fields=['fecha_programada']),
+            models.Index(fields=['tipo', 'estado']),
+        ]
+    
+    def __str__(self):
+        return f"{self.get_tipo_display()} - {self.item.codigo_interno} - {self.fecha_programada}"
+    
+    @property
+    def esta_vencido(self):
+        """Verifica si el mantenimiento está vencido"""
+        from datetime import date
+        if self.estado in ['completado', 'cancelado']:
+            return False
+        return self.fecha_programada < date.today()
+    
+    @property
+    def dias_para_vencer(self):
+        """Calcula días restantes para el mantenimiento"""
+        from datetime import date
+        if self.estado in ['completado', 'cancelado']:
+            return None
+        delta = self.fecha_programada - date.today()
+        return delta.days
+    
+    @property
+    def duracion(self):
+        """Calcula la duración del mantenimiento"""
+        if self.fecha_inicio and self.fecha_finalizacion:
+            delta = self.fecha_finalizacion - self.fecha_inicio
+            horas = delta.total_seconds() / 3600
+            return round(horas, 2)
+        return None
+    
+    def iniciar(self, usuario=None):
+        """Marca el mantenimiento como en proceso"""
+        from django.utils import timezone
+        self.estado = 'en_proceso'
+        self.fecha_inicio = timezone.now()
+        if usuario:
+            self.responsable = usuario
+        self.save()
+    
+    def finalizar(self, resultado, trabajo_realizado, costo=None):
+        """Finaliza el mantenimiento"""
+        from django.utils import timezone
+        self.estado = 'completado'
+        self.fecha_finalizacion = timezone.now()
+        self.resultado = resultado
+        self.trabajo_realizado = trabajo_realizado
+        if costo:
+            self.costo = costo
+        self.save()
+        
+        # Si el ítem estaba en mantenimiento, cambiarlo a operativo
+        if self.item.estado == 'en_mantenimiento':
+            if resultado in ['reparado', 'reemplazado']:
+                self.item.estado = 'operativo'
+            elif resultado == 'no_reparable':
+                self.item.estado = 'danado'
+            self.item.save()
+    
+    def cancelar(self, motivo=''):
+        """Cancela el mantenimiento"""
+        self.estado = 'cancelado'
+        if motivo:
+            self.observaciones += f"\nCancelado: {motivo}"
+        self.save()
