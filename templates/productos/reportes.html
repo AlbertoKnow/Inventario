@@ -1,0 +1,268 @@
+{% extends "base.html" %}
+
+{% block title %}Reportes{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'productos:dashboard' %}">Dashboard</a></li>
+            <li class="breadcrumb-item active">Reportes</li>
+        </ol>
+    </nav>
+
+    <!-- Page Header -->
+    <div class="page-header mb-4">
+        <h1><i class="fas fa-chart-bar me-2"></i>Reportes y Exportación</h1>
+        <p class="text-muted">Genera reportes y exporta datos del inventario</p>
+    </div>
+
+    <!-- Estadísticas Rápidas -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h3 class="text-primary">{{ total_items }}</h3>
+                    <p class="text-muted mb-0">Total Ítems</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h3 class="text-success">${{ valor_total|floatformat:2 }}</h3>
+                    <p class="text-muted mb-0">Valor Total</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h3 class="text-info">{{ items_operativos }}</h3>
+                    <p class="text-muted mb-0">Operativos</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h3 class="text-warning">{{ items_mantenimiento }}</h3>
+                    <p class="text-muted mb-0">En Mantenimiento</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reportes Disponibles -->
+    <div class="row">
+        <!-- Reporte: Inventario Completo -->
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-primary text-white">
+                    <i class="fas fa-box me-2"></i>Inventario Completo
+                </div>
+                <div class="card-body">
+                    <p class="card-text">Exporta el listado completo de ítems del inventario con todos sus detalles.</p>
+
+                    <form method="get" class="mb-3">
+                        <div class="row g-2">
+                            <div class="col-md-6">
+                                <label class="form-label small">Área</label>
+                                <select name="area" class="form-select form-select-sm">
+                                    <option value="">Todas las áreas</option>
+                                    {% for area in areas %}
+                                    <option value="{{ area.id }}">{{ area.nombre }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small">Tipo</label>
+                                <select name="tipo" class="form-select form-select-sm">
+                                    <option value="">Todos los tipos</option>
+                                    {% for tipo in tipos_item %}
+                                    <option value="{{ tipo.id }}">{{ tipo.nombre }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small">Estado</label>
+                                <select name="estado" class="form-select form-select-sm">
+                                    <option value="">Todos los estados</option>
+                                    <option value="nuevo">Nuevo</option>
+                                    <option value="operativo">Operativo</option>
+                                    <option value="en_mantenimiento">En Mantenimiento</option>
+                                    <option value="danado">Dañado</option>
+                                    <option value="obsoleto">Obsoleto</option>
+                                </select>
+                            </div>
+                        </div>
+                    </form>
+
+                    <div class="d-grid gap-2">
+                        <button type="button" class="btn btn-success" onclick="exportarInventarioExcel()">
+                            <i class="fas fa-file-excel me-2"></i>Exportar a Excel
+                        </button>
+                        <button type="button" class="btn btn-danger" onclick="exportarInventarioPDF()">
+                            <i class="fas fa-file-pdf me-2"></i>Exportar a PDF
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Reporte: Por Área -->
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-info text-white">
+                    <i class="fas fa-layer-group me-2"></i>Reporte por Área
+                </div>
+                <div class="card-body">
+                    <p class="card-text">Genera un resumen de ítems agrupados por área con estadísticas de cantidad, valor y estado.</p>
+
+                    <div class="alert alert-info mt-3">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Este reporte incluye:
+                        <ul class="mb-0 mt-2">
+                            <li>Cantidad de ítems por área</li>
+                            <li>Valor total por área</li>
+                            <li>Distribución por estados</li>
+                            <li>Porcentaje del total</li>
+                        </ul>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <a href="{% url 'productos:exportar-por-area-excel' %}" class="btn btn-success">
+                            <i class="fas fa-file-excel me-2"></i>Exportar a Excel
+                        </a>
+                        <a href="{% url 'productos:exportar-por-area-pdf' %}" class="btn btn-danger">
+                            <i class="fas fa-file-pdf me-2"></i>Exportar a PDF
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Reporte: Garantías Próximas a Vencer -->
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-warning text-dark">
+                    <i class="fas fa-clock me-2"></i>Garantías Próximas a Vencer
+                </div>
+                <div class="card-body">
+                    <p class="card-text">Lista ítems cuya garantía vence en los próximos días. Útil para gestión proactiva.</p>
+
+                    <form method="get" id="formGarantias" class="mb-3">
+                        <div class="row g-2">
+                            <div class="col-md-12">
+                                <label class="form-label small">Días de anticipación</label>
+                                <select name="dias" id="diasGarantia" class="form-select form-select-sm">
+                                    <option value="30">30 días</option>
+                                    <option value="60">60 días</option>
+                                    <option value="90">90 días</option>
+                                    <option value="180">6 meses</option>
+                                </select>
+                            </div>
+                        </div>
+                    </form>
+
+                    <div class="d-grid gap-2">
+                        <button type="button" class="btn btn-success" onclick="exportarGarantiasExcel()">
+                            <i class="fas fa-file-excel me-2"></i>Exportar a Excel
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Reporte: Por Estado -->
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-secondary text-white">
+                    <i class="fas fa-tag me-2"></i>Reporte por Estado
+                </div>
+                <div class="card-body">
+                    <p class="card-text">Próximamente: Resumen de ítems agrupados por estado operativo.</p>
+
+                    <div class="alert alert-secondary">
+                        <i class="fas fa-tools me-2"></i>
+                        <strong>En desarrollo</strong><br>
+                        Este reporte estará disponible próximamente.
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-secondary" disabled>
+                            <i class="fas fa-file-excel me-2"></i>Próximamente
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Información Adicional -->
+    <div class="card mt-4">
+        <div class="card-body">
+            <h5 class="card-title"><i class="fas fa-info-circle me-2"></i>Información sobre Reportes</h5>
+            <div class="row">
+                <div class="col-md-6">
+                    <h6 class="text-primary">Formato Excel</h6>
+                    <ul>
+                        <li>Incluye todos los detalles de los ítems</li>
+                        <li>Formato con estilos y colores UTP</li>
+                        <li>Columnas ajustadas automáticamente</li>
+                        <li>Sección de resumen al final</li>
+                        <li>Puede procesarse en Excel o Google Sheets</li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <h6 class="text-danger">Formato PDF</h6>
+                    <ul>
+                        <li>Diseño profesional y compacto</li>
+                        <li>Ideal para impresión</li>
+                        <li>Incluye fecha de generación</li>
+                        <li>Resumen de estadísticas</li>
+                        <li>Limitado a 100 ítems por página</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Exportar inventario a Excel con filtros
+function exportarInventarioExcel() {
+    const params = new URLSearchParams();
+    const area = document.querySelector('select[name="area"]').value;
+    const tipo = document.querySelector('select[name="tipo"]').value;
+    const estado = document.querySelector('select[name="estado"]').value;
+
+    if (area) params.append('area', area);
+    if (tipo) params.append('tipo', tipo);
+    if (estado) params.append('estado', estado);
+
+    window.location.href = "{% url 'productos:exportar-inventario-excel' %}?" + params.toString();
+}
+
+// Exportar inventario a PDF con filtros
+function exportarInventarioPDF() {
+    const params = new URLSearchParams();
+    const area = document.querySelector('select[name="area"]').value;
+    const tipo = document.querySelector('select[name="tipo"]').value;
+    const estado = document.querySelector('select[name="estado"]').value;
+
+    if (area) params.append('area', area);
+    if (tipo) params.append('tipo', tipo);
+    if (estado) params.append('estado', estado);
+
+    window.location.href = "{% url 'productos:exportar-inventario-pdf' %}?" + params.toString();
+}
+
+// Exportar garantías con días seleccionados
+function exportarGarantiasExcel() {
+    const dias = document.getElementById('diasGarantia').value;
+    window.location.href = "{% url 'productos:exportar-garantias-excel' %}?dias=" + dias;
+}
+</script>
+{% endblock %}

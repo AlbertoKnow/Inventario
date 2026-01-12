@@ -7,9 +7,9 @@ from django.contrib.auth.models import User
 from django.urls import reverse_lazy, reverse
 from django.db.models import Q, Sum, Count
 from django.contrib import messages
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.utils import timezone
-from datetime import timedelta
+from datetime import timedelta, date
 
 from .models import (
     Area, Campus, Sede, Pabellon, Ambiente, TipoItem, Item, EspecificacionesSistemas,
@@ -2282,3 +2282,13 @@ class ItemImportarConfirmarView(SupervisorRequeridoMixin, View):
             return redirect('productos:item-importar')
 
 
+
+# Importar vistas de reportes
+from .views.reportes import (
+    ReportesView,
+    ExportarInventarioExcelView,
+    ExportarReportePorAreaExcelView,
+    ExportarGarantiasVencenExcelView,
+    ExportarInventarioPDFView,
+    ExportarReportePorAreaPDFView
+)
