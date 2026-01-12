@@ -78,14 +78,6 @@ urlpatterns = [
     path('lotes/<int:pk>/', views.LoteDetailView.as_view(), name='lote-detail'),
     path('lotes/<int:pk>/editar/', views.LoteUpdateView.as_view(), name='lote-update'),
 
-    # Reportes y Exportación
-    path('reportes/', views.ReportesView.as_view(), name='reportes'),
-    path('reportes/exportar/inventario-excel/', views.ExportarInventarioExcelView.as_view(), name='exportar-inventario-excel'),
-    path('reportes/exportar/inventario-pdf/', views.ExportarInventarioPDFView.as_view(), name='exportar-inventario-pdf'),
-    path('reportes/exportar/por-area-excel/', views.ExportarReportePorAreaExcelView.as_view(), name='exportar-por-area-excel'),
-    path('reportes/exportar/por-area-pdf/', views.ExportarReportePorAreaPDFView.as_view(), name='exportar-por-area-pdf'),
-    path('reportes/exportar/garantias-excel/', views.ExportarGarantiasVencenExcelView.as_view(), name='exportar-garantias-excel'),
-
     # API endpoints (JSON)
     path('api/tipos-item/', views.TiposItemPorAreaView.as_view(), name='api-tipos-item'),
     path('api/supervisores/', views.SupervisoresPorAreaView.as_view(), name='api-supervisores'),
