@@ -192,9 +192,9 @@ class ItemListView(PerfilRequeridoMixin, ListView):
     
     def get_queryset(self):
         queryset = Item.objects.select_related('area', 'tipo_item', 'ambiente', 'usuario_asignado')
-        
+
         perfil = getattr(self.request.user, 'perfil', None)
-        
+
         # Filtrar por área si no es admin - SIEMPRE aplicar esta restricción
         if perfil and perfil.rol != 'admin' and perfil.area:
             # Operadores y supervisores SOLO ven su área, no pueden filtrar otras
@@ -204,48 +204,147 @@ class ItemListView(PerfilRequeridoMixin, ListView):
             area = self.request.GET.get('area')
             if area:
                 queryset = queryset.filter(area__codigo=area)
-        
-        # Filtros de búsqueda
+
+        # ===== FILTROS AVANZADOS =====
+
+        # Búsqueda general (código interno, código UTP, serie, nombre)
         search = self.request.GET.get('q')
         if search:
             queryset = queryset.filter(
+                Q(codigo_interno__icontains=search) |
                 Q(codigo_utp__icontains=search) |
                 Q(serie__icontains=search) |
-                Q(nombre__icontains=search)
+                Q(nombre__icontains=search) |
+                Q(descripcion__icontains=search)
             )
-        
-        # Filtro por estado
-        estado = self.request.GET.get('estado')
-        if estado:
-            queryset = queryset.filter(estado=estado)
-        
+
+        # Filtro por estado (puede ser múltiple)
+        estados = self.request.GET.getlist('estado')
+        if estados:
+            queryset = queryset.filter(estado__in=estados)
+
+        # Filtro por tipo de ítem
+        tipo_item = self.request.GET.get('tipo_item')
+        if tipo_item:
+            queryset = queryset.filter(tipo_item_id=tipo_item)
+
+        # Filtro por código UTP pendiente
+        utp_pendiente = self.request.GET.get('utp_pendiente')
+        if utp_pendiente == '1':
+            queryset = queryset.filter(codigo_utp='PENDIENTE')
+        elif utp_pendiente == '0':
+            queryset = queryset.exclude(codigo_utp='PENDIENTE')
+
+        # Filtro por usuario asignado
+        usuario_asignado = self.request.GET.get('usuario_asignado')
+        if usuario_asignado == 'sin_asignar':
+            queryset = queryset.filter(usuario_asignado__isnull=True)
+        elif usuario_asignado == 'asignado':
+            queryset = queryset.filter(usuario_asignado__isnull=False)
+        elif usuario_asignado:
+            queryset = queryset.filter(usuario_asignado_id=usuario_asignado)
+
         # Filtro por ambiente
         ambiente = self.request.GET.get('ambiente')
-        if ambiente:
+        if ambiente == 'sin_ubicacion':
+            queryset = queryset.filter(ambiente__isnull=True)
+        elif ambiente:
             queryset = queryset.filter(ambiente_id=ambiente)
-        
+
         # Filtro por campus
         campus = self.request.GET.get('campus')
         if campus:
             queryset = queryset.filter(ambiente__pabellon__sede__campus_id=campus)
-        
-        # Filtro por garantía próxima a vencer (30 días)
-        garantia_proxima = self.request.GET.get('garantia_proxima')
-        if garantia_proxima:
+
+        # Filtro por rango de precios
+        precio_min = self.request.GET.get('precio_min')
+        precio_max = self.request.GET.get('precio_max')
+        if precio_min:
+            queryset = queryset.filter(precio__gte=precio_min)
+        if precio_max:
+            queryset = queryset.filter(precio__lte=precio_max)
+
+        # Filtro por rango de fechas de adquisición
+        fecha_adq_desde = self.request.GET.get('fecha_adq_desde')
+        fecha_adq_hasta = self.request.GET.get('fecha_adq_hasta')
+        if fecha_adq_desde:
+            queryset = queryset.filter(fecha_adquisicion__gte=fecha_adq_desde)
+        if fecha_adq_hasta:
+            queryset = queryset.filter(fecha_adquisicion__lte=fecha_adq_hasta)
+
+        # Filtro por garantía
+        garantia = self.request.GET.get('garantia')
+        if garantia == 'vigente':
+            queryset = queryset.filter(garantia_hasta__gte=timezone.now().date())
+        elif garantia == 'vencida':
+            queryset = queryset.filter(garantia_hasta__lt=timezone.now().date())
+        elif garantia == 'sin_garantia':
+            queryset = queryset.filter(garantia_hasta__isnull=True)
+        elif garantia == 'proxima_vencer':  # 30 días
             fecha_limite = timezone.now().date() + timedelta(days=30)
             queryset = queryset.filter(
                 garantia_hasta__lte=fecha_limite,
                 garantia_hasta__gte=timezone.now().date()
             )
-        
+
+        # Filtro por leasing
+        es_leasing = self.request.GET.get('es_leasing')
+        if es_leasing == '1':
+            queryset = queryset.filter(es_leasing=True)
+        elif es_leasing == '0':
+            queryset = queryset.filter(es_leasing=False)
+
+        # Filtro por lote
+        lote = self.request.GET.get('lote')
+        if lote == 'sin_lote':
+            queryset = queryset.filter(lote__isnull=True)
+        elif lote:
+            queryset = queryset.filter(lote_id=lote)
+
+        # Ordenamiento
+        order_by = self.request.GET.get('order_by', '-creado_en')
+        if order_by:
+            queryset = queryset.order_by(order_by)
+
         return queryset
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+
+        # Opciones para filtros
         context['areas'] = Area.objects.filter(activo=True)
         context['campus_list'] = Campus.objects.filter(activo=True)
         context['ambientes'] = Ambiente.objects.filter(activo=True).select_related('pabellon__sede__campus')
         context['estados'] = Item.ESTADOS
+        context['tipos_item'] = TipoItem.objects.filter(activo=True).select_related('area')
+        context['usuarios'] = User.objects.filter(is_active=True).order_by('first_name', 'last_name')
+        context['lotes'] = Lote.objects.filter(activo=True).order_by('-creado_en')[:50]
+
+        # Filtros activos (para mostrar chips)
+        context['filtros_activos'] = {
+            'q': self.request.GET.get('q', ''),
+            'area': self.request.GET.get('area', ''),
+            'estado': self.request.GET.getlist('estado'),
+            'tipo_item': self.request.GET.get('tipo_item', ''),
+            'utp_pendiente': self.request.GET.get('utp_pendiente', ''),
+            'usuario_asignado': self.request.GET.get('usuario_asignado', ''),
+            'ambiente': self.request.GET.get('ambiente', ''),
+            'campus': self.request.GET.get('campus', ''),
+            'precio_min': self.request.GET.get('precio_min', ''),
+            'precio_max': self.request.GET.get('precio_max', ''),
+            'fecha_adq_desde': self.request.GET.get('fecha_adq_desde', ''),
+            'fecha_adq_hasta': self.request.GET.get('fecha_adq_hasta', ''),
+            'garantia': self.request.GET.get('garantia', ''),
+            'es_leasing': self.request.GET.get('es_leasing', ''),
+            'lote': self.request.GET.get('lote', ''),
+            'order_by': self.request.GET.get('order_by', '-creado_en'),
+        }
+
+        # Contar filtros activos (para badge)
+        filtros_count = sum(1 for k, v in context['filtros_activos'].items()
+                           if v and k != 'order_by' and v != [])
+        context['filtros_count'] = filtros_count
+
         return context
 
 
@@ -254,7 +353,7 @@ class ItemDetailView(PerfilRequeridoMixin, DetailView):
     model = Item
     template_name = 'productos/item_detail.html'
     context_object_name = 'item'
-    slug_field = 'codigo_utp'
+    slug_field = 'codigo_interno'
     slug_url_kwarg = 'codigo'
     
     def get_queryset(self):
