@@ -1,8 +1,8 @@
 from django import forms
 from django.contrib.auth.models import User
 from .models import (
-    Area, Campus, Sede, Pabellon, Ambiente, TipoItem, Item, 
-    EspecificacionesSistemas, Movimiento, PerfilUsuario, Lote
+    Area, Campus, Sede, Pabellon, Ambiente, TipoItem, Item,
+    EspecificacionesSistemas, Movimiento, PerfilUsuario, Lote, Mantenimiento
 )
 
 
@@ -549,3 +549,110 @@ class PabellonForm(forms.ModelForm):
                 self.fields['sede'].queryset = Sede.objects.filter(campus_id=campus_id, activo=True)
             except (ValueError, TypeError):
                 pass
+
+
+# ==============================================================================
+# FORMULARIO DE MANTENIMIENTO
+# ==============================================================================
+
+class MantenimientoForm(forms.ModelForm):
+    """Formulario para registro de mantenimiento"""
+    
+    class Meta:
+        model = Mantenimiento
+        fields = [
+            'item', 'tipo', 'fecha_programada', 'descripcion_problema',
+            'tecnico_asignado', 'proveedor_servicio', 'costo', 'observaciones',
+            'proximo_mantenimiento'
+        ]
+        widgets = {
+            'item': forms.Select(attrs={'class': 'form-control'}),
+            'tipo': forms.Select(attrs={'class': 'form-control'}),
+            'fecha_programada': forms.DateInput(attrs={
+                'class': 'form-control',
+                'type': 'date'
+            }),
+            'descripcion_problema': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 3,
+                'placeholder': 'Describa el problema o motivo del mantenimiento'
+            }),
+            'tecnico_asignado': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Nombre del técnico responsable'
+            }),
+            'proveedor_servicio': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Proveedor del servicio (si aplica)'
+            }),
+            'costo': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'step': '0.01',
+                'placeholder': '0.00'
+            }),
+            'observaciones': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 2,
+                'placeholder': 'Observaciones adicionales'
+            }),
+            'proximo_mantenimiento': forms.DateInput(attrs={
+                'class': 'form-control',
+                'type': 'date'
+            }),
+        }
+        labels = {
+            'item': 'Ítem',
+            'tipo': 'Tipo de Mantenimiento',
+            'fecha_programada': 'Fecha Programada',
+            'descripcion_problema': 'Descripción del Problema',
+            'tecnico_asignado': 'Técnico Asignado',
+            'proveedor_servicio': 'Proveedor del Servicio',
+            'costo': 'Costo Estimado',
+            'observaciones': 'Observaciones',
+            'proximo_mantenimiento': 'Próximo Mantenimiento (solo preventivos)'
+        }
+    
+    def __init__(self, *args, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+        # Si hay usuario, filtrar items por su área
+        if user and hasattr(user, 'perfil'):
+            perfil = user.perfil
+            if perfil.area and perfil.rol != 'admin':
+                self.fields['item'].queryset = Item.objects.filter(area=perfil.area)
+        
+        # Marcar campos opcionales
+        self.fields['tecnico_asignado'].required = False
+        self.fields['proveedor_servicio'].required = False
+        self.fields['costo'].required = False
+        self.fields['observaciones'].required = False
+        self.fields['proximo_mantenimiento'].required = False
+
+
+class MantenimientoFinalizarForm(forms.Form):
+    """Formulario para finalizar un mantenimiento"""
+    
+    resultado = forms.ChoiceField(
+        choices=Mantenimiento.RESULTADO,
+        widget=forms.Select(attrs={'class': 'form-control'}),
+        label='Resultado del Mantenimiento'
+    )
+    
+    trabajo_realizado = forms.CharField(
+        widget=forms.Textarea(attrs={
+            'class': 'form-control',
+            'rows': 4,
+            'placeholder': 'Describa el trabajo realizado'
+        }),
+        label='Trabajo Realizado'
+    )
+    
+    costo = forms.DecimalField(
+        required=False,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'step': '0.01',
+            'placeholder': '0.00'
+        }),
+        label='Costo Final'
+    )
