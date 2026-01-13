@@ -656,3 +656,94 @@ class MantenimientoFinalizarForm(forms.Form):
         }),
         label='Costo Final'
     )
+
+
+class MantenimientoLoteForm(forms.Form):
+    """Formulario para programar mantenimiento a múltiples ítems"""
+    
+    items = forms.ModelMultipleChoiceField(
+        queryset=Item.objects.all(),
+        widget=forms.CheckboxSelectMultiple(attrs={'class': 'form-check-input'}),
+        label='Seleccionar Ítems',
+        help_text='Selecciona los ítems que recibirán mantenimiento'
+    )
+    
+    tipo = forms.ChoiceField(
+        choices=Mantenimiento.TIPO_MANTENIMIENTO,
+        widget=forms.Select(attrs={'class': 'form-control'}),
+        label='Tipo de Mantenimiento'
+    )
+    
+    fecha_programada = forms.DateField(
+        widget=forms.DateInput(attrs={
+            'class': 'form-control',
+            'type': 'date'
+        }),
+        label='Fecha Programada'
+    )
+    
+    descripcion_problema = forms.CharField(
+        widget=forms.Textarea(attrs={
+            'class': 'form-control',
+            'rows': 3,
+            'placeholder': 'Describa el motivo del mantenimiento (aplicará a todos los ítems)'
+        }),
+        label='Descripción del Problema',
+        required=False
+    )
+    
+    tecnico_asignado = forms.CharField(
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Nombre del técnico responsable'
+        }),
+        label='Técnico Asignado',
+        required=False
+    )
+    
+    proveedor_servicio = forms.CharField(
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Proveedor del servicio (si aplica)'
+        }),
+        label='Proveedor del Servicio',
+        required=False
+    )
+    
+    costo_estimado = forms.DecimalField(
+        required=False,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'step': '0.01',
+            'placeholder': 'Costo por ítem (opcional)'
+        }),
+        label='Costo Estimado por Ítem'
+    )
+    
+    proximo_mantenimiento = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={
+            'class': 'form-control',
+            'type': 'date'
+        }),
+        label='Próximo Mantenimiento (solo preventivos)'
+    )
+    
+    observaciones = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={
+            'class': 'form-control',
+            'rows': 2,
+            'placeholder': 'Observaciones adicionales'
+        }),
+        label='Observaciones'
+    )
+    
+    def __init__(self, *args, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+        # Si hay usuario, filtrar items por su área
+        if user and hasattr(user, 'perfil'):
+            perfil = user.perfil
+            if perfil.area and perfil.rol != 'admin':
+                self.fields['items'].queryset = Item.objects.filter(area=perfil.area)
