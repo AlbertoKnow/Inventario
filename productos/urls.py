@@ -86,6 +86,16 @@ urlpatterns = [
     path('reportes/exportar/por-area-pdf/', views.ExportarReportePorAreaPDFView.as_view(), name='exportar-por-area-pdf'),
     path('reportes/exportar/garantias-excel/', views.ExportarGarantiasVencenExcelView.as_view(), name='exportar-garantias-excel'),
 
+    # Mantenimiento
+    path('mantenimientos/', views.MantenimientoListView.as_view(), name='mantenimiento-list'),
+    path('mantenimientos/crear/', views.MantenimientoCreateView.as_view(), name='mantenimiento-create'),
+    path('mantenimientos/<int:pk>/', views.MantenimientoDetailView.as_view(), name='mantenimiento-detail'),
+    path('mantenimientos/<int:pk>/editar/', views.MantenimientoUpdateView.as_view(), name='mantenimiento-update'),
+    path('mantenimientos/<int:pk>/iniciar/', views.MantenimientoIniciarView.as_view(), name='mantenimiento-iniciar'),
+    path('mantenimientos/<int:pk>/finalizar/', views.MantenimientoFinalizarView.as_view(), name='mantenimiento-finalizar'),
+    path('mantenimientos/<int:pk>/cancelar/', views.MantenimientoCancelarView.as_view(), name='mantenimiento-cancelar'),
+    path('mantenimientos/<int:pk>/eliminar/', views.MantenimientoDeleteView.as_view(), name='mantenimiento-delete'),
+
     # API endpoints (JSON)
     path('api/tipos-item/', views.TiposItemPorAreaView.as_view(), name='api-tipos-item'),
     path('api/supervisores/', views.SupervisoresPorAreaView.as_view(), name='api-supervisores'),

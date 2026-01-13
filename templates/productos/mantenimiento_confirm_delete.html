@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}Eliminar Mantenimiento{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>Eliminar Mantenimiento</h5>
+                </div>
+                <div class="card-body">
+                    <p>¿Está seguro de eliminar este mantenimiento?</p>
+                    <p><strong>Ítem:</strong> {{ object.item.codigo_interno }} - {{ object.item.nombre }}</p>
+                    <p><strong>Tipo:</strong> {{ object.get_tipo_display }}</p>
+                    <p><strong>Fecha:</strong> {{ object.fecha_programada|date:"d/m/Y" }}</p>
+
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-danger">
+                                <i class="fas fa-trash me-1"></i> Eliminar
+                            </button>
+                            <a href="{% url 'productos:mantenimiento-detail' object.pk %}" class="btn btn-secondary">
+                                Cancelar
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -14,9 +14,12 @@ from datetime import timedelta, date
 from .models import (
     Area, Campus, Sede, Pabellon, Ambiente, TipoItem, Item, EspecificacionesSistemas,
     Movimiento, HistorialCambio, Notificacion, PerfilUsuario,
-    Proveedor, Contrato, AnexoContrato, Lote
+    Proveedor, Contrato, AnexoContrato, Lote, Mantenimiento
 )
-from .forms import ItemForm, ItemSistemasForm, MovimientoForm, TipoItemForm, AmbienteForm, CampusForm, SedeForm, PabellonForm
+from .forms import (
+    ItemForm, ItemSistemasForm, MovimientoForm, TipoItemForm, AmbienteForm,
+    CampusForm, SedeForm, PabellonForm, MantenimientoForm, MantenimientoFinalizarForm
+)
 from .signals import set_current_user
 
 
@@ -176,7 +179,19 @@ class DashboardView(PerfilRequeridoMixin, TemplateView):
         context['notificaciones'] = Notificacion.objects.filter(
             usuario=user, leida=False
         )[:5]
-        
+
+        # Mantenimientos
+        mantenimientos = Mantenimiento.objects.select_related('item')
+        if perfil and perfil.rol != 'admin' and perfil.area:
+            mantenimientos = mantenimientos.filter(item__area=perfil.area)
+
+        context['mantenimientos_pendientes'] = mantenimientos.filter(estado='pendiente').count()
+        context['mantenimientos_vencidos'] = mantenimientos.filter(
+            estado='pendiente',
+            fecha_programada__lt=timezone.now().date()
+        ).count()
+        context['ultimos_mantenimientos'] = mantenimientos.order_by('-fecha_programada')[:5]
+
         return context
 
 
@@ -2529,3 +2544,230 @@ class ExportarReportePorAreaPDFView(LoginRequiredMixin, View):
 
         fecha = timezone.now().strftime('%Y%m%d_%H%M%S')
         return exporter.get_response(f"reporte_por_area_{fecha}.pdf")
+
+
+# ==============================================================================
+# VISTAS DE MANTENIMIENTO
+# ==============================================================================
+
+class MantenimientoListView(PerfilRequeridoMixin, ListView):
+    """Lista de mantenimientos"""
+    model = Mantenimiento
+    template_name = 'productos/mantenimiento_list.html'
+    context_object_name = 'mantenimientos'
+    paginate_by = 20
+
+    def get_queryset(self):
+        queryset = Mantenimiento.objects.select_related('item', 'responsable', 'creado_por')
+        perfil = getattr(self.request.user, 'perfil', None)
+
+        # Filtrar por área si no es admin
+        if perfil and perfil.rol != 'admin' and perfil.area:
+            queryset = queryset.filter(item__area=perfil.area)
+
+        # Filtros
+        estado = self.request.GET.get('estado')
+        tipo = self.request.GET.get('tipo')
+
+        if estado:
+            queryset = queryset.filter(estado=estado)
+        if tipo:
+            queryset = queryset.filter(tipo=tipo)
+
+        return queryset.order_by('-fecha_programada')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        queryset = self.get_queryset()
+
+        # Estadísticas
+        context['total_mantenimientos'] = queryset.count()
+        context['pendientes'] = queryset.filter(estado='pendiente').count()
+        context['en_proceso'] = queryset.filter(estado='en_proceso').count()
+        context['completados'] = queryset.filter(estado='completado').count()
+
+        return context
+
+
+class MantenimientoDetailView(PerfilRequeridoMixin, DetailView):
+    """Detalle de un mantenimiento"""
+    model = Mantenimiento
+    template_name = 'productos/mantenimiento_detail.html'
+    context_object_name = 'mantenimiento'
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        perfil = getattr(self.request.user, 'perfil', None)
+
+        if perfil and perfil.rol != 'admin' and perfil.area:
+            queryset = queryset.filter(item__area=perfil.area)
+
+        return queryset
+
+
+class MantenimientoCreateView(PerfilRequeridoMixin, CreateView):
+    """Crear un nuevo mantenimiento"""
+    model = Mantenimiento
+    form_class = MantenimientoForm
+    template_name = 'productos/mantenimiento_form.html'
+    success_url = reverse_lazy('productos:mantenimiento-list')
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['user'] = self.request.user
+        return kwargs
+
+    def form_valid(self, form):
+        mantenimiento = form.save(commit=False)
+        mantenimiento.creado_por = self.request.user
+        mantenimiento.responsable = self.request.user
+        mantenimiento.save()
+
+        messages.success(self.request, f'Mantenimiento programado correctamente para {mantenimiento.item.codigo_interno}.')
+        return redirect('productos:mantenimiento-detail', pk=mantenimiento.pk)
+
+
+class MantenimientoUpdateView(PerfilRequeridoMixin, UpdateView):
+    """Editar un mantenimiento"""
+    model = Mantenimiento
+    form_class = MantenimientoForm
+    template_name = 'productos/mantenimiento_form.html'
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        perfil = getattr(self.request.user, 'perfil', None)
+
+        if perfil and perfil.rol != 'admin' and perfil.area:
+            queryset = queryset.filter(item__area=perfil.area)
+
+        return queryset
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['user'] = self.request.user
+        return kwargs
+
+    def form_valid(self, form):
+        mantenimiento = form.save()
+        messages.success(self.request, f'Mantenimiento actualizado correctamente.')
+        return redirect('productos:mantenimiento-detail', pk=mantenimiento.pk)
+
+
+class MantenimientoIniciarView(PerfilRequeridoMixin, View):
+    """Iniciar un mantenimiento"""
+
+    def post(self, request, pk):
+        mantenimiento = get_object_or_404(Mantenimiento, pk=pk)
+        perfil = request.user.perfil
+
+        # Verificar permisos
+        if perfil.rol != 'admin' and perfil.area and mantenimiento.item.area != perfil.area:
+            messages.error(request, 'No tienes permisos para iniciar este mantenimiento.')
+            return redirect('productos:mantenimiento-detail', pk=pk)
+
+        if mantenimiento.estado != 'pendiente':
+            messages.warning(request, 'Este mantenimiento ya fue iniciado.')
+            return redirect('productos:mantenimiento-detail', pk=pk)
+
+        # Cambiar estado del ítem a en_mantenimiento
+        mantenimiento.item.estado = 'en_mantenimiento'
+        mantenimiento.item.save()
+
+        # Iniciar mantenimiento
+        mantenimiento.iniciar(usuario=request.user)
+
+        messages.success(request, f'Mantenimiento iniciado. El ítem {mantenimiento.item.codigo_interno} está ahora en mantenimiento.')
+        return redirect('productos:mantenimiento-detail', pk=pk)
+
+
+class MantenimientoFinalizarView(PerfilRequeridoMixin, View):
+    """Finalizar un mantenimiento"""
+    template_name = 'productos/mantenimiento_finalizar.html'
+
+    def get(self, request, pk):
+        mantenimiento = get_object_or_404(Mantenimiento, pk=pk)
+        perfil = request.user.perfil
+
+        # Verificar permisos
+        if perfil.rol != 'admin' and perfil.area and mantenimiento.item.area != perfil.area:
+            messages.error(request, 'No tienes permisos para finalizar este mantenimiento.')
+            return redirect('productos:mantenimiento-detail', pk=pk)
+
+        if mantenimiento.estado not in ['pendiente', 'en_proceso']:
+            messages.warning(request, 'Este mantenimiento ya fue finalizado o cancelado.')
+            return redirect('productos:mantenimiento-detail', pk=pk)
+
+        form = MantenimientoFinalizarForm()
+        return render(request, self.template_name, {
+            'mantenimiento': mantenimiento,
+            'form': form
+        })
+
+    def post(self, request, pk):
+        mantenimiento = get_object_or_404(Mantenimiento, pk=pk)
+        perfil = request.user.perfil
+
+        # Verificar permisos
+        if perfil.rol != 'admin' and perfil.area and mantenimiento.item.area != perfil.area:
+            messages.error(request, 'No tienes permisos para finalizar este mantenimiento.')
+            return redirect('productos:mantenimiento-detail', pk=pk)
+
+        form = MantenimientoFinalizarForm(request.POST)
+        if form.is_valid():
+            resultado = form.cleaned_data['resultado']
+            trabajo_realizado = form.cleaned_data['trabajo_realizado']
+            costo = form.cleaned_data.get('costo')
+
+            mantenimiento.finalizar(resultado, trabajo_realizado, costo)
+
+            messages.success(request, f'Mantenimiento finalizado. Estado del ítem actualizado a {mantenimiento.item.get_estado_display()}.')
+            return redirect('productos:mantenimiento-detail', pk=pk)
+
+        return render(request, self.template_name, {
+            'mantenimiento': mantenimiento,
+            'form': form
+        })
+
+
+class MantenimientoCancelarView(PerfilRequeridoMixin, View):
+    """Cancelar un mantenimiento"""
+
+    def post(self, request, pk):
+        mantenimiento = get_object_or_404(Mantenimiento, pk=pk)
+        perfil = request.user.perfil
+
+        # Verificar permisos
+        if perfil.rol not in ['admin', 'supervisor']:
+            messages.error(request, 'Solo administradores y supervisores pueden cancelar mantenimientos.')
+            return redirect('productos:mantenimiento-detail', pk=pk)
+
+        if perfil.rol != 'admin' and perfil.area and mantenimiento.item.area != perfil.area:
+            messages.error(request, 'No tienes permisos para cancelar este mantenimiento.')
+            return redirect('productos:mantenimiento-detail', pk=pk)
+
+        if mantenimiento.estado in ['completado', 'cancelado']:
+            messages.warning(request, 'Este mantenimiento ya fue completado o cancelado.')
+            return redirect('productos:mantenimiento-detail', pk=pk)
+
+        motivo = request.POST.get('motivo', '')
+        mantenimiento.cancelar(motivo)
+
+        # Si el ítem estaba en mantenimiento, regresarlo a operativo
+        if mantenimiento.item.estado == 'en_mantenimiento':
+            mantenimiento.item.estado = 'operativo'
+            mantenimiento.item.save()
+
+        messages.success(request, 'Mantenimiento cancelado.')
+        return redirect('productos:mantenimiento-detail', pk=pk)
+
+
+class MantenimientoDeleteView(AdminRequeridoMixin, DeleteView):
+    """Eliminar un mantenimiento (solo admin)"""
+    model = Mantenimiento
+    template_name = 'productos/mantenimiento_confirm_delete.html'
+    success_url = reverse_lazy('productos:mantenimiento-list')
+
+    def delete(self, request, *args, **kwargs):
+        mantenimiento = self.get_object()
+        messages.success(request, f'Mantenimiento eliminado.')
+        return super().delete(request, *args, **kwargs)
