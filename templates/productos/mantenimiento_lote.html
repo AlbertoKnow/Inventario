@@ -1,0 +1,216 @@
+{% extends "base.html" %}
+
+{% block title %}Mantenimiento en Lote{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'productos:dashboard' %}">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'productos:mantenimiento-list' %}">Mantenimientos</a></li>
+            <li class="breadcrumb-item active">Mantenimiento en Lote</li>
+        </ol>
+    </nav>
+
+    <div class="page-header mb-4">
+        <h1><i class="fas fa-tasks me-2"></i>Programar Mantenimiento en Lote</h1>
+        <p class="text-muted">Crear mantenimientos para múltiples ítems simultáneamente</p>
+    </div>
+
+    {% if items_preseleccionados > 0 %}
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle me-2"></i>
+        Tienes <strong>{{ items_preseleccionados }} ítem(s)</strong> preseleccionado(s) desde la lista de inventario.
+    </div>
+    {% endif %}
+
+    <div class="row">
+        <!-- Formulario -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Información del Mantenimiento</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" id="loteForm">
+                        {% csrf_token %}
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">{{ form.tipo.label }}</label>
+                                {{ form.tipo }}
+                                {% if form.tipo.errors %}
+                                <div class="text-danger small">{{ form.tipo.errors }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">{{ form.fecha_programada.label }}</label>
+                                {{ form.fecha_programada }}
+                                {% if form.fecha_programada.errors %}
+                                <div class="text-danger small">{{ form.fecha_programada.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">{{ form.descripcion_problema.label }}</label>
+                            {{ form.descripcion_problema }}
+                            <small class="form-text text-muted">{{ form.descripcion_problema.help_text }}</small>
+                            {% if form.descripcion_problema.errors %}
+                            <div class="text-danger small">{{ form.descripcion_problema.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">{{ form.tecnico_asignado.label }}</label>
+                                {{ form.tecnico_asignado }}
+                                {% if form.tecnico_asignado.errors %}
+                                <div class="text-danger small">{{ form.tecnico_asignado.errors }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">{{ form.proveedor_servicio.label }}</label>
+                                {{ form.proveedor_servicio }}
+                                {% if form.proveedor_servicio.errors %}
+                                <div class="text-danger small">{{ form.proveedor_servicio.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">{{ form.costo_estimado.label }}</label>
+                                {{ form.costo_estimado }}
+                                <small class="form-text text-muted">Este costo se asignará a cada ítem</small>
+                                {% if form.costo_estimado.errors %}
+                                <div class="text-danger small">{{ form.costo_estimado.errors }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">{{ form.proximo_mantenimiento.label }}</label>
+                                {{ form.proximo_mantenimiento }}
+                                {% if form.proximo_mantenimiento.errors %}
+                                <div class="text-danger small">{{ form.proximo_mantenimiento.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">{{ form.observaciones.label }}</label>
+                            {{ form.observaciones }}
+                            {% if form.observaciones.errors %}
+                            <div class="text-danger small">{{ form.observaciones.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Ítems Seleccionados (ocultos) -->
+                        <div id="itemsSeleccionados"></div>
+
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <strong>Importante:</strong> Se creará un mantenimiento individual para cada ítem seleccionado con la misma información.
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary" id="btnGuardar">
+                                <i class="fas fa-save me-1"></i> Programar Mantenimientos
+                            </button>
+                            <a href="{% url 'productos:mantenimiento-list' %}" class="btn btn-secondary">
+                                Cancelar
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Selector de Ítems -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Seleccionar Ítems</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <input type="text" class="form-control" id="searchItems" placeholder="Buscar ítem...">
+                    </div>
+
+                    <div style="max-height: 500px; overflow-y: auto;">
+                        {% for item in items %}
+                        <div class="form-check mb-2 item-checkbox" data-search="{{ item.codigo_interno|lower }} {{ item.nombre|lower }}">
+                            <input class="form-check-input item-check" type="checkbox" value="{{ item.id }}"
+                                   id="item_{{ item.id }}" name="items"
+                                   {% if item.id|stringformat:"s" in request.GET.items %}checked{% endif %}>
+                            <label class="form-check-label" for="item_{{ item.id }}">
+                                <strong>{{ item.codigo_interno }}</strong><br>
+                                <small class="text-muted">{{ item.nombre|truncatewords:5 }}</small>
+                            </label>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <hr>
+                    <p class="mb-0">
+                        <strong>Seleccionados:</strong> <span id="contadorSeleccionados">0</span>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Contador de ítems seleccionados
+function actualizarContador() {
+    const checked = document.querySelectorAll('.item-check:checked').length;
+    document.getElementById('contadorSeleccionados').textContent = checked;
+
+    // Actualizar campos ocultos para el formulario
+    const container = document.getElementById('itemsSeleccionados');
+    container.innerHTML = '';
+
+    document.querySelectorAll('.item-check:checked').forEach(checkbox => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'items';
+        input.value = checkbox.value;
+        container.appendChild(input);
+    });
+
+    // Habilitar/deshabilitar botón de guardar
+    document.getElementById('btnGuardar').disabled = checked === 0;
+}
+
+// Inicializar
+document.querySelectorAll('.item-check').forEach(checkbox => {
+    checkbox.addEventListener('change', actualizarContador);
+});
+actualizarContador();
+
+// Buscador
+document.getElementById('searchItems').addEventListener('input', function(e) {
+    const search = e.target.value.toLowerCase();
+    document.querySelectorAll('.item-checkbox').forEach(div => {
+        const searchText = div.getAttribute('data-search');
+        if (searchText.includes(search)) {
+            div.style.display = 'block';
+        } else {
+            div.style.display = 'none';
+        }
+    });
+});
+
+// Validación antes de enviar
+document.getElementById('loteForm').addEventListener('submit', function(e) {
+    const checked = document.querySelectorAll('.item-check:checked').length;
+    if (checked === 0) {
+        e.preventDefault();
+        alert('Debes seleccionar al menos un ítem para programar el mantenimiento.');
+    }
+});
+</script>
+{% endblock %}

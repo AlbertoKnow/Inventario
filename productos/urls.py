@@ -89,6 +89,7 @@ urlpatterns = [
     # Mantenimiento
     path('mantenimientos/', views.MantenimientoListView.as_view(), name='mantenimiento-list'),
     path('mantenimientos/crear/', views.MantenimientoCreateView.as_view(), name='mantenimiento-create'),
+    path('mantenimientos/lote/', views.MantenimientoLoteView.as_view(), name='mantenimiento-lote'),
     path('mantenimientos/<int:pk>/', views.MantenimientoDetailView.as_view(), name='mantenimiento-detail'),
     path('mantenimientos/<int:pk>/editar/', views.MantenimientoUpdateView.as_view(), name='mantenimiento-update'),
     path('mantenimientos/<int:pk>/iniciar/', views.MantenimientoIniciarView.as_view(), name='mantenimiento-iniciar'),

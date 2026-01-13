@@ -268,11 +268,26 @@
     
     <!-- Tabla de Items -->
     <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <div>
+                <span id="selectionInfo" style="display:none;">
+                    <strong><span id="selectedCount">0</span></strong> ítem(s) seleccionado(s)
+                </span>
+            </div>
+            <div>
+                <button type="button" class="btn btn-sm btn-warning" id="btnMantenimientoLote" style="display:none;">
+                    <i class="fas fa-tools me-1"></i> Programar Mantenimiento en Lote
+                </button>
+            </div>
+        </div>
         <div class="card-body p-0">
             <div class="table-responsive">
                 <table class="table table-hover mb-0">
                     <thead>
                         <tr>
+                            <th style="width: 40px;">
+                                <input type="checkbox" class="form-check-input" id="selectAll">
+                            </th>
                             <th>Código UTP</th>
                             <th>Nombre</th>
                             <th>Área</th>
@@ -287,6 +302,9 @@
                     <tbody>
                         {% for item in items %}
                         <tr>
+                            <td>
+                                <input type="checkbox" class="form-check-input item-checkbox" value="{{ item.id }}" data-codigo="{{ item.codigo_interno }}">
+                            </td>
                             <td>
                                 <a href="{% url 'productos:item-detail' item.codigo_interno %}" class="fw-semibold text-decoration-none">
                                     {{ item.codigo_interno }}
@@ -430,5 +448,63 @@ document.querySelectorAll('#advancedFilters select, #advancedFilters input').for
         field.style.borderWidth = '2px';
     }
 });
+
+// Manejo de selección múltiple para mantenimiento en lote
+const selectAllCheckbox = document.getElementById('selectAll');
+const itemCheckboxes = document.querySelectorAll('.item-checkbox');
+const selectionInfo = document.getElementById('selectionInfo');
+const selectedCountSpan = document.getElementById('selectedCount');
+const btnMantenimientoLote = document.getElementById('btnMantenimientoLote');
+
+// Actualizar contador y visibilidad del botón
+function updateSelectionUI() {
+    const selectedItems = document.querySelectorAll('.item-checkbox:checked');
+    const count = selectedItems.length;
+
+    selectedCountSpan.textContent = count;
+
+    if (count > 0) {
+        selectionInfo.style.display = 'inline';
+        btnMantenimientoLote.style.display = 'inline-block';
+    } else {
+        selectionInfo.style.display = 'none';
+        btnMantenimientoLote.style.display = 'none';
+    }
+
+    // Actualizar estado del checkbox "Seleccionar todos"
+    selectAllCheckbox.checked = (count === itemCheckboxes.length && count > 0);
+    selectAllCheckbox.indeterminate = (count > 0 && count < itemCheckboxes.length);
+}
+
+// Seleccionar/deseleccionar todos
+selectAllCheckbox.addEventListener('change', function() {
+    itemCheckboxes.forEach(checkbox => {
+        checkbox.checked = this.checked;
+    });
+    updateSelectionUI();
+});
+
+// Escuchar cambios en checkboxes individuales
+itemCheckboxes.forEach(checkbox => {
+    checkbox.addEventListener('change', updateSelectionUI);
+});
+
+// Botón de mantenimiento en lote
+btnMantenimientoLote.addEventListener('click', function() {
+    const selectedItems = Array.from(document.querySelectorAll('.item-checkbox:checked'))
+        .map(cb => cb.value);
+
+    if (selectedItems.length > 0) {
+        // Redirigir a la página de mantenimiento en lote con los items seleccionados
+        const url = new URL('{% url "productos:mantenimiento-lote" %}', window.location.origin);
+        selectedItems.forEach(id => {
+            url.searchParams.append('items', id);
+        });
+        window.location.href = url.toString();
+    }
+});
+
+// Inicializar UI
+updateSelectionUI();
 </script>
 {% endblock %}

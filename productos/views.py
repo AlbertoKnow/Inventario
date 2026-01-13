@@ -18,7 +18,8 @@ from .models import (
 )
 from .forms import (
     ItemForm, ItemSistemasForm, MovimientoForm, TipoItemForm, AmbienteForm,
-    CampusForm, SedeForm, PabellonForm, MantenimientoForm, MantenimientoFinalizarForm
+    CampusForm, SedeForm, PabellonForm, MantenimientoForm, MantenimientoFinalizarForm,
+    MantenimientoLoteForm
 )
 from .signals import set_current_user
 
@@ -2771,3 +2772,81 @@ class MantenimientoDeleteView(AdminRequeridoMixin, DeleteView):
         mantenimiento = self.get_object()
         messages.success(request, f'Mantenimiento eliminado.')
         return super().delete(request, *args, **kwargs)
+
+
+class MantenimientoLoteView(PerfilRequeridoMixin, View):
+    """Crear mantenimientos en lote para múltiples ítems"""
+    template_name = 'productos/mantenimiento_lote.html'
+
+    def get(self, request):
+        # Si vienen items pre-seleccionados por query params
+        items_ids = request.GET.getlist('items')
+        
+        form = MantenimientoLoteForm(user=request.user)
+        
+        # Pre-seleccionar items si vienen en query params
+        if items_ids:
+            form.fields['items'].initial = items_ids
+        
+        # Obtener items disponibles para contexto
+        perfil = request.user.perfil
+        if perfil.area and perfil.rol != 'admin':
+            items = Item.objects.filter(area=perfil.area)
+        else:
+            items = Item.objects.all()
+        
+        return render(request, self.template_name, {
+            'form': form,
+            'items': items,
+            'items_preseleccionados': len(items_ids) if items_ids else 0
+        })
+
+    def post(self, request):
+        form = MantenimientoLoteForm(request.POST, user=request.user)
+        
+        if form.is_valid():
+            items = form.cleaned_data['items']
+            tipo = form.cleaned_data['tipo']
+            fecha_programada = form.cleaned_data['fecha_programada']
+            descripcion = form.cleaned_data.get('descripcion_problema', '')
+            tecnico = form.cleaned_data.get('tecnico_asignado', '')
+            proveedor = form.cleaned_data.get('proveedor_servicio', '')
+            costo = form.cleaned_data.get('costo_estimado')
+            proximo = form.cleaned_data.get('proximo_mantenimiento')
+            observaciones = form.cleaned_data.get('observaciones', '')
+            
+            # Crear mantenimientos para cada ítem seleccionado
+            mantenimientos_creados = []
+            for item in items:
+                mantenimiento = Mantenimiento.objects.create(
+                    item=item,
+                    tipo=tipo,
+                    fecha_programada=fecha_programada,
+                    descripcion_problema=descripcion,
+                    tecnico_asignado=tecnico,
+                    proveedor_servicio=proveedor,
+                    costo=costo,
+                    proximo_mantenimiento=proximo,
+                    observaciones=observaciones,
+                    responsable=request.user,
+                    creado_por=request.user
+                )
+                mantenimientos_creados.append(mantenimiento)
+            
+            messages.success(
+                request,
+                f'Se programaron {len(mantenimientos_creados)} mantenimientos correctamente.'
+            )
+            return redirect('productos:mantenimiento-list')
+        
+        # Si hay errores, volver a mostrar el formulario
+        perfil = request.user.perfil
+        if perfil.area and perfil.rol != 'admin':
+            items = Item.objects.filter(area=perfil.area)
+        else:
+            items = Item.objects.all()
+        
+        return render(request, self.template_name, {
+            'form': form,
+            'items': items
+        })
