@@ -11,10 +11,18 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = config('SECRET_KEY', default='django-insecure-your-secret-key-change-in-production')
+# SECRET_KEY debe estar definida en el archivo .env - NO hay valor por defecto por seguridad
+try:
+    SECRET_KEY = config('SECRET_KEY')
+except Exception:
+    raise ValueError(
+        "La variable SECRET_KEY no está definida en el archivo .env. "
+        "Genera una con: python -c 'from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())'"
+    )
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = config('DEBUG', default=True, cast=bool)
+# Por defecto es False para producción segura
+DEBUG = config('DEBUG', default=False, cast=bool)
 
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=Csv())
 
