@@ -18,7 +18,10 @@
             <h1><i class="fas fa-tools me-2"></i>Mantenimientos</h1>
             <p class="text-muted mb-0">Gestión de mantenimientos preventivos y correctivos</p>
         </div>
-        <div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'productos:item-list' %}" class="btn btn-outline-warning">
+                <i class="fas fa-layer-group me-1"></i> Mantenimiento en Lote
+            </a>
             <a href="{% url 'productos:mantenimiento-create' %}" class="btn btn-primary">
                 <i class="fas fa-plus me-1"></i> Programar Mantenimiento
             </a>
