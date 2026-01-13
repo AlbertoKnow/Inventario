@@ -1,0 +1,250 @@
+{% extends "base.html" %}
+
+{% block title %}Detalle Mantenimiento{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'productos:dashboard' %}">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'productos:mantenimiento-list' %}">Mantenimientos</a></li>
+            <li class="breadcrumb-item active">Detalle</li>
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
+        <div>
+            <h1><i class="fas fa-tools me-2"></i>Mantenimiento #{{ mantenimiento.pk }}</h1>
+            <p class="text-muted mb-0">{{ mantenimiento.get_tipo_display }} - {{ mantenimiento.item.codigo_interno }}</p>
+        </div>
+        <div class="d-flex gap-2">
+            {% if mantenimiento.estado == 'pendiente' %}
+            <form method="post" action="{% url 'productos:mantenimiento-iniciar' mantenimiento.pk %}" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-info">
+                    <i class="fas fa-play me-1"></i> Iniciar
+                </button>
+            </form>
+            {% endif %}
+
+            {% if mantenimiento.estado in 'pendiente,en_proceso' %}
+            <a href="{% url 'productos:mantenimiento-finalizar' mantenimiento.pk %}" class="btn btn-success">
+                <i class="fas fa-check me-1"></i> Finalizar
+            </a>
+            {% endif %}
+
+            {% if mantenimiento.estado not in 'completado,cancelado' and perfil.rol in 'admin,supervisor' %}
+            <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#cancelarModal">
+                <i class="fas fa-times me-1"></i> Cancelar
+            </button>
+            {% endif %}
+
+            <a href="{% url 'productos:mantenimiento-update' mantenimiento.pk %}" class="btn btn-outline-primary">
+                <i class="fas fa-edit"></i> Editar
+            </a>
+        </div>
+    </div>
+
+    <!-- Estado y Alertas -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            {% if mantenimiento.esta_vencido and mantenimiento.estado == 'pendiente' %}
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                <strong>Mantenimiento Vencido:</strong> Este mantenimiento debió realizarse el {{ mantenimiento.fecha_programada|date:"d/m/Y" }}.
+            </div>
+            {% endif %}
+
+            {% if mantenimiento.estado == 'en_proceso' %}
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>
+                <strong>En Proceso:</strong> Mantenimiento iniciado el {{ mantenimiento.fecha_inicio|date:"d/m/Y H:i" }}.
+                {% if mantenimiento.duracion %}
+                Duración: {{ mantenimiento.duracion }} horas.
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Información del Mantenimiento -->
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5 class="mb-0">Información General</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tr>
+                            <th width="40%">Tipo:</th>
+                            <td>
+                                {% if mantenimiento.tipo == 'preventivo' %}
+                                <span class="badge bg-info">{{ mantenimiento.get_tipo_display }}</span>
+                                {% else %}
+                                <span class="badge bg-warning">{{ mantenimiento.get_tipo_display }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Estado:</th>
+                            <td>
+                                {% if mantenimiento.estado == 'pendiente' %}
+                                <span class="badge bg-warning">{{ mantenimiento.get_estado_display }}</span>
+                                {% elif mantenimiento.estado == 'en_proceso' %}
+                                <span class="badge bg-info">{{ mantenimiento.get_estado_display }}</span>
+                                {% elif mantenimiento.estado == 'completado' %}
+                                <span class="badge bg-success">{{ mantenimiento.get_estado_display }}</span>
+                                {% else %}
+                                <span class="badge bg-secondary">{{ mantenimiento.get_estado_display }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Fecha Programada:</th>
+                            <td>{{ mantenimiento.fecha_programada|date:"d/m/Y" }}</td>
+                        </tr>
+                        {% if mantenimiento.fecha_inicio %}
+                        <tr>
+                            <th>Fecha Inicio:</th>
+                            <td>{{ mantenimiento.fecha_inicio|date:"d/m/Y H:i" }}</td>
+                        </tr>
+                        {% endif %}
+                        {% if mantenimiento.fecha_finalizacion %}
+                        <tr>
+                            <th>Fecha Finalización:</th>
+                            <td>{{ mantenimiento.fecha_finalizacion|date:"d/m/Y H:i" }}</td>
+                        </tr>
+                        <tr>
+                            <th>Duración:</th>
+                            <td>{{ mantenimiento.duracion }} horas</td>
+                        </tr>
+                        {% endif %}
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5 class="mb-0">Ítem</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Código:</strong> <a href="{% url 'productos:item-detail' mantenimiento.item.codigo_interno %}">{{ mantenimiento.item.codigo_interno }}</a></p>
+                    <p><strong>Nombre:</strong> {{ mantenimiento.item.nombre }}</p>
+                    <p><strong>Área:</strong> {{ mantenimiento.item.area.nombre }}</p>
+                    <p><strong>Estado Actual:</strong>
+                        {% if mantenimiento.item.estado == 'en_mantenimiento' %}
+                        <span class="badge bg-warning">En Mantenimiento</span>
+                        {% else %}
+                        <span class="badge bg-success">{{ mantenimiento.item.get_estado_display }}</span>
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Descripción y Trabajo -->
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5 class="mb-0">Descripción del Problema</h5>
+                </div>
+                <div class="card-body">
+                    <p>{{ mantenimiento.descripcion_problema|default:"Sin descripción"|linebreaks }}</p>
+                </div>
+            </div>
+        </div>
+
+        {% if mantenimiento.trabajo_realizado %}
+        <div class="col-md-12">
+            <div class="card mb-3">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">Trabajo Realizado</h5>
+                </div>
+                <div class="card-body">
+                    <p>{{ mantenimiento.trabajo_realizado|linebreaks }}</p>
+                    {% if mantenimiento.resultado %}
+                    <p><strong>Resultado:</strong> <span class="badge bg-info">{{ mantenimiento.get_resultado_display }}</span></p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Personal y Costos -->
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5 class="mb-0">Personal</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Responsable:</strong> {{ mantenimiento.responsable.get_full_name|default:mantenimiento.responsable.username }}</p>
+                    <p><strong>Técnico Asignado:</strong> {{ mantenimiento.tecnico_asignado|default:"No asignado" }}</p>
+                    <p><strong>Creado por:</strong> {{ mantenimiento.creado_por.get_full_name|default:mantenimiento.creado_por.username }}</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5 class="mb-0">Costos y Proveedor</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Costo:</strong> {% if mantenimiento.costo %}${{ mantenimiento.costo|floatformat:2 }}{% else %}No especificado{% endif %}</p>
+                    <p><strong>Proveedor:</strong> {{ mantenimiento.proveedor_servicio|default:"No especificado" }}</p>
+                    {% if mantenimiento.proximo_mantenimiento %}
+                    <p><strong>Próximo Mantenimiento:</strong> {{ mantenimiento.proximo_mantenimiento|date:"d/m/Y" }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Observaciones -->
+    {% if mantenimiento.observaciones %}
+    <div class="card mb-3">
+        <div class="card-header">
+            <h5 class="mb-0">Observaciones</h5>
+        </div>
+        <div class="card-body">
+            <p>{{ mantenimiento.observaciones|linebreaks }}</p>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Modal Cancelar -->
+<div class="modal fade" id="cancelarModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="{% url 'productos:mantenimiento-cancelar' mantenimiento.pk %}">
+                {% csrf_token %}
+                <div class="modal-header">
+                    <h5 class="modal-title">Cancelar Mantenimiento</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>¿Está seguro de cancelar este mantenimiento?</p>
+                    <div class="mb-3">
+                        <label class="form-label">Motivo (opcional)</label>
+                        <textarea name="motivo" class="form-control" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                    <button type="submit" class="btn btn-danger">Cancelar Mantenimiento</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

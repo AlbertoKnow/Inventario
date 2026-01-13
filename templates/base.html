@@ -541,6 +541,11 @@
                             <i class="fas fa-chart-bar me-1"></i> Reportes
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'productos:mantenimiento-list' %}">
+                            <i class="fas fa-tools me-1"></i> Mantenimiento
+                        </a>
+                    </li>
                     {% if perfil.rol == 'admin' or perfil.rol == 'supervisor' %}
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">

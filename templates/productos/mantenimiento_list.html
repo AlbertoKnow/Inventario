@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+
+{% block title %}Mantenimientos{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'productos:dashboard' %}">Dashboard</a></li>
+            <li class="breadcrumb-item active">Mantenimientos</li>
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
+        <div>
+            <h1><i class="fas fa-tools me-2"></i>Mantenimientos</h1>
+            <p class="text-muted mb-0">Gestión de mantenimientos preventivos y correctivos</p>
+        </div>
+        <div>
+            <a href="{% url 'productos:mantenimiento-create' %}" class="btn btn-primary">
+                <i class="fas fa-plus me-1"></i> Programar Mantenimiento
+            </a>
+        </div>
+    </div>
+
+    <!-- Estadísticas -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h3 class="text-primary">{{ total_mantenimientos }}</h3>
+                    <p class="text-muted mb-0">Total</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h3 class="text-warning">{{ pendientes }}</h3>
+                    <p class="text-muted mb-0">Pendientes</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h3 class="text-info">{{ en_proceso }}</h3>
+                    <p class="text-muted mb-0">En Proceso</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h3 class="text-success">{{ completados }}</h3>
+                    <p class="text-muted mb-0">Completados</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="card mb-3">
+        <div class="card-body">
+            <form method="get" class="row g-2">
+                <div class="col-md-3">
+                    <label class="form-label small">Estado</label>
+                    <select name="estado" class="form-select">
+                        <option value="">Todos</option>
+                        <option value="pendiente" {% if request.GET.estado == 'pendiente' %}selected{% endif %}>Pendiente</option>
+                        <option value="en_proceso" {% if request.GET.estado == 'en_proceso' %}selected{% endif %}>En Proceso</option>
+                        <option value="completado" {% if request.GET.estado == 'completado' %}selected{% endif %}>Completado</option>
+                        <option value="cancelado" {% if request.GET.estado == 'cancelado' %}selected{% endif %}>Cancelado</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">Tipo</label>
+                    <select name="tipo" class="form-select">
+                        <option value="">Todos</option>
+                        <option value="preventivo" {% if request.GET.tipo == 'preventivo' %}selected{% endif %}>Preventivo</option>
+                        <option value="correctivo" {% if request.GET.tipo == 'correctivo' %}selected{% endif %}>Correctivo</option>
+                    </select>
+                </div>
+                <div class="col-md-auto align-self-end">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-filter me-1"></i> Filtrar
+                    </button>
+                    <a href="{% url 'productos:mantenimiento-list' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-times me-1"></i> Limpiar
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Tabla de Mantenimientos -->
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Ítem</th>
+                            <th>Tipo</th>
+                            <th>Estado</th>
+                            <th>Fecha Programada</th>
+                            <th>Técnico</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for mantenimiento in mantenimientos %}
+                        <tr>
+                            <td>
+                                <strong>{{ mantenimiento.item.codigo_interno }}</strong><br>
+                                <small class="text-muted">{{ mantenimiento.item.nombre }}</small>
+                            </td>
+                            <td>
+                                {% if mantenimiento.tipo == 'preventivo' %}
+                                <span class="badge bg-info">Preventivo</span>
+                                {% else %}
+                                <span class="badge bg-warning">Correctivo</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if mantenimiento.estado == 'pendiente' %}
+                                <span class="badge bg-warning">Pendiente</span>
+                                {% elif mantenimiento.estado == 'en_proceso' %}
+                                <span class="badge bg-info">En Proceso</span>
+                                {% elif mantenimiento.estado == 'completado' %}
+                                <span class="badge bg-success">Completado</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Cancelado</span>
+                                {% endif %}
+
+                                {% if mantenimiento.esta_vencido %}
+                                <br><small class="text-danger"><i class="fas fa-exclamation-circle"></i> Vencido</small>
+                                {% endif %}
+                            </td>
+                            <td>{{ mantenimiento.fecha_programada|date:"d/m/Y" }}</td>
+                            <td>{{ mantenimiento.tecnico_asignado|default:"Sin asignar" }}</td>
+                            <td>
+                                <a href="{% url 'productos:mantenimiento-detail' mantenimiento.pk %}" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center text-muted">No hay mantenimientos registrados</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Paginación -->
+            {% if is_paginated %}
+            <nav>
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page=1">Primera</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Anterior</a>
+                    </li>
+                    {% endif %}
+
+                    <li class="page-item active">
+                        <span class="page-link">{{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+                    </li>
+
+                    {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}">Siguiente</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">Última</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
