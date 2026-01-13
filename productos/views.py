@@ -2283,3 +2283,249 @@ class ItemImportarConfirmarView(SupervisorRequeridoMixin, View):
 
 
 
+
+
+# ==============================================================================
+# VISTAS DE REPORTES Y EXPORTACIÓN
+# ==============================================================================
+
+from .utils.export_utils import ExcelExporter, PDFExporter, format_currency, format_date, format_boolean
+
+
+class ReportesView(LoginRequiredMixin, TemplateView):
+    """Vista principal para seleccionar y generar reportes"""
+    template_name = 'productos/reportes.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        perfil = self.request.user.perfil
+
+        if perfil.area:
+            items = Item.objects.filter(area=perfil.area)
+        else:
+            items = Item.objects.all()
+
+        context['total_items'] = items.count()
+        context['valor_total'] = items.aggregate(Sum('precio'))['precio__sum'] or 0
+        context['items_operativos'] = items.filter(estado='operativo').count()
+        context['items_mantenimiento'] = items.filter(estado='en_mantenimiento').count()
+
+        if perfil.area:
+            context['areas'] = [perfil.area]
+        else:
+            context['areas'] = Area.objects.filter(activo=True)
+
+        context['tipos_item'] = TipoItem.objects.filter(activo=True)
+        return context
+
+
+class ExportarInventarioExcelView(LoginRequiredMixin, View):
+    """Exporta el inventario completo a Excel"""
+
+    def get(self, request, *args, **kwargs):
+        perfil = request.user.perfil
+        area_id = request.GET.get('area')
+        tipo_id = request.GET.get('tipo')
+        estado = request.GET.get('estado')
+
+        if perfil.area:
+            items = Item.objects.filter(area=perfil.area)
+        else:
+            items = Item.objects.all()
+
+        if area_id:
+            items = items.filter(area_id=area_id)
+        if tipo_id:
+            items = items.filter(tipo_item_id=tipo_id)
+        if estado:
+            items = items.filter(estado=estado)
+
+        exporter = ExcelExporter(title="Inventario")
+        titulo = "INVENTARIO COMPLETO"
+        subtitulo = f"Total de ítems: {items.count()}"
+        if perfil.area:
+            subtitulo += f" | Área: {perfil.area.nombre}"
+
+        exporter.add_title(titulo, subtitulo)
+
+        headers = ['Código Interno', 'Código UTP', 'Serie', 'Nombre', 'Área', 'Tipo', 'Estado',
+                   'Ubicación', 'Usuario Asignado', 'Precio', 'Fecha Adquisición', 'Garantía Hasta', 'Leasing']
+        exporter.add_headers(headers)
+
+        for idx, item in enumerate(items.select_related('area', 'tipo_item', 'ambiente', 'usuario_asignado')):
+            ubicacion = item.ambiente.codigo_completo if item.ambiente else 'Sin asignar'
+            usuario = item.usuario_asignado.get_full_name() if item.usuario_asignado else 'Sin asignar'
+            row = [item.codigo_interno, item.codigo_utp, item.serie, item.nombre, item.area.nombre,
+                   item.tipo_item.nombre, item.get_estado_display(), ubicacion, usuario,
+                   format_currency(item.precio), format_date(item.fecha_adquisicion),
+                   format_date(item.garantia_hasta), format_boolean(item.es_leasing)]
+            exporter.add_row(row, alternate=(idx % 2 == 0))
+
+        valor_total = items.aggregate(Sum('precio'))['precio__sum'] or 0
+        summary = {'Total de ítems': items.count(), 'Valor total': format_currency(valor_total),
+                   'Ítems operativos': items.filter(estado='operativo').count(),
+                   'Ítems en mantenimiento': items.filter(estado='en_mantenimiento').count(),
+                   'Ítems con código UTP pendiente': items.filter(codigo_utp='PENDIENTE').count()}
+        exporter.add_summary(summary)
+
+        fecha = timezone.now().strftime('%Y%m%d_%H%M%S')
+        return exporter.get_response(f"inventario_{fecha}.xlsx")
+
+
+class ExportarReportePorAreaExcelView(LoginRequiredMixin, View):
+    """Exporta reporte de ítems agrupados por área"""
+
+    def get(self, request, *args, **kwargs):
+        perfil = request.user.perfil
+        if perfil.area:
+            areas = Area.objects.filter(id=perfil.area.id, activo=True)
+        else:
+            areas = Area.objects.filter(activo=True)
+
+        exporter = ExcelExporter(title="Reporte por Área")
+        exporter.add_title("REPORTE DE INVENTARIO POR ÁREA", "Distribución de ítems y valores")
+
+        headers = ['Área', 'Cantidad de Ítems', 'Valor Total', '% del Total', 'Operativos', 'En Mantenimiento', 'Dañados']
+        exporter.add_headers(headers)
+
+        total_items = Item.objects.count()
+        total_valor = Item.objects.aggregate(Sum('precio'))['precio__sum'] or 0
+
+        for idx, area in enumerate(areas):
+            items_area = Item.objects.filter(area=area)
+            cantidad = items_area.count()
+            valor = items_area.aggregate(Sum('precio'))['precio__sum'] or 0
+            porcentaje = (valor / total_valor * 100) if total_valor > 0 else 0
+            row = [area.nombre, cantidad, format_currency(valor), f"{porcentaje:.2f}%",
+                   items_area.filter(estado='operativo').count(),
+                   items_area.filter(estado='en_mantenimiento').count(),
+                   items_area.filter(estado='danado').count()]
+            exporter.add_row(row, alternate=(idx % 2 == 0))
+
+        summary = {'Total general de ítems': total_items, 'Valor total general': format_currency(total_valor)}
+        exporter.add_summary(summary)
+
+        fecha = timezone.now().strftime('%Y%m%d_%H%M%S')
+        return exporter.get_response(f"reporte_por_area_{fecha}.xlsx")
+
+
+class ExportarGarantiasVencenExcelView(LoginRequiredMixin, View):
+    """Exporta reporte de garantías próximas a vencer"""
+
+    def get(self, request, *args, **kwargs):
+        perfil = request.user.perfil
+        dias = int(request.GET.get('dias', 30))
+        hoy = date.today()
+        fecha_limite = hoy + timedelta(days=dias)
+
+        if perfil.area:
+            items = Item.objects.filter(area=perfil.area, garantia_hasta__gte=hoy, garantia_hasta__lte=fecha_limite)
+        else:
+            items = Item.objects.filter(garantia_hasta__gte=hoy, garantia_hasta__lte=fecha_limite)
+
+        exporter = ExcelExporter(title="Garantías")
+        exporter.add_title(f"GARANTÍAS QUE VENCEN EN {dias} DÍAS",
+                          f"Del {hoy.strftime('%d/%m/%Y')} al {fecha_limite.strftime('%d/%m/%Y')}")
+
+        headers = ['Código Interno', 'Serie', 'Nombre', 'Área', 'Fecha Adquisición',
+                   'Garantía Hasta', 'Días Restantes', 'Precio', 'Proveedor/Lote']
+        exporter.add_headers(headers)
+
+        for idx, item in enumerate(items.select_related('area', 'lote')):
+            dias_restantes = (item.garantia_hasta - hoy).days
+            proveedor = item.lote.contrato.proveedor.nombre if (item.lote and item.lote.contrato) else 'N/A'
+            row = [item.codigo_interno, item.serie, item.nombre, item.area.nombre,
+                   format_date(item.fecha_adquisicion), format_date(item.garantia_hasta),
+                   f"{dias_restantes} días", format_currency(item.precio), proveedor]
+            exporter.add_row(row, alternate=(idx % 2 == 0))
+
+        valor_total = items.aggregate(Sum('precio'))['precio__sum'] or 0
+        summary = {'Total de ítems': items.count(), 'Valor total en riesgo': format_currency(valor_total)}
+        exporter.add_summary(summary)
+
+        fecha = timezone.now().strftime('%Y%m%d_%H%M%S')
+        return exporter.get_response(f"garantias_vencen_{dias}dias_{fecha}.xlsx")
+
+
+class ExportarInventarioPDFView(LoginRequiredMixin, View):
+    """Exporta el inventario completo a PDF"""
+
+    def get(self, request, *args, **kwargs):
+        perfil = request.user.perfil
+        area_id = request.GET.get('area')
+        tipo_id = request.GET.get('tipo')
+        estado = request.GET.get('estado')
+
+        if perfil.area:
+            items = Item.objects.filter(area=perfil.area)
+        else:
+            items = Item.objects.all()
+
+        if area_id:
+            items = items.filter(area_id=area_id)
+        if tipo_id:
+            items = items.filter(tipo_item_id=tipo_id)
+        if estado:
+            items = items.filter(estado=estado)
+
+        exporter = PDFExporter(title="Inventario", orientation="landscape")
+        titulo = "INVENTARIO COMPLETO"
+        subtitulo = f"Total de ítems: {items.count()}"
+        if perfil.area:
+            subtitulo += f" | Área: {perfil.area.nombre}"
+
+        exporter.add_title(titulo, subtitulo)
+
+        headers = ['Código', 'Serie', 'Nombre', 'Área', 'Tipo', 'Estado', 'Precio']
+        data = []
+        for item in items.select_related('area', 'tipo_item')[:100]:
+            data.append([item.codigo_interno, item.serie[:15], item.nombre[:25], item.area.codigo,
+                        item.tipo_item.nombre[:15], item.get_estado_display()[:10], format_currency(item.precio)])
+
+        exporter.add_table(headers, data)
+
+        valor_total = items.aggregate(Sum('precio'))['precio__sum'] or 0
+        summary = {'Total de ítems': items.count(), 'Valor total': format_currency(valor_total),
+                   'Ítems operativos': items.filter(estado='operativo').count(),
+                   'Ítems en mantenimiento': items.filter(estado='en_mantenimiento').count()}
+        exporter.add_summary_section(summary)
+
+        fecha = timezone.now().strftime('%Y%m%d_%H%M%S')
+        return exporter.get_response(f"inventario_{fecha}.pdf")
+
+
+class ExportarReportePorAreaPDFView(LoginRequiredMixin, View):
+    """Exporta reporte de ítems agrupados por área a PDF"""
+
+    def get(self, request, *args, **kwargs):
+        perfil = request.user.perfil
+        if perfil.area:
+            areas = Area.objects.filter(id=perfil.area.id, activo=True)
+        else:
+            areas = Area.objects.filter(activo=True)
+
+        exporter = PDFExporter(title="Reporte por Área")
+        exporter.add_title("REPORTE DE INVENTARIO POR ÁREA", "Distribución de ítems y valores")
+
+        total_items = Item.objects.count()
+        total_valor = Item.objects.aggregate(Sum('precio'))['precio__sum'] or 0
+
+        headers = ['Área', 'Cantidad', 'Valor Total', '% Total', 'Operativos', 'Mant.', 'Dañados']
+        data = []
+        for area in areas:
+            items_area = Item.objects.filter(area=area)
+            cantidad = items_area.count()
+            valor = items_area.aggregate(Sum('precio'))['precio__sum'] or 0
+            porcentaje = (valor / total_valor * 100) if total_valor > 0 else 0
+            data.append([area.nombre[:20], str(cantidad), format_currency(valor), f"{porcentaje:.1f}%",
+                        str(items_area.filter(estado='operativo').count()),
+                        str(items_area.filter(estado='en_mantenimiento').count()),
+                        str(items_area.filter(estado='danado').count())])
+
+        exporter.add_table(headers, data)
+
+        summary = {'Total general de ítems': total_items, 'Valor total general': format_currency(total_valor)}
+        exporter.add_summary_section(summary)
+
+        fecha = timezone.now().strftime('%Y%m%d_%H%M%S')
+        return exporter.get_response(f"reporte_por_area_{fecha}.pdf")

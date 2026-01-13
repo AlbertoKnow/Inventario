@@ -536,6 +536,11 @@
                             <li><a class="dropdown-item" href="{% url 'productos:movimiento-create' %}"><i class="fas fa-plus me-2"></i>Nuevo movimiento</a></li>
                         </ul>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'productos:reportes' %}">
+                            <i class="fas fa-chart-bar me-1"></i> Reportes
+                        </a>
+                    </li>
                     {% if perfil.rol == 'admin' or perfil.rol == 'supervisor' %}
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
