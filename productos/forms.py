@@ -412,7 +412,7 @@ class TipoItemForm(forms.ModelForm):
 
 class AmbienteForm(forms.ModelForm):
     """Formulario para crear/editar ambientes con selección en cascada."""
-    
+
     # Campos adicionales para selección en cascada
     campus = forms.ModelChoiceField(
         queryset=Campus.objects.filter(activo=True),
@@ -424,36 +424,52 @@ class AmbienteForm(forms.ModelForm):
         required=True,
         widget=forms.Select(attrs={'class': 'form-select', 'id': 'id_sede'})
     )
-    
+
     class Meta:
         model = Ambiente
-        fields = ['pabellon', 'piso', 'tipo', 'nombre', 'capacidad', 'descripcion']
+        fields = ['pabellon', 'piso', 'numero', 'tipo', 'nombre', 'capacidad', 'descripcion']
         widgets = {
             'pabellon': forms.Select(attrs={'class': 'form-select', 'id': 'id_pabellon'}),
-            'piso': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': '-1 para sótano'}),
+            'piso': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Ej: 1, 2, 15 o -1 para sótano'
+            }),
+            'numero': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'placeholder': '01-99',
+                'min': 1,
+                'max': 99
+            }),
             'tipo': forms.Select(attrs={'class': 'form-select'}),
-            'nombre': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: Lab. Química, Aula 101'}),
+            'nombre': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Ej: Lab. Química, Aula Magna'
+            }),
             'capacidad': forms.NumberInput(attrs={'class': 'form-control'}),
             'descripcion': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
         }
-    
+        help_texts = {
+            'piso': 'Piso 1 = planta baja. Use -1, -2 para sótanos.',
+            'numero': 'Número del ambiente en el piso (01-99). El código se generará automáticamente.',
+        }
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['capacidad'].required = False
         self.fields['descripcion'].required = False
         self.fields['pabellon'].queryset = Pabellon.objects.none()
-        
+
         # Si estamos editando, precargar los valores de la jerarquía
         if self.instance and self.instance.pk:
             pabellon = self.instance.pabellon
             sede = pabellon.sede
             campus = sede.campus
-            
+
             self.fields['campus'].initial = campus
             self.fields['sede'].queryset = Sede.objects.filter(campus=campus, activo=True)
             self.fields['sede'].initial = sede
             self.fields['pabellon'].queryset = Pabellon.objects.filter(sede=sede, activo=True)
-        
+
         # Si hay datos POST, cargar los querysets correspondientes
         if 'campus' in self.data:
             try:
@@ -461,7 +477,7 @@ class AmbienteForm(forms.ModelForm):
                 self.fields['sede'].queryset = Sede.objects.filter(campus_id=campus_id, activo=True)
             except (ValueError, TypeError):
                 pass
-        
+
         if 'sede' in self.data:
             try:
                 sede_id = int(self.data.get('sede'))
@@ -494,17 +510,33 @@ class CampusForm(forms.ModelForm):
 
 class SedeForm(forms.ModelForm):
     """Formulario para crear/editar sedes."""
-    
+
     class Meta:
         model = Sede
-        fields = ['campus', 'nombre', 'codigo', 'activo']
+        fields = ['campus', 'nombre', 'codigo', 'codigo_sede', 'activo']
         widgets = {
             'campus': forms.Select(attrs={'class': 'form-select'}),
-            'nombre': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: Sede Principal'}),
-            'codigo': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: SP', 'maxlength': 10}),
+            'nombre': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Ej: Sede La Chorrera'
+            }),
+            'codigo': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Ej: SP, LC',
+                'maxlength': 10
+            }),
+            'codigo_sede': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Ej: 77, 78, 1',
+                'min': 1
+            }),
             'activo': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
         }
-    
+        help_texts = {
+            'codigo': 'Código interno para identificar la sede',
+            'codigo_sede': 'Código numérico oficial UTP de la sede (único a nivel institucional)',
+        }
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['campus'].queryset = Campus.objects.filter(activo=True)
@@ -512,36 +544,51 @@ class SedeForm(forms.ModelForm):
 
 class PabellonForm(forms.ModelForm):
     """Formulario para crear/editar pabellones."""
-    
+
     # Campo adicional para selección en cascada
     campus = forms.ModelChoiceField(
         queryset=Campus.objects.filter(activo=True),
         required=True,
         widget=forms.Select(attrs={'class': 'form-select', 'id': 'id_campus'})
     )
-    
+
     class Meta:
         model = Pabellon
-        fields = ['sede', 'nombre', 'pisos', 'tiene_sotano', 'activo']
+        fields = ['sede', 'letra', 'nombre', 'pisos', 'sotanos', 'activo']
         widgets = {
             'sede': forms.Select(attrs={'class': 'form-select', 'id': 'id_sede'}),
-            'nombre': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: A, B, Principal'}),
+            'letra': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Ej: A, B, C',
+                'maxlength': 1,
+                'style': 'text-transform: uppercase;'
+            }),
+            'nombre': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Nombre descriptivo (opcional)'
+            }),
             'pisos': forms.NumberInput(attrs={'class': 'form-control', 'min': 1}),
-            'tiene_sotano': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'sotanos': forms.NumberInput(attrs={'class': 'form-control', 'min': 0}),
             'activo': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
         }
-    
+        help_texts = {
+            'letra': 'Una sola letra mayúscula (A-Z)',
+            'nombre': 'Nombre descriptivo opcional para el pabellón',
+            'sotanos': 'Número de niveles de sótano',
+        }
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['sede'].queryset = Sede.objects.none()
-        
+        self.fields['nombre'].required = False
+
         # Si estamos editando, precargar valores
         if self.instance and self.instance.pk:
             sede = self.instance.sede
             campus = sede.campus
             self.fields['campus'].initial = campus
             self.fields['sede'].queryset = Sede.objects.filter(campus=campus, activo=True)
-        
+
         # Si hay datos POST, cargar sedes del campus seleccionado
         if 'campus' in self.data:
             try:

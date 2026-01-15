@@ -56,113 +56,171 @@ class Campus(models.Model):
 
 class Sede(models.Model):
     """Sede dentro de un campus."""
-    
+
     campus = models.ForeignKey(Campus, on_delete=models.PROTECT, related_name='sedes')
     nombre = models.CharField(max_length=100)
-    codigo = models.CharField(max_length=10, help_text="Ej: SP, AN")
+    codigo = models.CharField(max_length=10, help_text="Código interno. Ej: SP, AN")
+    codigo_sede = models.PositiveIntegerField(
+        unique=True,
+        help_text="Código numérico oficial UTP de la sede (Ej: 77, 78, 1)"
+    )
     activo = models.BooleanField(default=True)
-    
+
     class Meta:
         verbose_name = "Sede"
         verbose_name_plural = "Sedes"
         ordering = ['campus', 'nombre']
         unique_together = ['campus', 'codigo']
-    
+
     def __str__(self):
-        return f"{self.nombre} ({self.campus.codigo})"
+        return f"{self.nombre} (Sede {self.codigo_sede})"
 
 
 class Pabellon(models.Model):
     """Pabellón/Edificio dentro de una sede."""
-    
+
     sede = models.ForeignKey(Sede, on_delete=models.PROTECT, related_name='pabellones')
-    nombre = models.CharField(max_length=50, help_text="Ej: A, B, C, Principal")
+    letra = models.CharField(
+        max_length=1,
+        help_text="Letra del pabellón (A-Z)"
+    )
+    nombre = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Nombre descriptivo opcional (Ej: Pabellón Principal, Edificio de Ingenierías)"
+    )
     pisos = models.IntegerField(default=1, help_text="Número total de pisos")
-    tiene_sotano = models.BooleanField(default=False)
+    sotanos = models.IntegerField(default=0, help_text="Número de sótanos")
     activo = models.BooleanField(default=True)
-    
+
     class Meta:
         verbose_name = "Pabellón"
         verbose_name_plural = "Pabellones"
-        ordering = ['sede', 'nombre']
-        unique_together = ['sede', 'nombre']
-    
+        ordering = ['sede', 'letra']
+        unique_together = ['sede', 'letra']
+
+    def clean(self):
+        """Validar que letra sea una sola letra mayúscula A-Z."""
+        if self.letra:
+            self.letra = self.letra.upper()
+            if not self.letra.isalpha() or len(self.letra) != 1:
+                raise ValidationError({
+                    'letra': 'Debe ser una sola letra (A-Z)'
+                })
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
     def __str__(self):
-        return f"Pabellón {self.nombre} ({self.sede})"
-    
+        if self.nombre:
+            return f"Pabellón {self.letra} - {self.nombre} ({self.sede})"
+        return f"Pabellón {self.letra} ({self.sede})"
+
     @property
     def codigo_completo(self):
-        return f"{self.sede.campus.codigo}-{self.sede.codigo}-{self.nombre}"
+        """Retorna el prefijo del código: SEDE + LETRA"""
+        return f"{self.sede.codigo_sede}{self.letra}"
 
 
 class Ambiente(models.Model):
     """Ambiente específico (aula, laboratorio, oficina)."""
-    
+
     TIPOS_AMBIENTE = [
         ('aula_teorica', 'Aula Teórica'),
         ('lab_computo', 'Laboratorio de Cómputo'),
         ('lab_especializado', 'Laboratorio Especializado'),
         ('administrativo', 'Administrativo'),
     ]
-    
+
     pabellon = models.ForeignKey(Pabellon, on_delete=models.PROTECT, related_name='ambientes')
-    piso = models.IntegerField(help_text="Número de piso (-1 para sótano)")
+    piso = models.IntegerField(help_text="Número de piso (positivo) o sótano (negativo: -1, -2)")
+    numero = models.PositiveIntegerField(
+        help_text="Número de ambiente en el piso (01-99)"
+    )
     tipo = models.CharField(max_length=30, choices=TIPOS_AMBIENTE)
-    nombre = models.CharField(max_length=200, help_text="Ej: Lab. Química, Aula 101")
-    
-    # Código único autogenerado
-    codigo = models.CharField(max_length=50, unique=True, blank=True, editable=False)
-    
+    nombre = models.CharField(max_length=200, help_text="Nombre descriptivo. Ej: Lab. Química, Aula Magna")
+
+    # Código único autogenerado en formato UTP: 77C201
+    codigo = models.CharField(max_length=20, unique=True, blank=True, editable=False)
+
     # Metadata
     capacidad = models.IntegerField(null=True, blank=True, help_text="Capacidad del ambiente")
     descripcion = models.TextField(blank=True)
     activo = models.BooleanField(default=True)
-    
+
     class Meta:
         verbose_name = "Ambiente"
         verbose_name_plural = "Ambientes"
-        ordering = ['pabellon', 'piso', 'nombre']
-        unique_together = ['pabellon', 'piso', 'nombre']
-    
+        ordering = ['pabellon', 'piso', 'numero']
+        unique_together = ['pabellon', 'piso', 'numero']
+
+    def clean(self):
+        """Validaciones del ambiente."""
+        # Validar que piso no sea 0
+        if self.piso == 0:
+            raise ValidationError({
+                'piso': 'No existe piso 0. Use 1 para planta baja o -1 para sótano 1'
+            })
+        # Validar número de ambiente (01-99)
+        if self.numero and (self.numero < 1 or self.numero > 99):
+            raise ValidationError({
+                'numero': 'El número de ambiente debe estar entre 01 y 99'
+            })
+
     def save(self, *args, **kwargs):
+        self.full_clean()
+
         if not self.codigo:
-            # Generar código: CAMPUS-SEDE-PAB-P#-TIPO-###
-            tipo_abrev = {
-                'aula_teorica': 'AT',
-                'lab_computo': 'LC',
-                'lab_especializado': 'LE',
-                'administrativo': 'AD',
-            }.get(self.tipo, 'XX')
-            
-            piso_str = f"S{abs(self.piso)}" if self.piso < 0 else f"P{self.piso}"
-            
-            # Contar ambientes similares para el consecutivo
-            count = Ambiente.objects.filter(
-                pabellon=self.pabellon,
-                piso=self.piso,
-                tipo=self.tipo
-            ).count() + 1
-            
-            self.codigo = f"{self.pabellon.codigo_completo}-{piso_str}-{tipo_abrev}-{count:03d}"
-        
+            self.codigo = self.generar_codigo()
+
         super().save(*args, **kwargs)
-    
+
+    def generar_codigo(self):
+        """
+        Genera código en formato UTP: SEDE + PABELLON + PISO + AMBIENTE
+
+        Ejemplos:
+        - 77C201: Sede 77, Pabellón C, Piso 2, Ambiente 01
+        - 77A1501: Sede 77, Pabellón A, Piso 15, Ambiente 01
+        - 77AS102: Sede 77, Pabellón A, Sótano 1, Ambiente 02
+        - 1A101: Sede 1, Pabellón A, Piso 1, Ambiente 01
+        """
+        sede_codigo = self.pabellon.sede.codigo_sede
+        pabellon_letra = self.pabellon.letra
+
+        # Formatear piso: S1, S2 para sótanos; 1, 2, 15 para pisos normales
+        if self.piso < 0:
+            piso_str = f"S{abs(self.piso)}"
+        else:
+            piso_str = str(self.piso)
+
+        # Número de ambiente con 2 dígitos
+        numero_str = f"{self.numero:02d}"
+
+        return f"{sede_codigo}{pabellon_letra}{piso_str}{numero_str}"
+
     def __str__(self):
-        piso_str = f"Sótano {abs(self.piso)}" if self.piso < 0 else f"Piso {self.piso}"
-        return f"{self.nombre} ({self.pabellon.nombre}-{piso_str})"
-    
+        return f"{self.codigo} - {self.nombre}"
+
+    @property
+    def piso_display(self):
+        """Retorna el piso en formato legible."""
+        if self.piso < 0:
+            return f"Sótano {abs(self.piso)}"
+        return f"Piso {self.piso}"
+
     @property
     def ubicacion_completa(self):
         """Retorna la ubicación completa en formato legible."""
-        piso_str = f"Sótano {abs(self.piso)}" if self.piso < 0 else f"Piso {self.piso}"
         sede = self.pabellon.sede
         campus = sede.campus
-        return f"{campus.nombre} > {sede.nombre} > Pab. {self.pabellon.nombre} > {piso_str} > {self.nombre}"
-    
+        return f"{campus.nombre} > {sede.nombre} > Pab. {self.pabellon.letra} > {self.piso_display} > {self.nombre}"
+
     @property
     def campus(self):
         return self.pabellon.sede.campus
-    
+
     @property
     def sede(self):
         return self.pabellon.sede
