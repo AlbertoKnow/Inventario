@@ -86,11 +86,11 @@ class CampusAdmin(admin.ModelAdmin):
 
 @admin.register(Sede)
 class SedeAdmin(admin.ModelAdmin):
-    list_display = ('nombre', 'codigo', 'campus', 'activo', 'total_pabellones')
+    list_display = ('nombre', 'codigo_sede', 'codigo', 'campus', 'activo', 'total_pabellones')
     list_filter = ('campus', 'activo')
-    search_fields = ('nombre', 'codigo', 'campus__nombre')
-    ordering = ('campus', 'nombre')
-    
+    search_fields = ('nombre', 'codigo', 'codigo_sede', 'campus__nombre')
+    ordering = ('campus', 'codigo_sede')
+
     def total_pabellones(self, obj):
         return obj.pabellones.count()
     total_pabellones.short_description = 'Pabellones'
@@ -98,11 +98,11 @@ class SedeAdmin(admin.ModelAdmin):
 
 @admin.register(Pabellon)
 class PabellonAdmin(admin.ModelAdmin):
-    list_display = ('nombre', 'sede', 'pisos', 'tiene_sotano', 'activo', 'total_ambientes')
-    list_filter = ('sede__campus', 'sede', 'tiene_sotano', 'activo')
-    search_fields = ('nombre', 'sede__nombre', 'sede__campus__nombre')
-    ordering = ('sede', 'nombre')
-    
+    list_display = ('letra', 'nombre', 'sede', 'pisos', 'sotanos', 'activo', 'total_ambientes')
+    list_filter = ('sede__campus', 'sede', 'activo')
+    search_fields = ('letra', 'nombre', 'sede__nombre', 'sede__campus__nombre')
+    ordering = ('sede', 'letra')
+
     def total_ambientes(self, obj):
         return obj.ambientes.count()
     total_ambientes.short_description = 'Ambientes'
@@ -110,15 +110,15 @@ class PabellonAdmin(admin.ModelAdmin):
 
 @admin.register(Ambiente)
 class AmbienteAdmin(admin.ModelAdmin):
-    list_display = ('codigo', 'nombre', 'tipo', 'pabellon', 'piso', 'get_campus', 'activo', 'total_items')
+    list_display = ('codigo', 'nombre', 'tipo', 'pabellon', 'piso', 'numero', 'get_campus', 'activo', 'total_items')
     list_filter = ('pabellon__sede__campus', 'pabellon__sede', 'pabellon', 'tipo', 'activo')
-    search_fields = ('codigo', 'nombre', 'pabellon__nombre', 'pabellon__sede__nombre')
-    ordering = ('pabellon__sede__campus', 'pabellon__sede', 'pabellon', 'piso', 'nombre')
+    search_fields = ('codigo', 'nombre', 'pabellon__letra', 'pabellon__sede__nombre')
+    ordering = ('pabellon__sede__campus', 'pabellon__sede', 'pabellon', 'piso', 'numero')
     readonly_fields = ('codigo',)
-    
+
     fieldsets = (
         ('Ubicación', {
-            'fields': ('pabellon', 'piso')
+            'fields': ('pabellon', 'piso', 'numero')
         }),
         ('Ambiente', {
             'fields': ('tipo', 'nombre', 'capacidad')
@@ -132,12 +132,12 @@ class AmbienteAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
-    
+
     def get_campus(self, obj):
         return obj.pabellon.sede.campus.nombre
     get_campus.short_description = 'Campus'
     get_campus.admin_order_field = 'pabellon__sede__campus__nombre'
-    
+
     def total_items(self, obj):
         return obj.items.count()
     total_items.short_description = 'Ítems'
