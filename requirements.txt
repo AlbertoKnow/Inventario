@@ -27,6 +27,8 @@ whitenoise==6.6.0         # Servir archivos estáticos sin Nginx
 # CONFIGURACIÓN Y SEGURIDAD
 # ------------------------------------------------------------------------------
 python-decouple==3.8      # Variables de entorno
+python-magic==0.4.27      # Detección de tipo MIME real de archivos
+django-ratelimit==4.1.0   # Rate limiting para vistas
 
 # ------------------------------------------------------------------------------
 # UTILIDADES

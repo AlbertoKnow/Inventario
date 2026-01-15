@@ -22,6 +22,7 @@ from .forms import (
     MantenimientoLoteForm
 )
 from .signals import set_current_user
+from .ratelimit import RateLimitMixin
 
 
 # ============================================================================
@@ -1013,9 +1014,10 @@ class AmbientesPorPabellonView(LoginRequiredMixin, View):
         return JsonResponse([], safe=False)
 
 
-class BuscarItemsView(LoginRequiredMixin, View):
+class BuscarItemsView(RateLimitMixin, LoginRequiredMixin, View):
     """API para buscar ítems con autocompletado."""
-    
+    ratelimit_key = 'search'
+
     def get(self, request):
         query = request.GET.get('q', '').strip()
         area_id = request.GET.get('area')
@@ -1847,8 +1849,10 @@ class ItemImportarPlantillaView(SupervisorRequeridoMixin, View):
         return response
 
 
-class ItemImportarView(SupervisorRequeridoMixin, TemplateView):
+class ItemImportarView(RateLimitMixin, SupervisorRequeridoMixin, TemplateView):
     """Vista para subir archivo Excel y mostrar preview con validaciones."""
+    ratelimit_key = 'import'
+    ratelimit_method = 'POST'
 
     template_name = 'productos/item_importar.html'
 
@@ -2335,8 +2339,9 @@ class ReportesView(LoginRequiredMixin, TemplateView):
         return context
 
 
-class ExportarInventarioExcelView(LoginRequiredMixin, View):
+class ExportarInventarioExcelView(RateLimitMixin, LoginRequiredMixin, View):
     """Exporta el inventario completo a Excel"""
+    ratelimit_key = 'export'
 
     def get(self, request, *args, **kwargs):
         perfil = request.user.perfil
@@ -2388,8 +2393,9 @@ class ExportarInventarioExcelView(LoginRequiredMixin, View):
         return exporter.get_response(f"inventario_{fecha}.xlsx")
 
 
-class ExportarReportePorAreaExcelView(LoginRequiredMixin, View):
+class ExportarReportePorAreaExcelView(RateLimitMixin, LoginRequiredMixin, View):
     """Exporta reporte de ítems agrupados por área"""
+    ratelimit_key = 'export'
 
     def get(self, request, *args, **kwargs):
         perfil = request.user.perfil
@@ -2425,8 +2431,9 @@ class ExportarReportePorAreaExcelView(LoginRequiredMixin, View):
         return exporter.get_response(f"reporte_por_area_{fecha}.xlsx")
 
 
-class ExportarGarantiasVencenExcelView(LoginRequiredMixin, View):
+class ExportarGarantiasVencenExcelView(RateLimitMixin, LoginRequiredMixin, View):
     """Exporta reporte de garantías próximas a vencer"""
+    ratelimit_key = 'export'
 
     def get(self, request, *args, **kwargs):
         perfil = request.user.perfil
@@ -2463,8 +2470,9 @@ class ExportarGarantiasVencenExcelView(LoginRequiredMixin, View):
         return exporter.get_response(f"garantias_vencen_{dias}dias_{fecha}.xlsx")
 
 
-class ExportarInventarioPDFView(LoginRequiredMixin, View):
+class ExportarInventarioPDFView(RateLimitMixin, LoginRequiredMixin, View):
     """Exporta el inventario completo a PDF"""
+    ratelimit_key = 'export'
 
     def get(self, request, *args, **kwargs):
         perfil = request.user.perfil
@@ -2510,8 +2518,9 @@ class ExportarInventarioPDFView(LoginRequiredMixin, View):
         return exporter.get_response(f"inventario_{fecha}.pdf")
 
 
-class ExportarReportePorAreaPDFView(LoginRequiredMixin, View):
+class ExportarReportePorAreaPDFView(RateLimitMixin, LoginRequiredMixin, View):
     """Exporta reporte de ítems agrupados por área a PDF"""
+    ratelimit_key = 'export'
 
     def get(self, request, *args, **kwargs):
         perfil = request.user.perfil

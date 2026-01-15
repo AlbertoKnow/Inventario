@@ -4,6 +4,7 @@ from .models import (
     Area, Campus, Sede, Pabellon, Ambiente, TipoItem, Item,
     EspecificacionesSistemas, Movimiento, PerfilUsuario, Lote, Mantenimiento
 )
+from .validators import validate_image
 
 
 class ItemForm(forms.ModelForm):
@@ -209,7 +210,10 @@ class MovimientoForm(forms.ModelForm):
             'motivo': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
             'observaciones': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
             'autorizado_por': forms.Select(attrs={'class': 'form-select', 'id': 'id_autorizado_por'}),
-            'foto_evidencia': forms.FileInput(attrs={'class': 'form-control'}),
+            'foto_evidencia': forms.FileInput(attrs={
+                'class': 'form-control',
+                'accept': 'image/jpeg,image/png,image/gif,image/webp'
+            }),
             'notas_evidencia': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
         }
     
@@ -328,6 +332,20 @@ class MovimientoForm(forms.ModelForm):
                 raise forms.ValidationError('No puedes seleccionarte a ti mismo como autorizador.')
         
         return cleaned_data
+
+    def clean_foto_evidencia(self):
+        """Validación adicional del archivo de imagen."""
+        foto = self.cleaned_data.get('foto_evidencia')
+        if foto:
+            # Validar usando el validador personalizado
+            validate_image(foto)
+
+            # Mensaje informativo de tamaño
+            size_mb = foto.size / (1024 * 1024)
+            if size_mb > 2:
+                # Advertencia si la imagen es grande (pero menor al límite)
+                pass  # Se podría agregar un warning aquí si es necesario
+        return foto
 
 
 class RechazoForm(forms.Form):
