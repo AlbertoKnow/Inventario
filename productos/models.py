@@ -5,6 +5,8 @@ from django.contrib.auth.models import User
 from django.utils import timezone
 import re
 
+from .validators import validate_image, ALLOWED_IMAGE_EXTENSIONS
+
 
 # ============================================================================
 # MODELOS DE CONFIGURACIÓN
@@ -874,9 +876,11 @@ class Movimiento(models.Model):
     
     # Evidencia
     foto_evidencia = models.ImageField(
-        upload_to='movimientos/%Y/%m/', 
-        null=True, 
-        blank=True
+        upload_to='movimientos/%Y/%m/',
+        null=True,
+        blank=True,
+        validators=[validate_image],
+        help_text=f'Formatos permitidos: {", ".join(ALLOWED_IMAGE_EXTENSIONS)}. Máximo 5MB.'
     )
     notas_evidencia = models.TextField(blank=True)
     
