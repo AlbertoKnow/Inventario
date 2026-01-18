@@ -230,8 +230,8 @@
                                 {% for mov in ultimos_movimientos %}
                                 <tr>
                                     <td>
-                                        <a href="{% url 'productos:item-detail' mov.item.codigo_utp %}">
-                                            {{ mov.item.codigo_utp }}
+                                        <a href="{% url 'productos:item-detail' mov.item.codigo_interno %}">
+                                            {{ mov.item.codigo_interno }}
                                         </a>
                                     </td>
                                     <td>{{ mov.get_tipo_display }}</td>

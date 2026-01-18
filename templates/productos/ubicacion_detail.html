@@ -123,8 +123,8 @@
                                 {% for item in items %}
                                 <tr>
                                     <td>
-                                        <a href="{% url 'productos:item-detail' item.codigo_utp %}">
-                                            <code>{{ item.codigo_utp }}</code>
+                                        <a href="{% url 'productos:item-detail' item.codigo_interno %}">
+                                            <code>{{ item.codigo_interno }}</code>
                                         </a>
                                     </td>
                                     <td>{{ item.nombre }}</td>
