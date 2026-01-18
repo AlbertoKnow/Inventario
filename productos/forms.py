@@ -101,6 +101,9 @@ class ItemForm(forms.ModelForm):
         self.fields['ambiente'].required = False
         self.fields['lote'].required = False
         self.fields['lote'].queryset = Lote.objects.filter(activo=True)
+
+        # codigo_utp no es requerido en el form (se auto-completa con PENDIENTE)
+        self.fields['codigo_utp'].required = False
         
         # Si el usuario tiene área asignada, pre-seleccionar
         if self.user and hasattr(self.user, 'perfil'):
@@ -132,6 +135,13 @@ class ItemForm(forms.ModelForm):
                 self.fields['ambiente'].queryset = Ambiente.objects.filter(pabellon_id=pabellon_id, activo=True)
             except (ValueError, TypeError):
                 pass
+
+    def clean_codigo_utp(self):
+        """Si el código UTP está vacío, auto-completar con PENDIENTE."""
+        codigo = self.cleaned_data.get('codigo_utp', '').strip()
+        if not codigo:
+            return 'PENDIENTE'
+        return codigo.upper()
 
 
 class ItemSistemasForm(ItemForm):
