@@ -202,43 +202,37 @@
                     </div>
                 </div>
 
-                <!-- Botones de acción (parte inferior) -->
-                <div class="d-flex gap-2 mb-4">
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-save me-1"></i> Guardar
-                    </button>
-                    <a href="{% url 'productos:item-list' %}" class="btn btn-light">
-                        Cancelar
-                    </a>
-                </div>
             </div>
             
             <div class="col-lg-4">
-                <!-- Ayuda -->
-                <div class="card mb-4">
-                    <div class="card-header">Ayuda</div>
-                    <div class="card-body">
-                        <p class="text-muted small mb-3">
-                            Complete los campos requeridos marcados con <span class="text-danger">*</span>
-                        </p>
-                        <ul class="text-muted small ps-3 mb-0">
-                            <li>El código UTP es la etiqueta física del activo</li>
-                            <li>Déjelo vacío si aún no tiene etiqueta</li>
-                            <li>El número de serie debe ser único</li>
-                            <li>Seleccione el área antes del tipo de ítem</li>
-                        </ul>
+                <!-- Sidebar sticky -->
+                <div style="position: sticky; top: 20px;">
+                    <!-- Ayuda -->
+                    <div class="card mb-4">
+                        <div class="card-header">Ayuda</div>
+                        <div class="card-body">
+                            <p class="text-muted small mb-3">
+                                Complete los campos requeridos marcados con <span class="text-danger">*</span>
+                            </p>
+                            <ul class="text-muted small ps-3 mb-0">
+                                <li>El código UTP es la etiqueta física del activo</li>
+                                <li>Déjelo vacío si aún no tiene etiqueta</li>
+                                <li>El número de serie debe ser único</li>
+                                <li>Seleccione el área antes del tipo de ítem</li>
+                            </ul>
+                        </div>
                     </div>
-                </div>
-                
-                <!-- Acciones -->
-                <div class="card">
-                    <div class="card-body">
-                        <button type="submit" class="btn btn-primary w-100 mb-2">
-                            <i class="fas fa-save me-1"></i> Guardar
-                        </button>
-                        <a href="{% url 'productos:item-list' %}" class="btn btn-light w-100">
-                            Cancelar
-                        </a>
+
+                    <!-- Acciones -->
+                    <div class="card">
+                        <div class="card-body">
+                            <button type="submit" class="btn btn-primary w-100 mb-2">
+                                <i class="fas fa-save me-1"></i> Guardar
+                            </button>
+                            <a href="{% url 'productos:item-list' %}" class="btn btn-light w-100">
+                                Cancelar
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>
