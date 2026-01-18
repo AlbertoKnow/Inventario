@@ -201,6 +201,16 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Botones de acción (parte inferior) -->
+                <div class="d-flex gap-2 mb-4">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-1"></i> Guardar
+                    </button>
+                    <a href="{% url 'productos:item-list' %}" class="btn btn-light">
+                        Cancelar
+                    </a>
+                </div>
             </div>
             
             <div class="col-lg-4">
@@ -213,7 +223,7 @@
                         </p>
                         <ul class="text-muted small ps-3 mb-0">
                             <li>El código UTP es la etiqueta física del activo</li>
-                            <li>Si no tiene etiqueta, escriba PENDIENTE</li>
+                            <li>Déjelo vacío si aún no tiene etiqueta</li>
                             <li>El número de serie debe ser único</li>
                             <li>Seleccione el área antes del tipo de ítem</li>
                         </ul>
