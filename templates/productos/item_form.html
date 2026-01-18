@@ -45,6 +45,14 @@
                     <div class="card-body">
                         <div class="row g-3">
                             <div class="col-md-6">
+                                <label class="form-label">Código UTP <span class="text-danger">*</span></label>
+                                {{ form.codigo_utp }}
+                                {% if form.codigo_utp.errors %}
+                                <div class="text-danger small">{{ form.codigo_utp.errors.0 }}</div>
+                                {% endif %}
+                                <small class="text-muted">Código de etiqueta física. Ej: UTP296375 o escriba PENDIENTE si aún no tiene.</small>
+                            </div>
+                            <div class="col-md-6">
                                 <label class="form-label">Número de Serie <span class="text-danger">*</span></label>
                                 {{ form.serie }}
                                 {% if form.serie.errors %}
@@ -54,6 +62,14 @@
                             <div class="col-md-6">
                                 <label class="form-label">Nombre <span class="text-danger">*</span></label>
                                 {{ form.nombre }}
+                                {% if form.nombre.errors %}
+                                <div class="text-danger small">{{ form.nombre.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Lote</label>
+                                {{ form.lote }}
+                                <small class="text-muted">Opcional: asociar a un lote de compra.</small>
                             </div>
                             <div class="col-12">
                                 <label class="form-label">Descripción</label>
@@ -196,7 +212,8 @@
                             Complete los campos requeridos marcados con <span class="text-danger">*</span>
                         </p>
                         <ul class="text-muted small ps-3 mb-0">
-                            <li>El código UTP se genera automáticamente</li>
+                            <li>El código UTP es la etiqueta física del activo</li>
+                            <li>Si no tiene etiqueta, escriba PENDIENTE</li>
                             <li>El número de serie debe ser único</li>
                             <li>Seleccione el área antes del tipo de ítem</li>
                         </ul>
