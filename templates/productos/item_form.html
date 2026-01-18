@@ -45,12 +45,12 @@
                     <div class="card-body">
                         <div class="row g-3">
                             <div class="col-md-6">
-                                <label class="form-label">Código UTP <span class="text-danger">*</span></label>
+                                <label class="form-label">Código UTP</label>
                                 {{ form.codigo_utp }}
                                 {% if form.codigo_utp.errors %}
                                 <div class="text-danger small">{{ form.codigo_utp.errors.0 }}</div>
                                 {% endif %}
-                                <small class="text-muted">Código de etiqueta física. Ej: UTP296375 o escriba PENDIENTE si aún no tiene.</small>
+                                <small class="text-muted">Código de etiqueta física. Ej: UTP296375. <strong>Dejar vacío si aún no tiene etiqueta</strong> (se guardará como PENDIENTE).</small>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Número de Serie <span class="text-danger">*</span></label>
