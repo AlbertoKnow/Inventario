@@ -88,8 +88,8 @@
                             <small class="text-muted">{{ movimiento.fecha_solicitud|time:"H:i" }}</small>
                         </td>
                         <td>
-                            <a href="{% url 'productos:item-detail' movimiento.item.codigo_utp %}">
-                                {{ movimiento.item.codigo_utp }}
+                            <a href="{% url 'productos:item-detail' movimiento.item.codigo_interno %}">
+                                {{ movimiento.item.codigo_interno }}
                             </a>
                             <br>
                             <small class="text-muted">{{ movimiento.item.nombre|truncatewords:5 }}</small>
