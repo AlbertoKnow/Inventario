@@ -17,59 +17,283 @@
         </div>
     </div>
     
-    <!-- Filtros -->
-    <div class="card mb-4">
+    <!-- Búsqueda Rápida y Filtros -->
+    <div class="card mb-3">
         <div class="card-body">
-            <form method="get" class="row g-3">
-                <div class="col-md-4">
-                    <input type="text" name="q" class="form-control" placeholder="Buscar por código, serie o nombre..." value="{{ request.GET.q }}">
+            <form method="get" id="filterForm">
+                <!-- Barra de búsqueda principal -->
+                <div class="row g-2 mb-3">
+                    <div class="col-md-6">
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="fas fa-search"></i></span>
+                            <input type="text" name="q" class="form-control"
+                                   placeholder="Buscar por código interno, código UTP, serie, nombre..."
+                                   value="{{ filtros_activos.q }}">
+                        </div>
+                    </div>
+                    <div class="col-md-auto">
+                        <button type="button" class="btn btn-outline-secondary" id="toggleFilters">
+                            <i class="fas fa-filter me-1"></i> Filtros Avanzados
+                            {% if filtros_count > 0 %}
+                            <span class="badge bg-primary ms-1">{{ filtros_count }}</span>
+                            {% endif %}
+                        </button>
+                    </div>
+                    <div class="col-md-auto">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-search me-1"></i> Buscar
+                        </button>
+                    </div>
+                    <div class="col-md-auto">
+                        <a href="{% url 'productos:item-list' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-times me-1"></i> Limpiar
+                        </a>
+                    </div>
                 </div>
-                <div class="col-md-2">
-                    <select name="area" class="form-select">
-                        <option value="">Todas las áreas</option>
-                        {% for area in areas %}
-                        <option value="{{ area.codigo }}" {% if request.GET.area == area.codigo %}selected{% endif %}>
-                            {{ area.nombre }}
-                        </option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <select name="estado" class="form-select">
-                        <option value="">Todos los estados</option>
-                        {% for valor, nombre in estados %}
-                        <option value="{{ valor }}" {% if request.GET.estado == valor %}selected{% endif %}>
-                            {{ nombre }}
-                        </option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <select name="ambiente" class="form-select">
-                        <option value="">Todas las ubicaciones</option>
-                        {% for amb in ambientes %}
-                        <option value="{{ amb.id }}" {% if request.GET.ambiente == amb.id|stringformat:"i" %}selected{% endif %}>
-                            {{ amb.nombre }} ({{ amb.pabellon.nombre }})
-                        </option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <button type="submit" class="btn btn-secondary w-100">
-                        <i class="fas fa-search me-1"></i> Filtrar
-                    </button>
+
+                <!-- Panel de Filtros Avanzados (Colapsable) -->
+                <div id="advancedFilters" class="collapse {% if filtros_count > 0 %}show{% endif %}">
+                    <hr class="my-3">
+                    <h6 class="mb-3"><i class="fas fa-sliders-h me-2"></i>Filtros Avanzados</h6>
+
+                    <div class="row g-3">
+                        <!-- Fila 1: Básicos -->
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Área</label>
+                            <select name="area" class="form-select form-select-sm">
+                                <option value="">Todas</option>
+                                {% for area in areas %}
+                                <option value="{{ area.codigo }}" {% if filtros_activos.area == area.codigo %}selected{% endif %}>
+                                    {{ area.nombre }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Tipo de Ítem</label>
+                            <select name="tipo_item" class="form-select form-select-sm">
+                                <option value="">Todos</option>
+                                {% for tipo in tipos_item %}
+                                <option value="{{ tipo.id }}" {% if filtros_activos.tipo_item == tipo.id|stringformat:"i" %}selected{% endif %}>
+                                    {{ tipo.nombre }} ({{ tipo.area.nombre }})
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Estado</label>
+                            <select name="estado" class="form-select form-select-sm" multiple size="4">
+                                {% for valor, nombre in estados %}
+                                <option value="{{ valor }}" {% if valor in filtros_activos.estado %}selected{% endif %}>
+                                    {{ nombre }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <small class="text-muted">Ctrl+click para múltiple</small>
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Código UTP</label>
+                            <select name="utp_pendiente" class="form-select form-select-sm">
+                                <option value="">Todos</option>
+                                <option value="1" {% if filtros_activos.utp_pendiente == '1' %}selected{% endif %}>Solo Pendientes</option>
+                                <option value="0" {% if filtros_activos.utp_pendiente == '0' %}selected{% endif %}>Solo Con Código</option>
+                            </select>
+                        </div>
+
+                        <!-- Fila 2: Ubicación y Usuario -->
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Campus</label>
+                            <select name="campus" class="form-select form-select-sm">
+                                <option value="">Todos</option>
+                                {% for campus in campus_list %}
+                                <option value="{{ campus.id }}" {% if filtros_activos.campus == campus.id|stringformat:"i" %}selected{% endif %}>
+                                    {{ campus.nombre }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Ubicación</label>
+                            <select name="ambiente" class="form-select form-select-sm">
+                                <option value="">Todas</option>
+                                <option value="sin_ubicacion" {% if filtros_activos.ambiente == 'sin_ubicacion' %}selected{% endif %}>Sin Ubicación</option>
+                                {% for amb in ambientes %}
+                                <option value="{{ amb.id }}" {% if filtros_activos.ambiente == amb.id|stringformat:"i" %}selected{% endif %}>
+                                    {{ amb.nombre }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Usuario Asignado</label>
+                            <select name="usuario_asignado" class="form-select form-select-sm">
+                                <option value="">Todos</option>
+                                <option value="sin_asignar" {% if filtros_activos.usuario_asignado == 'sin_asignar' %}selected{% endif %}>Sin Asignar</option>
+                                <option value="asignado" {% if filtros_activos.usuario_asignado == 'asignado' %}selected{% endif %}>Asignado</option>
+                                <optgroup label="Usuarios Específicos">
+                                {% for usuario in usuarios %}
+                                <option value="{{ usuario.id }}" {% if filtros_activos.usuario_asignado == usuario.id|stringformat:"i" %}selected{% endif %}>
+                                    {{ usuario.get_full_name }}
+                                </option>
+                                {% endfor %}
+                                </optgroup>
+                            </select>
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Garantía</label>
+                            <select name="garantia" class="form-select form-select-sm">
+                                <option value="">Todas</option>
+                                <option value="vigente" {% if filtros_activos.garantia == 'vigente' %}selected{% endif %}>Vigente</option>
+                                <option value="proxima_vencer" {% if filtros_activos.garantia == 'proxima_vencer' %}selected{% endif %}>Próxima a Vencer (30d)</option>
+                                <option value="vencida" {% if filtros_activos.garantia == 'vencida' %}selected{% endif %}>Vencida</option>
+                                <option value="sin_garantia" {% if filtros_activos.garantia == 'sin_garantia' %}selected{% endif %}>Sin Garantía</option>
+                            </select>
+                        </div>
+
+                        <!-- Fila 3: Rangos -->
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Precio Mínimo</label>
+                            <input type="number" name="precio_min" class="form-control form-control-sm"
+                                   placeholder="S/. 0.00" step="0.01" value="{{ filtros_activos.precio_min }}">
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Precio Máximo</label>
+                            <input type="number" name="precio_max" class="form-control form-control-sm"
+                                   placeholder="S/. 99999.99" step="0.01" value="{{ filtros_activos.precio_max }}">
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Adquisición Desde</label>
+                            <input type="date" name="fecha_adq_desde" class="form-control form-control-sm"
+                                   value="{{ filtros_activos.fecha_adq_desde }}">
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Adquisición Hasta</label>
+                            <input type="date" name="fecha_adq_hasta" class="form-control form-control-sm"
+                                   value="{{ filtros_activos.fecha_adq_hasta }}">
+                        </div>
+
+                        <!-- Fila 4: Otros -->
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Leasing</label>
+                            <select name="es_leasing" class="form-select form-select-sm">
+                                <option value="">Todos</option>
+                                <option value="1" {% if filtros_activos.es_leasing == '1' %}selected{% endif %}>Sí</option>
+                                <option value="0" {% if filtros_activos.es_leasing == '0' %}selected{% endif %}>No</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Lote</label>
+                            <select name="lote" class="form-select form-select-sm">
+                                <option value="">Todos</option>
+                                <option value="sin_lote" {% if filtros_activos.lote == 'sin_lote' %}selected{% endif %}>Sin Lote</option>
+                                {% for lote in lotes %}
+                                <option value="{{ lote.id }}" {% if filtros_activos.lote == lote.id|stringformat:"i" %}selected{% endif %}>
+                                    {{ lote.codigo_interno }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Ordenar por</label>
+                            <select name="order_by" class="form-select form-select-sm">
+                                <option value="-creado_en" {% if filtros_activos.order_by == '-creado_en' %}selected{% endif %}>Más Reciente</option>
+                                <option value="creado_en" {% if filtros_activos.order_by == 'creado_en' %}selected{% endif %}>Más Antiguo</option>
+                                <option value="codigo_interno" {% if filtros_activos.order_by == 'codigo_interno' %}selected{% endif %}>Código (A-Z)</option>
+                                <option value="-codigo_interno" {% if filtros_activos.order_by == '-codigo_interno' %}selected{% endif %}>Código (Z-A)</option>
+                                <option value="nombre" {% if filtros_activos.order_by == 'nombre' %}selected{% endif %}>Nombre (A-Z)</option>
+                                <option value="-nombre" {% if filtros_activos.order_by == '-nombre' %}selected{% endif %}>Nombre (Z-A)</option>
+                                <option value="precio" {% if filtros_activos.order_by == 'precio' %}selected{% endif %}>Precio (Menor)</option>
+                                <option value="-precio" {% if filtros_activos.order_by == '-precio' %}selected{% endif %}>Precio (Mayor)</option>
+                                <option value="fecha_adquisicion" {% if filtros_activos.order_by == 'fecha_adquisicion' %}selected{% endif %}>Fecha Adq. (Antiguo)</option>
+                                <option value="-fecha_adquisicion" {% if filtros_activos.order_by == '-fecha_adquisicion' %}selected{% endif %}>Fecha Adq. (Reciente)</option>
+                            </select>
+                        </div>
+                    </div>
                 </div>
             </form>
         </div>
     </div>
+
+    <!-- Chips de Filtros Activos -->
+    {% if filtros_count > 0 %}
+    <div class="mb-3">
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+            <span class="text-muted small">Filtros activos:</span>
+            {% if filtros_activos.q %}
+            <span class="badge bg-secondary">Búsqueda: "{{ filtros_activos.q }}"</span>
+            {% endif %}
+            {% if filtros_activos.area %}
+            <span class="badge bg-secondary">Área</span>
+            {% endif %}
+            {% for estado in filtros_activos.estado %}
+            <span class="badge bg-secondary">Estado: {{ estado }}</span>
+            {% endfor %}
+            {% if filtros_activos.tipo_item %}
+            <span class="badge bg-secondary">Tipo</span>
+            {% endif %}
+            {% if filtros_activos.utp_pendiente == '1' %}
+            <span class="badge bg-warning text-dark">UTP Pendiente</span>
+            {% elif filtros_activos.utp_pendiente == '0' %}
+            <span class="badge bg-secondary">Con Código UTP</span>
+            {% endif %}
+            {% if filtros_activos.usuario_asignado %}
+            <span class="badge bg-secondary">Usuario</span>
+            {% endif %}
+            {% if filtros_activos.garantia %}
+            <span class="badge bg-secondary">Garantía</span>
+            {% endif %}
+            {% if filtros_activos.precio_min or filtros_activos.precio_max %}
+            <span class="badge bg-secondary">Rango Precio</span>
+            {% endif %}
+            {% if filtros_activos.fecha_adq_desde or filtros_activos.fecha_adq_hasta %}
+            <span class="badge bg-secondary">Rango Fecha</span>
+            {% endif %}
+            <a href="{% url 'productos:item-list' %}" class="badge bg-danger text-decoration-none">
+                <i class="fas fa-times"></i> Limpiar todo
+            </a>
+        </div>
+    </div>
+    {% endif %}
     
     <!-- Tabla de Items -->
     <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <div>
+                <span id="selectionInfo" style="display:none;">
+                    <strong><span id="selectedCount">0</span></strong> ítem(s) seleccionado(s)
+                </span>
+                <span id="selectionHelp">
+                    <i class="fas fa-info-circle text-primary me-1"></i>
+                    <small class="text-muted">Marca los checkboxes para programar mantenimiento en lote</small>
+                </span>
+            </div>
+            <div>
+                <button type="button" class="btn btn-sm btn-warning" id="btnMantenimientoLote" style="display:none;">
+                    <i class="fas fa-tools me-1"></i> Programar Mantenimiento en Lote
+                </button>
+            </div>
+        </div>
         <div class="card-body p-0">
             <div class="table-responsive">
                 <table class="table table-hover mb-0">
                     <thead>
                         <tr>
+                            <th style="width: 40px;" title="Seleccionar ítems para mantenimiento en lote">
+                                <input type="checkbox" class="form-check-input" id="selectAll"
+                                       data-bs-toggle="tooltip" data-bs-placement="top"
+                                       title="Seleccionar todos los ítems">
+                            </th>
                             <th>Código UTP</th>
                             <th>Nombre</th>
                             <th>Área</th>
@@ -85,9 +309,17 @@
                         {% for item in items %}
                         <tr>
                             <td>
-                                <a href="{% url 'productos:item-detail' item.codigo_utp %}" class="fw-semibold text-decoration-none">
-                                    {{ item.codigo_utp }}
+                                <input type="checkbox" class="form-check-input item-checkbox" value="{{ item.id }}" data-codigo="{{ item.codigo_interno }}">
+                            </td>
+                            <td>
+                                <a href="{% url 'productos:item-detail' item.codigo_interno %}" class="fw-semibold text-decoration-none">
+                                    {{ item.codigo_interno }}
                                 </a>
+                                {% if item.codigo_utp_pendiente %}
+                                <br><span class="badge bg-warning text-dark" style="font-size: 0.7em;"><i class="fas fa-clock me-1"></i>UTP Pendiente</span>
+                                {% else %}
+                                <br><small class="text-muted">UTP: {{ item.codigo_utp }}</small>
+                                {% endif %}
                             </td>
                             <td>{{ item.nombre }}</td>
                             <td>
@@ -126,10 +358,10 @@
                             </td>
                             <td class="text-end">
                                 <div class="btn-group btn-group-sm">
-                                    <a href="{% url 'productos:item-detail' item.codigo_utp %}" class="btn btn-outline-secondary" title="Ver">
+                                    <a href="{% url 'productos:item-detail' item.codigo_interno %}" class="btn btn-outline-secondary" title="Ver">
                                         <i class="fas fa-eye"></i>
                                     </a>
-                                    <a href="{% url 'productos:item-update' item.codigo_utp %}" class="btn btn-outline-secondary" title="Editar">
+                                    <a href="{% url 'productos:item-update' item.codigo_interno %}" class="btn btn-outline-secondary" title="Editar">
                                         <i class="fas fa-edit"></i>
                                     </a>
                                     <a href="{% url 'productos:movimiento-create' %}?item={{ item.pk }}" class="btn btn-outline-secondary" title="Nuevo movimiento">
@@ -187,4 +419,101 @@
         {% endif %}
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Toggle para mostrar/ocultar filtros avanzados
+document.getElementById('toggleFilters').addEventListener('click', function() {
+    const filtersPanel = document.getElementById('advancedFilters');
+    const icon = this.querySelector('i');
+
+    if (filtersPanel.classList.contains('show')) {
+        filtersPanel.classList.remove('show');
+        icon.classList.remove('fa-filter');
+        icon.classList.add('fa-filter');
+    } else {
+        filtersPanel.classList.add('show');
+    }
+});
+
+// Auto-submit cuando cambia el select de ordenamiento (opcional)
+const orderBySelect = document.querySelector('select[name="order_by"]');
+if (orderBySelect) {
+    orderBySelect.addEventListener('change', function() {
+        // Si quieres auto-submit al cambiar orden, descomenta la siguiente línea:
+        // document.getElementById('filterForm').submit();
+    });
+}
+
+// Resaltar campos de filtro activos
+document.querySelectorAll('#advancedFilters select, #advancedFilters input').forEach(field => {
+    if ((field.tagName === 'SELECT' && field.value !== '') ||
+        (field.tagName === 'INPUT' && field.value !== '')) {
+        field.style.borderColor = '#0d6efd';
+        field.style.borderWidth = '2px';
+    }
+});
+
+// Manejo de selección múltiple para mantenimiento en lote
+const selectAllCheckbox = document.getElementById('selectAll');
+const itemCheckboxes = document.querySelectorAll('.item-checkbox');
+const selectionInfo = document.getElementById('selectionInfo');
+const selectionHelp = document.getElementById('selectionHelp');
+const selectedCountSpan = document.getElementById('selectedCount');
+const btnMantenimientoLote = document.getElementById('btnMantenimientoLote');
+
+// Actualizar contador y visibilidad del botón
+function updateSelectionUI() {
+    const selectedItems = document.querySelectorAll('.item-checkbox:checked');
+    const count = selectedItems.length;
+
+    selectedCountSpan.textContent = count;
+
+    if (count > 0) {
+        selectionInfo.style.display = 'inline';
+        selectionHelp.style.display = 'none';
+        btnMantenimientoLote.style.display = 'inline-block';
+    } else {
+        selectionInfo.style.display = 'none';
+        selectionHelp.style.display = 'inline';
+        btnMantenimientoLote.style.display = 'none';
+    }
+
+    // Actualizar estado del checkbox "Seleccionar todos"
+    selectAllCheckbox.checked = (count === itemCheckboxes.length && count > 0);
+    selectAllCheckbox.indeterminate = (count > 0 && count < itemCheckboxes.length);
+}
+
+// Seleccionar/deseleccionar todos
+selectAllCheckbox.addEventListener('change', function() {
+    itemCheckboxes.forEach(checkbox => {
+        checkbox.checked = this.checked;
+    });
+    updateSelectionUI();
+});
+
+// Escuchar cambios en checkboxes individuales
+itemCheckboxes.forEach(checkbox => {
+    checkbox.addEventListener('change', updateSelectionUI);
+});
+
+// Botón de mantenimiento en lote
+btnMantenimientoLote.addEventListener('click', function() {
+    const selectedItems = Array.from(document.querySelectorAll('.item-checkbox:checked'))
+        .map(cb => cb.value);
+
+    if (selectedItems.length > 0) {
+        // Redirigir a la página de mantenimiento en lote con los items seleccionados
+        const url = new URL('{% url "productos:mantenimiento-lote" %}', window.location.origin);
+        selectedItems.forEach(id => {
+            url.searchParams.append('items', id);
+        });
+        window.location.href = url.toString();
+    }
+});
+
+// Inicializar UI
+updateSelectionUI();
+</script>
 {% endblock %}
