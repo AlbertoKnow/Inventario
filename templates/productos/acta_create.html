@@ -213,8 +213,8 @@
                 <div class="row g-3 mb-4">
                     {% for item in items_disponibles %}
                     <div class="col-md-6">
-                        <label class="item-card d-block">
-                            <input type="checkbox" name="items" value="{{ item.id }}">
+                        <div class="item-card" data-item-id="{{ item.id }}">
+                            <input type="checkbox" name="items" value="{{ item.id }}" id="item_{{ item.id }}">
                             <div class="d-flex justify-content-between">
                                 <div>
                                     <strong>{{ item.codigo_interno }}</strong>
@@ -226,16 +226,16 @@
                                 <div class="text-end">
                                     <small class="text-muted">Serie: {{ item.serie }}</small>
                                     <br>
-                                    {% if item.estado == 'operativo' %}
-                                    <span class="badge bg-success">Operativo</span>
-                                    {% elif item.estado == 'mantenimiento' %}
-                                    <span class="badge bg-warning">Mantenimiento</span>
+                                    {% if item.estado == 'nuevo' %}
+                                    <span class="badge bg-success">Nuevo</span>
+                                    {% elif item.estado == 'instalado' %}
+                                    <span class="badge bg-info">Instalado</span>
                                     {% else %}
                                     <span class="badge bg-secondary">{{ item.estado|title }}</span>
                                     {% endif %}
                                 </div>
                             </div>
-                        </label>
+                        </div>
                     </div>
                     {% empty %}
                     <div class="col-12 text-center text-muted py-4">
@@ -429,18 +429,24 @@
 <script>
 {% if paso == 2 %}
 // Manejo de selección de items
-document.querySelectorAll('.item-card').forEach(card => {
-    const checkbox = card.querySelector('input[type="checkbox"]');
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.item-card').forEach(card => {
+        const checkbox = card.querySelector('input[type="checkbox"]');
 
-    if (checkbox.checked) {
-        card.classList.add('selected');
-    }
+        if (!checkbox) return;
 
-    card.addEventListener('click', function(e) {
-        if (e.target.type !== 'checkbox') {
-            checkbox.checked = !checkbox.checked;
+        // Estado inicial
+        if (checkbox.checked) {
+            card.classList.add('selected');
         }
-        card.classList.toggle('selected', checkbox.checked);
+
+        // Click en la tarjeta
+        card.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            checkbox.checked = !checkbox.checked;
+            card.classList.toggle('selected', checkbox.checked);
+        });
     });
 });
 {% endif %}
