@@ -16,20 +16,20 @@
         <h1>{% if form.instance.pk %}Editar Producto{% else %}Nuevo Producto{% endif %}</h1>
     </div>
     
-    <div class="row">
-        <div class="col-lg-8">
-            <div class="card">
-                <div class="card-body">
-                    <form method="post" novalidate>
-                        {% csrf_token %}
-                        
-                        {% if form.errors %}
-                        <div class="alert alert-danger mb-4">
-                            <i class="fas fa-exclamation-circle me-2"></i>
-                            Por favor corrige los errores indicados.
-                        </div>
-                        {% endif %}
-                        
+    <form method="post" novalidate>
+        {% csrf_token %}
+
+        {% if form.errors %}
+        <div class="alert alert-danger mb-4">
+            <i class="fas fa-exclamation-circle me-2"></i>
+            Por favor corrige los errores indicados.
+        </div>
+        {% endif %}
+
+        <div class="row">
+            <div class="col-lg-8">
+                <div class="card">
+                    <div class="card-body">
                         <div class="row g-3">
                             <div class="col-md-6">
                                 <label class="form-label">Código Interno <span class="text-danger">*</span></label>
@@ -104,35 +104,44 @@
                             </div>
                         </div>
                         
-                        <hr class="my-4">
-                        
-                        <div class="d-flex gap-2">
-                            <button type="submit" class="btn btn-primary">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <!-- Sidebar sticky -->
+                <div style="position: sticky; top: 20px;">
+                    <!-- Ayuda -->
+                    <div class="card mb-4">
+                        <div class="card-header">Ayuda</div>
+                        <div class="card-body">
+                            <p class="text-muted small mb-3">
+                                Complete los campos requeridos marcados con <span class="text-danger">*</span>
+                            </p>
+                            <ul class="text-muted small ps-3 mb-0">
+                                <li>El código interno debe ser único</li>
+                                <li>El precio debe ser mayor a 0</li>
+                                <li>El stock no puede ser negativo</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Acciones -->
+                    <div class="card">
+                        <div class="card-body">
+                            <button type="submit" class="btn btn-primary w-100 mb-2">
                                 <i class="fas fa-save me-1"></i> Guardar
                             </button>
-                            <a href="{% url 'productos:producto-list' %}" class="btn btn-light">Cancelar</a>
+                            <a href="{% url 'productos:producto-list' %}" class="btn btn-light w-100">
+                                Cancelar
+                            </a>
                         </div>
-                    </form>
+                    </div>
                 </div>
             </div>
         </div>
-        
-        <div class="col-lg-4">
-            <div class="card">
-                <div class="card-header">Ayuda</div>
-                <div class="card-body">
-                    <p class="text-muted small mb-3">
-                        Complete los campos requeridos marcados con <span class="text-danger">*</span>
-                    </p>
-                    <ul class="text-muted small ps-3">
-                        <li>El código interno debe ser único</li>
-                        <li>El precio debe ser mayor a 0</li>
-                        <li>El stock no puede ser negativo</li>
-                    </ul>
-                </div>
-            </div>
-        </div>
-    </div>
+    </form>
 </div>
 
 {% block extra_css %}
