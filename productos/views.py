@@ -3114,10 +3114,13 @@ class ActaCreateView(PerfilRequeridoMixin, View):
 
                 # Obtener ítems disponibles según el tipo
                 if tipo == 'entrega':
+                    # Para entrega: items sin asignar y en buen estado (nuevo/instalado)
                     items_disponibles = Item.objects.filter(
-                        colaborador_asignado__isnull=True
+                        colaborador_asignado__isnull=True,
+                        estado__in=['nuevo', 'instalado']
                     ).select_related('tipo_item', 'area')
                 else:
+                    # Para devolución: items asignados al colaborador
                     items_disponibles = Item.objects.filter(
                         colaborador_asignado=colaborador
                     ).select_related('tipo_item', 'area')
