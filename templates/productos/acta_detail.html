@@ -35,9 +35,12 @@
                 <i class="fas fa-file-pdf me-1"></i> Descargar PDF
             </a>
             {% if not acta.correo_enviado %}
-            <a href="{% url 'productos:acta-enviar-correo' acta.pk %}" class="btn btn-primary">
-                <i class="fas fa-paper-plane me-1"></i> Enviar Correo
-            </a>
+            <form method="post" action="{% url 'productos:acta-enviar-correo' acta.pk %}" class="d-inline">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-paper-plane me-1"></i> Enviar Correo
+                </button>
+            </form>
             {% endif %}
         </div>
     </div>
@@ -258,9 +261,12 @@
                         <i class="fas fa-clock me-2"></i>
                         <strong>Pendiente de envío</strong>
                     </div>
-                    <a href="{% url 'productos:acta-enviar-correo' acta.pk %}" class="btn btn-primary w-100">
-                        <i class="fas fa-paper-plane me-1"></i> Enviar ahora
-                    </a>
+                    <form method="post" action="{% url 'productos:acta-enviar-correo' acta.pk %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-paper-plane me-1"></i> Enviar ahora
+                        </button>
+                    </form>
                     {% endif %}
                 </div>
             </div>
