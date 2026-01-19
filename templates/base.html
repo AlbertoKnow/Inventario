@@ -520,9 +520,7 @@
                             <li><a class="dropdown-item" href="{% url 'productos:tipoitem-list' %}"><i class="fas fa-tags me-2"></i>Tipos de Ítem</a></li>
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="{% url 'productos:item-create' %}"><i class="fas fa-plus me-2"></i>Agregar ítem</a></li>
-                            {% if perfil.rol == 'admin' or perfil.rol == 'supervisor' %}
                             <li><a class="dropdown-item" href="{% url 'productos:item-importar' %}"><i class="fas fa-file-excel me-2"></i>Importar desde Excel</a></li>
-                            {% endif %}
                         </ul>
                     </li>
                     <li class="nav-item dropdown">
