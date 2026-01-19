@@ -1674,7 +1674,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class ItemImportarPlantillaView(SupervisorRequeridoMixin, View):
+class ItemImportarPlantillaView(PerfilRequeridoMixin, View):
     """Descargar plantilla Excel para importación masiva."""
 
     def get(self, request):
@@ -1849,7 +1849,7 @@ class ItemImportarPlantillaView(SupervisorRequeridoMixin, View):
         return response
 
 
-class ItemImportarView(RateLimitMixin, SupervisorRequeridoMixin, TemplateView):
+class ItemImportarView(RateLimitMixin, PerfilRequeridoMixin, TemplateView):
     """Vista para subir archivo Excel y mostrar preview con validaciones."""
     ratelimit_key = 'import'
     ratelimit_method = 'POST'
@@ -2112,7 +2112,7 @@ class ItemImportarView(RateLimitMixin, SupervisorRequeridoMixin, TemplateView):
             return redirect('productos:item-importar')
 
 
-class ItemImportarConfirmarView(SupervisorRequeridoMixin, View):
+class ItemImportarConfirmarView(PerfilRequeridoMixin, View):
     """Confirmar y ejecutar la importación masiva."""
 
     def post(self, request):
