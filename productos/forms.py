@@ -2,7 +2,8 @@ from django import forms
 from django.contrib.auth.models import User
 from .models import (
     Area, Campus, Sede, Pabellon, Ambiente, TipoItem, Item,
-    EspecificacionesSistemas, Movimiento, PerfilUsuario, Lote, Mantenimiento
+    EspecificacionesSistemas, Movimiento, PerfilUsuario, Lote, Mantenimiento,
+    Gerencia, Colaborador, SoftwareEstandar, ActaEntrega, ActaItem, ActaFoto
 )
 from .validators import validate_image
 
@@ -816,9 +817,262 @@ class MantenimientoLoteForm(forms.Form):
     
     def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
-        
+
         # Si hay usuario, filtrar items por su área
         if user and hasattr(user, 'perfil'):
             perfil = user.perfil
             if perfil.area and perfil.rol != 'admin':
                 self.fields['items'].queryset = Item.objects.filter(area=perfil.area)
+
+
+# ==============================================================================
+# FORMULARIOS PARA SISTEMA DE ACTAS
+# ==============================================================================
+
+class GerenciaForm(forms.ModelForm):
+    """Formulario para crear/editar gerencias."""
+
+    class Meta:
+        model = Gerencia
+        fields = ['nombre', 'descripcion', 'activo']
+        widgets = {
+            'nombre': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Ej: Marketing, Vida Universitaria, Activos'
+            }),
+            'descripcion': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 2,
+                'placeholder': 'Descripción opcional'
+            }),
+            'activo': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['descripcion'].required = False
+
+
+class ColaboradorForm(forms.ModelForm):
+    """Formulario para crear/editar colaboradores."""
+
+    class Meta:
+        model = Colaborador
+        fields = ['dni', 'nombre_completo', 'cargo', 'gerencia', 'sede', 'anexo', 'correo', 'activo']
+        widgets = {
+            'dni': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'DNI del colaborador',
+                'maxlength': 15
+            }),
+            'nombre_completo': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Nombre completo del colaborador'
+            }),
+            'cargo': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Ej: Coordinador Académico, Enfermero'
+            }),
+            'gerencia': forms.Select(attrs={'class': 'form-select'}),
+            'sede': forms.Select(attrs={'class': 'form-select'}),
+            'anexo': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Anexo o RPE (teléfono corporativo)'
+            }),
+            'correo': forms.EmailInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'correo@utp.edu.pe'
+            }),
+            'activo': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['gerencia'].queryset = Gerencia.objects.filter(activo=True)
+        self.fields['sede'].queryset = Sede.objects.filter(activo=True)
+        self.fields['anexo'].required = False
+
+
+class SoftwareEstandarForm(forms.ModelForm):
+    """Formulario para crear/editar software estándar."""
+
+    class Meta:
+        model = SoftwareEstandar
+        fields = ['nombre', 'es_basico', 'activo', 'orden']
+        widgets = {
+            'nombre': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Ej: Windows 11 Pro, Office 365'
+            }),
+            'es_basico': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'activo': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'orden': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'min': 0
+            }),
+        }
+
+
+class ActaEntregaForm(forms.ModelForm):
+    """Formulario base para crear actas de entrega/devolución."""
+
+    # Campo para buscar colaborador por DNI
+    buscar_dni = forms.CharField(
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Buscar por DNI...',
+            'id': 'buscar_dni'
+        })
+    )
+
+    class Meta:
+        model = ActaEntrega
+        fields = ['tipo', 'colaborador', 'ticket', 'observaciones']
+        widgets = {
+            'tipo': forms.Select(attrs={'class': 'form-select', 'id': 'id_tipo_acta'}),
+            'colaborador': forms.Select(attrs={'class': 'form-select', 'id': 'id_colaborador'}),
+            'ticket': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Número de ticket de Mesa de Ayuda (opcional)'
+            }),
+            'observaciones': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 3,
+                'placeholder': 'Observaciones adicionales'
+            }),
+        }
+
+    def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+        self.fields['colaborador'].queryset = Colaborador.objects.filter(activo=True)
+        self.fields['ticket'].required = False
+        self.fields['observaciones'].required = False
+
+
+class ActaItemForm(forms.ModelForm):
+    """Formulario para los accesorios de cada ítem en el acta."""
+
+    class Meta:
+        model = ActaItem
+        fields = [
+            'item', 'acc_cargador', 'acc_cable_seguridad', 'acc_bateria',
+            'acc_maletin', 'acc_cable_red', 'acc_teclado_mouse'
+        ]
+        widgets = {
+            'item': forms.Select(attrs={'class': 'form-select'}),
+            'acc_cargador': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'acc_cable_seguridad': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'acc_bateria': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'acc_maletin': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'acc_cable_red': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'acc_teclado_mouse': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        }
+
+
+# FormSet para múltiples ítems en un acta
+ActaItemFormSet = forms.inlineformset_factory(
+    ActaEntrega,
+    ActaItem,
+    form=ActaItemForm,
+    extra=1,
+    can_delete=True,
+    min_num=1,
+    validate_min=True
+)
+
+
+class ActaFotoForm(forms.ModelForm):
+    """Formulario para fotos adjuntas al acta."""
+
+    class Meta:
+        model = ActaFoto
+        fields = ['foto', 'descripcion']
+        widgets = {
+            'foto': forms.FileInput(attrs={
+                'class': 'form-control',
+                'accept': 'image/*'
+            }),
+            'descripcion': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Descripción de la foto (opcional)'
+            }),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['descripcion'].required = False
+
+
+# FormSet para múltiples fotos en un acta
+ActaFotoFormSet = forms.inlineformset_factory(
+    ActaEntrega,
+    ActaFoto,
+    form=ActaFotoForm,
+    extra=3,
+    can_delete=True,
+    max_num=10
+)
+
+
+class FirmaForm(forms.Form):
+    """Formulario para capturar las firmas digitales."""
+
+    firma_receptor = forms.CharField(
+        widget=forms.HiddenInput(attrs={'id': 'firma_receptor_data'}),
+        required=True
+    )
+    firma_emisor = forms.CharField(
+        widget=forms.HiddenInput(attrs={'id': 'firma_emisor_data'}),
+        required=True
+    )
+
+
+class SeleccionarItemsActaForm(forms.Form):
+    """Formulario para seleccionar múltiples ítems para el acta."""
+
+    items = forms.ModelMultipleChoiceField(
+        queryset=Item.objects.none(),
+        widget=forms.CheckboxSelectMultiple(attrs={'class': 'form-check-input'}),
+        label='Seleccionar Ítems'
+    )
+
+    def __init__(self, *args, tipo_acta='entrega', colaborador=None, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        if tipo_acta == 'entrega':
+            # Para entrega: mostrar ítems disponibles (sin colaborador asignado)
+            queryset = Item.objects.filter(colaborador_asignado__isnull=True)
+        else:
+            # Para devolución: mostrar ítems asignados al colaborador
+            if colaborador:
+                queryset = Item.objects.filter(colaborador_asignado=colaborador)
+            else:
+                queryset = Item.objects.none()
+
+        # Filtrar por área del usuario si no es admin
+        if user and hasattr(user, 'perfil'):
+            perfil = user.perfil
+            if perfil.rol != 'admin' and perfil.area:
+                queryset = queryset.filter(area=perfil.area)
+
+        self.fields['items'].queryset = queryset
+
+
+class SeleccionarSoftwareForm(forms.Form):
+    """Formulario para seleccionar software a incluir en el acta."""
+
+    software = forms.ModelMultipleChoiceField(
+        queryset=SoftwareEstandar.objects.filter(activo=True),
+        widget=forms.CheckboxSelectMultiple(attrs={'class': 'form-check-input'}),
+        label='Software Instalado',
+        required=False
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Pre-seleccionar el software básico
+        self.fields['software'].initial = SoftwareEstandar.objects.filter(
+            activo=True, es_basico=True
+        )

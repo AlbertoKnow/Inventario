@@ -97,6 +97,29 @@ urlpatterns = [
     path('mantenimientos/<int:pk>/cancelar/', views.MantenimientoCancelarView.as_view(), name='mantenimiento-cancelar'),
     path('mantenimientos/<int:pk>/eliminar/', views.MantenimientoDeleteView.as_view(), name='mantenimiento-delete'),
 
+    # Actas de Entrega/Devolución
+    path('actas/', views.ActaListView.as_view(), name='acta-list'),
+    path('actas/crear/', views.ActaCreateView.as_view(), name='acta-create'),
+    path('actas/<int:pk>/', views.ActaDetailView.as_view(), name='acta-detail'),
+    path('actas/<int:pk>/pdf/', views.ActaDescargarPDFView.as_view(), name='acta-pdf'),
+    path('actas/<int:pk>/enviar-correo/', views.ActaEnviarCorreoView.as_view(), name='acta-enviar-correo'),
+
+    # Gerencias (para actas)
+    path('gerencias/', views.GerenciaListView.as_view(), name='gerencia-list'),
+    path('gerencias/crear/', views.GerenciaCreateView.as_view(), name='gerencia-create'),
+    path('gerencias/<int:pk>/editar/', views.GerenciaUpdateView.as_view(), name='gerencia-update'),
+
+    # Colaboradores (receptores de equipos)
+    path('colaboradores/', views.ColaboradorListView.as_view(), name='colaborador-list'),
+    path('colaboradores/crear/', views.ColaboradorCreateView.as_view(), name='colaborador-create'),
+    path('colaboradores/<int:pk>/', views.ColaboradorDetailView.as_view(), name='colaborador-detail'),
+    path('colaboradores/<int:pk>/editar/', views.ColaboradorUpdateView.as_view(), name='colaborador-update'),
+
+    # Software Estándar (para actas)
+    path('software-estandar/', views.SoftwareEstandarListView.as_view(), name='software-list'),
+    path('software-estandar/crear/', views.SoftwareEstandarCreateView.as_view(), name='software-create'),
+    path('software-estandar/<int:pk>/editar/', views.SoftwareEstandarUpdateView.as_view(), name='software-update'),
+
     # API endpoints (JSON)
     path('api/tipos-item/', views.TiposItemPorAreaView.as_view(), name='api-tipos-item'),
     path('api/supervisores/', views.SupervisoresPorAreaView.as_view(), name='api-supervisores'),
@@ -105,4 +128,5 @@ urlpatterns = [
     path('api/ambientes/', views.AmbientesPorPabellonView.as_view(), name='api-ambientes'),
     path('api/items-buscar/', views.BuscarItemsView.as_view(), name='api-items-buscar'),
     path('api/item-detalle/', views.ObtenerItemDetalleView.as_view(), name='api-item-detalle'),
+    path('api/colaboradores-buscar/', views.BuscarColaboradorView.as_view(), name='api-colaboradores-buscar'),
 ]

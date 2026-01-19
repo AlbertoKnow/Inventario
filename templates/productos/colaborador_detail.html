@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+
+{% block title %}{{ colaborador.nombre_completo }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'productos:dashboard' %}">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'productos:colaborador-list' %}">Colaboradores</a></li>
+            <li class="breadcrumb-item active">{{ colaborador.nombre_completo }}</li>
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-3 mb-4">
+        <div>
+            <h1>{{ colaborador.nombre_completo }}</h1>
+            <div class="d-flex gap-2 align-items-center mt-2">
+                <span class="badge bg-secondary">DNI: {{ colaborador.dni }}</span>
+                {% if colaborador.activo %}
+                <span class="badge bg-success">Activo</span>
+                {% else %}
+                <span class="badge bg-secondary">Inactivo</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'productos:acta-create' %}?colaborador={{ colaborador.pk }}" class="btn btn-outline-primary">
+                <i class="fas fa-file-signature me-1"></i> Nueva Acta
+            </a>
+            <a href="{% url 'productos:colaborador-update' colaborador.pk %}" class="btn btn-primary">
+                <i class="fas fa-edit me-1"></i> Editar
+            </a>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- Información Principal -->
+        <div class="col-lg-8">
+            <!-- Datos del Colaborador -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="fas fa-user me-2"></i>Información Personal
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="text-muted small">DNI</label>
+                            <div class="fw-semibold">{{ colaborador.dni }}</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small">Nombre Completo</label>
+                            <div class="fw-semibold">{{ colaborador.nombre_completo }}</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small">Cargo</label>
+                            <div class="fw-semibold">{{ colaborador.cargo }}</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small">Gerencia</label>
+                            <div class="fw-semibold">{{ colaborador.gerencia.nombre }}</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small">Sede</label>
+                            <div class="fw-semibold">{{ colaborador.sede.nombre }}</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small">Correo Electrónico</label>
+                            <div class="fw-semibold">
+                                <a href="mailto:{{ colaborador.correo }}">{{ colaborador.correo }}</a>
+                            </div>
+                        </div>
+                        {% if colaborador.anexo %}
+                        <div class="col-md-6">
+                            <label class="text-muted small">Anexo / RPE</label>
+                            <div class="fw-semibold">{{ colaborador.anexo }}</div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Items Asignados -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-laptop me-2"></i>Equipos Asignados ({{ colaborador.items_asignados.count }})</span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Código</th>
+                                    <th>Nombre</th>
+                                    <th>Serie</th>
+                                    <th>Estado</th>
+                                    <th class="text-end">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in colaborador.items_asignados.all %}
+                                <tr>
+                                    <td>
+                                        <a href="{% url 'productos:item-detail' item.codigo_interno %}">
+                                            {{ item.codigo_interno }}
+                                        </a>
+                                    </td>
+                                    <td>{{ item.nombre }}</td>
+                                    <td>{{ item.serie }}</td>
+                                    <td>
+                                        {% if item.estado == 'nuevo' %}
+                                        <span class="badge bg-success">Nuevo</span>
+                                        {% elif item.estado == 'instalado' %}
+                                        <span class="badge bg-primary">Instalado</span>
+                                        {% elif item.estado == 'dañado' %}
+                                        <span class="badge bg-warning">Dañado</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end">
+                                        <a href="{% url 'productos:item-detail' item.codigo_interno %}" class="btn btn-sm btn-outline-secondary">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted py-4">
+                                        No tiene equipos asignados actualmente
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Historial de Actas -->
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-history me-2"></i>Historial de Actas
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>N° Acta</th>
+                                    <th>Tipo</th>
+                                    <th>Fecha</th>
+                                    <th>Items</th>
+                                    <th class="text-end">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for acta in colaborador.actas.all %}
+                                <tr>
+                                    <td>
+                                        <a href="{% url 'productos:acta-detail' acta.pk %}">
+                                            {{ acta.numero_acta }}
+                                        </a>
+                                    </td>
+                                    <td>
+                                        {% if acta.tipo == 'entrega' %}
+                                        <span class="badge bg-success">Entrega</span>
+                                        {% else %}
+                                        <span class="badge bg-info">Devolución</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ acta.fecha|date:"d/m/Y" }}</td>
+                                    <td>{{ acta.items.count }}</td>
+                                    <td class="text-end">
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="{% url 'productos:acta-detail' acta.pk %}" class="btn btn-outline-secondary">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                            <a href="{% url 'productos:acta-pdf' acta.pk %}" class="btn btn-outline-secondary">
+                                                <i class="fas fa-file-pdf"></i>
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted py-4">
+                                        No tiene actas registradas
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <!-- Acciones Rápidas -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="fas fa-bolt me-2"></i>Acciones Rápidas
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="{% url 'productos:acta-create' %}?colaborador={{ colaborador.pk }}&tipo=entrega" class="btn btn-success">
+                            <i class="fas fa-arrow-right me-1"></i> Acta de Entrega
+                        </a>
+                        <a href="{% url 'productos:acta-create' %}?colaborador={{ colaborador.pk }}&tipo=devolucion" class="btn btn-info">
+                            <i class="fas fa-arrow-left me-1"></i> Acta de Devolución
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Auditoría -->
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-user-clock me-2"></i>Auditoría
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="text-muted small">Creado por</label>
+                        <div>{{ colaborador.creado_por.get_full_name|default:colaborador.creado_por.username|default:"-" }}</div>
+                        <div class="small text-muted">{{ colaborador.creado_en|date:"d/m/Y H:i" }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

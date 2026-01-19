@@ -1,0 +1,284 @@
+{% extends "base.html" %}
+
+{% block title %}Acta {{ acta.numero_acta }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'productos:dashboard' %}">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'productos:acta-list' %}">Actas</a></li>
+            <li class="breadcrumb-item active">{{ acta.numero_acta }}</li>
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-3 mb-4">
+        <div>
+            <h1>Acta {{ acta.numero_acta }}</h1>
+            <div class="d-flex gap-2 align-items-center mt-2">
+                {% if acta.tipo == 'entrega' %}
+                <span class="badge bg-success fs-6"><i class="fas fa-arrow-right me-1"></i>Entrega</span>
+                {% else %}
+                <span class="badge bg-info fs-6"><i class="fas fa-arrow-left me-1"></i>Devolución</span>
+                {% endif %}
+                {% if acta.correo_enviado %}
+                <span class="badge bg-success"><i class="fas fa-envelope-open me-1"></i>Correo enviado</span>
+                {% else %}
+                <span class="badge bg-warning text-dark"><i class="fas fa-envelope me-1"></i>Correo pendiente</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'productos:acta-pdf' acta.pk %}" class="btn btn-outline-primary">
+                <i class="fas fa-file-pdf me-1"></i> Descargar PDF
+            </a>
+            {% if not acta.correo_enviado %}
+            <a href="{% url 'productos:acta-enviar-correo' acta.pk %}" class="btn btn-primary">
+                <i class="fas fa-paper-plane me-1"></i> Enviar Correo
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- Información Principal -->
+        <div class="col-lg-8">
+            <!-- Datos del Colaborador -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="fas fa-user me-2"></i>Datos del Colaborador
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="text-muted small">Nombre Completo</label>
+                            <div class="fw-semibold">{{ acta.colaborador.nombre_completo }}</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small">DNI</label>
+                            <div class="fw-semibold">{{ acta.colaborador.dni }}</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small">Cargo</label>
+                            <div class="fw-semibold">{{ acta.colaborador.cargo }}</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small">Gerencia</label>
+                            <div class="fw-semibold">{{ acta.colaborador.gerencia.nombre }}</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small">Sede</label>
+                            <div class="fw-semibold">{{ acta.colaborador.sede.nombre }}</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small">Correo</label>
+                            <div class="fw-semibold">{{ acta.colaborador.correo }}</div>
+                        </div>
+                        {% if acta.colaborador.anexo %}
+                        <div class="col-md-6">
+                            <label class="text-muted small">Anexo / RPE</label>
+                            <div class="fw-semibold">{{ acta.colaborador.anexo }}</div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Items del Acta -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="fas fa-laptop me-2"></i>Equipos ({{ acta.items.count }})
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Código</th>
+                                    <th>Descripción</th>
+                                    <th>Serie</th>
+                                    <th>Accesorios</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for acta_item in acta.items.all %}
+                                <tr>
+                                    <td>
+                                        <a href="{% url 'productos:item-detail' acta_item.item.codigo_interno %}">
+                                            {{ acta_item.item.codigo_interno }}
+                                        </a>
+                                    </td>
+                                    <td>
+                                        <strong>{{ acta_item.item.nombre }}</strong>
+                                        {% if acta_item.item.especificaciones_sistemas %}
+                                        <br><small class="text-muted">
+                                            {{ acta_item.item.especificaciones_sistemas.marca }}
+                                            {{ acta_item.item.especificaciones_sistemas.modelo }}
+                                        </small>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ acta_item.item.serie }}</td>
+                                    <td>
+                                        {% if acta_item.acc_cargador %}<span class="badge bg-light text-dark me-1">Cargador</span>{% endif %}
+                                        {% if acta_item.acc_cable_seguridad %}<span class="badge bg-light text-dark me-1">Cable seguridad</span>{% endif %}
+                                        {% if acta_item.acc_bateria %}<span class="badge bg-light text-dark me-1">Batería</span>{% endif %}
+                                        {% if acta_item.acc_maletin %}<span class="badge bg-light text-dark me-1">Maletín</span>{% endif %}
+                                        {% if acta_item.acc_cable_red %}<span class="badge bg-light text-dark me-1">Cable red</span>{% endif %}
+                                        {% if acta_item.acc_teclado_mouse %}<span class="badge bg-light text-dark me-1">Teclado/Mouse</span>{% endif %}
+                                        {% if not acta_item.acc_cargador and not acta_item.acc_cable_seguridad and not acta_item.acc_bateria and not acta_item.acc_maletin and not acta_item.acc_cable_red and not acta_item.acc_teclado_mouse %}
+                                        <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Software Instalado -->
+            {% if acta.software.exists %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="fas fa-compact-disc me-2"></i>Software Instalado
+                </div>
+                <div class="card-body">
+                    <div class="d-flex flex-wrap gap-2">
+                        {% for sw in acta.software.all %}
+                        <span class="badge bg-secondary">{{ sw.software.nombre }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Fotos -->
+            {% if acta.fotos.exists %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="fas fa-camera me-2"></i>Fotos del Equipo
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        {% for foto in acta.fotos.all %}
+                        <div class="col-md-4">
+                            <a href="{{ foto.foto.url }}" target="_blank">
+                                <img src="{{ foto.foto.url }}" class="img-fluid rounded" alt="Foto {{ forloop.counter }}">
+                            </a>
+                            {% if foto.descripcion %}
+                            <small class="text-muted d-block mt-1">{{ foto.descripcion }}</small>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Firmas -->
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-signature me-2"></i>Firmas
+                </div>
+                <div class="card-body">
+                    <div class="row g-4 text-center">
+                        <div class="col-md-6">
+                            <label class="text-muted small d-block mb-2">Firma del Receptor</label>
+                            {% if acta.firma_receptor %}
+                            <img src="{{ acta.firma_receptor.url }}" class="img-fluid border rounded p-2" style="max-height: 150px;" alt="Firma receptor">
+                            {% else %}
+                            <div class="text-muted">Sin firma</div>
+                            {% endif %}
+                            <div class="fw-semibold mt-2">{{ acta.colaborador.nombre_completo }}</div>
+                            <small class="text-muted">{{ acta.colaborador.cargo }}</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small d-block mb-2">Firma del Emisor</label>
+                            {% if acta.firma_emisor %}
+                            <img src="{{ acta.firma_emisor.url }}" class="img-fluid border rounded p-2" style="max-height: 150px;" alt="Firma emisor">
+                            {% else %}
+                            <div class="text-muted">Sin firma</div>
+                            {% endif %}
+                            <div class="fw-semibold mt-2">{{ acta.creado_por.get_full_name|default:acta.creado_por.username }}</div>
+                            <small class="text-muted">Soporte Técnico</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <!-- Información del Acta -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="fas fa-info-circle me-2"></i>Información del Acta
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="text-muted small">Número de Acta</label>
+                        <div class="fw-semibold">{{ acta.numero_acta }}</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="text-muted small">Fecha</label>
+                        <div class="fw-semibold">{{ acta.fecha|date:"d/m/Y H:i" }}</div>
+                    </div>
+                    {% if acta.ticket %}
+                    <div class="mb-3">
+                        <label class="text-muted small">Ticket de Referencia</label>
+                        <div class="fw-semibold">{{ acta.ticket }}</div>
+                    </div>
+                    {% endif %}
+                    {% if acta.observaciones %}
+                    <div class="mb-3">
+                        <label class="text-muted small">Observaciones</label>
+                        <div>{{ acta.observaciones }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Estado del Correo -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="fas fa-envelope me-2"></i>Estado del Correo
+                </div>
+                <div class="card-body">
+                    {% if acta.correo_enviado %}
+                    <div class="alert alert-success mb-0">
+                        <i class="fas fa-check-circle me-2"></i>
+                        <strong>Correo enviado</strong>
+                        <br><small>{{ acta.fecha_envio_correo|date:"d/m/Y H:i" }}</small>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-warning mb-3">
+                        <i class="fas fa-clock me-2"></i>
+                        <strong>Pendiente de envío</strong>
+                    </div>
+                    <a href="{% url 'productos:acta-enviar-correo' acta.pk %}" class="btn btn-primary w-100">
+                        <i class="fas fa-paper-plane me-1"></i> Enviar ahora
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Auditoría -->
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-user-clock me-2"></i>Auditoría
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="text-muted small">Creado por</label>
+                        <div>{{ acta.creado_por.get_full_name|default:acta.creado_por.username }}</div>
+                        <div class="small text-muted">{{ acta.fecha|date:"d/m/Y H:i" }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

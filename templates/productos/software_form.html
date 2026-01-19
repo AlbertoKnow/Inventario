@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block title %}{% if software %}Editar{% else %}Nuevo{% endif %} Software{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'productos:dashboard' %}">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'productos:software-list' %}">Software Estándar</a></li>
+            <li class="breadcrumb-item active">{% if software %}Editar{% else %}Nuevo{% endif %}</li>
+        </ol>
+    </nav>
+
+    <div class="page-header mb-4">
+        <h1>{% if software %}Editar Software{% else %}Nuevo Software{% endif %}</h1>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+
+                        {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {{ form.non_field_errors }}
+                        </div>
+                        {% endif %}
+
+                        <div class="mb-3">
+                            <label class="form-label">Nombre *</label>
+                            <input type="text" name="nombre" class="form-control {% if form.nombre.errors %}is-invalid{% endif %}"
+                                   value="{{ form.nombre.value|default:'' }}" required
+                                   placeholder="Ej: Microsoft Office 365, Adobe Acrobat Reader">
+                            {% if form.nombre.errors %}
+                            <div class="invalid-feedback">{{ form.nombre.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="es_basico" id="es_basico"
+                                       {% if form.es_basico.value %}checked{% endif %}>
+                                <label class="form-check-label" for="es_basico">
+                                    Software Básico
+                                </label>
+                                <small class="text-muted d-block">El software básico se marca automáticamente al crear actas</small>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Orden</label>
+                            <input type="number" name="orden" class="form-control"
+                                   value="{{ form.orden.value|default:0 }}" min="0">
+                            <small class="text-muted">Orden de aparición en la lista (menor = primero)</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="activo" id="activo"
+                                       {% if form.activo.value or not software %}checked{% endif %}>
+                                <label class="form-check-label" for="activo">
+                                    Software Activo
+                                </label>
+                            </div>
+                        </div>
+
+                        <hr class="my-4">
+
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'productos:software-list' %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-times me-1"></i> Cancelar
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-1"></i> Guardar
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-info-circle me-2"></i>Información
+                </div>
+                <div class="card-body">
+                    <p class="small text-muted">
+                        Esta lista de software se muestra al crear actas de entrega.
+                        El software marcado como "básico" se selecciona automáticamente.
+                    </p>
+                    <p class="small text-muted mb-0">
+                        <strong>Software básico sugerido:</strong>
+                    </p>
+                    <ul class="small text-muted">
+                        <li>Windows 11</li>
+                        <li>Microsoft Office 365</li>
+                        <li>Adobe Acrobat Reader</li>
+                        <li>Google Chrome</li>
+                        <li>Antivirus institucional</li>
+                        <li>VPN corporativa</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

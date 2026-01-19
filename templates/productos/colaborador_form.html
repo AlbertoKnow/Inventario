@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+
+{% block title %}{% if colaborador %}Editar{% else %}Nuevo{% endif %} Colaborador{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'productos:dashboard' %}">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'productos:colaborador-list' %}">Colaboradores</a></li>
+            <li class="breadcrumb-item active">{% if colaborador %}Editar{% else %}Nuevo{% endif %}</li>
+        </ol>
+    </nav>
+
+    <div class="page-header mb-4">
+        <h1>{% if colaborador %}Editar Colaborador{% else %}Nuevo Colaborador{% endif %}</h1>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+
+                        {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {{ form.non_field_errors }}
+                        </div>
+                        {% endif %}
+
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label">DNI *</label>
+                                <input type="text" name="dni" class="form-control {% if form.dni.errors %}is-invalid{% endif %}"
+                                       value="{{ form.dni.value|default:'' }}" maxlength="15" required>
+                                {% if form.dni.errors %}
+                                <div class="invalid-feedback">{{ form.dni.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-8">
+                                <label class="form-label">Nombre Completo *</label>
+                                <input type="text" name="nombre_completo" class="form-control {% if form.nombre_completo.errors %}is-invalid{% endif %}"
+                                       value="{{ form.nombre_completo.value|default:'' }}" required>
+                                {% if form.nombre_completo.errors %}
+                                <div class="invalid-feedback">{{ form.nombre_completo.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">Cargo *</label>
+                                <input type="text" name="cargo" class="form-control {% if form.cargo.errors %}is-invalid{% endif %}"
+                                       value="{{ form.cargo.value|default:'' }}" required>
+                                {% if form.cargo.errors %}
+                                <div class="invalid-feedback">{{ form.cargo.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">Gerencia *</label>
+                                <select name="gerencia" class="form-select {% if form.gerencia.errors %}is-invalid{% endif %}" required>
+                                    <option value="">Seleccione...</option>
+                                    {% for g in form.gerencia.field.queryset %}
+                                    <option value="{{ g.id }}" {% if form.gerencia.value == g.id|stringformat:"i" or form.gerencia.value == g.id %}selected{% endif %}>
+                                        {{ g.nombre }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                {% if form.gerencia.errors %}
+                                <div class="invalid-feedback">{{ form.gerencia.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">Sede *</label>
+                                <select name="sede" class="form-select {% if form.sede.errors %}is-invalid{% endif %}" required>
+                                    <option value="">Seleccione...</option>
+                                    {% for s in form.sede.field.queryset %}
+                                    <option value="{{ s.id }}" {% if form.sede.value == s.id|stringformat:"i" or form.sede.value == s.id %}selected{% endif %}>
+                                        {{ s.nombre }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                {% if form.sede.errors %}
+                                <div class="invalid-feedback">{{ form.sede.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">Correo Electrónico *</label>
+                                <input type="email" name="correo" class="form-control {% if form.correo.errors %}is-invalid{% endif %}"
+                                       value="{{ form.correo.value|default:'' }}" required>
+                                {% if form.correo.errors %}
+                                <div class="invalid-feedback">{{ form.correo.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">Anexo / RPE</label>
+                                <input type="text" name="anexo" class="form-control"
+                                       value="{{ form.anexo.value|default:'' }}">
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="form-check mt-4">
+                                    <input class="form-check-input" type="checkbox" name="activo" id="activo"
+                                           {% if form.activo.value or not colaborador %}checked{% endif %}>
+                                    <label class="form-check-label" for="activo">
+                                        Colaborador Activo
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr class="my-4">
+
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'productos:colaborador-list' %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-times me-1"></i> Cancelar
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-1"></i> Guardar
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-info-circle me-2"></i>Información
+                </div>
+                <div class="card-body">
+                    <p class="small text-muted">
+                        Los colaboradores son las personas que reciben equipos en asignación.
+                        Esta información se usa para generar las actas de entrega y devolución.
+                    </p>
+                    <p class="small text-muted mb-0">
+                        <strong>Importante:</strong> El DNI debe ser único para cada colaborador.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

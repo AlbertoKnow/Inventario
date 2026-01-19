@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+
+{% block title %}Colaboradores{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Page Header -->
+    <div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div>
+            <h1>Colaboradores</h1>
+            <p class="text-muted mb-0">Personas que reciben equipos en asignación</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'productos:colaborador-create' %}" class="btn btn-primary">
+                <i class="fas fa-plus me-1"></i> Nuevo Colaborador
+            </a>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="card mb-3">
+        <div class="card-body">
+            <form method="get">
+                <div class="row g-2">
+                    <div class="col-md-4">
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="fas fa-search"></i></span>
+                            <input type="text" name="q" class="form-control"
+                                   placeholder="Buscar por DNI, nombre, correo..."
+                                   value="{{ request.GET.q }}">
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <select name="gerencia" class="form-select">
+                            <option value="">Todas las gerencias</option>
+                            {% for g in gerencias %}
+                            <option value="{{ g.id }}" {% if request.GET.gerencia == g.id|stringformat:"i" %}selected{% endif %}>
+                                {{ g.nombre }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <select name="activo" class="form-select">
+                            <option value="">Todos</option>
+                            <option value="1" {% if request.GET.activo == '1' %}selected{% endif %}>Activos</option>
+                            <option value="0" {% if request.GET.activo == '0' %}selected{% endif %}>Inactivos</option>
+                        </select>
+                    </div>
+                    <div class="col-md-auto">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-search me-1"></i> Buscar
+                        </button>
+                    </div>
+                    <div class="col-md-auto">
+                        <a href="{% url 'productos:colaborador-list' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-times me-1"></i> Limpiar
+                        </a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Tabla -->
+    <div class="card">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>DNI</th>
+                            <th>Nombre</th>
+                            <th>Cargo</th>
+                            <th>Gerencia</th>
+                            <th>Sede</th>
+                            <th>Correo</th>
+                            <th>Items</th>
+                            <th>Estado</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for col in colaboradores %}
+                        <tr>
+                            <td><strong>{{ col.dni }}</strong></td>
+                            <td>
+                                <a href="{% url 'productos:colaborador-detail' col.pk %}">
+                                    {{ col.nombre_completo }}
+                                </a>
+                            </td>
+                            <td>{{ col.cargo }}</td>
+                            <td>{{ col.gerencia.nombre }}</td>
+                            <td>{{ col.sede.nombre }}</td>
+                            <td><small>{{ col.correo }}</small></td>
+                            <td>
+                                <span class="badge bg-secondary">{{ col.items_asignados.count }}</span>
+                            </td>
+                            <td>
+                                {% if col.activo %}
+                                <span class="badge bg-success">Activo</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Inactivo</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{% url 'productos:colaborador-detail' col.pk %}" class="btn btn-outline-secondary" title="Ver">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    <a href="{% url 'productos:colaborador-update' col.pk %}" class="btn btn-outline-secondary" title="Editar">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="9" class="text-center text-muted py-5">
+                                <i class="fas fa-users fa-3x mb-3 d-block"></i>
+                                No se encontraron colaboradores
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Paginación -->
+        {% if page_obj.has_other_pages %}
+        <div class="card-footer">
+            <nav aria-label="Paginación">
+                <ul class="pagination justify-content-center mb-0">
+                    {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">
+                            <i class="fas fa-chevron-left"></i>
+                        </a>
+                    </li>
+                    {% endif %}
+
+                    {% for num in page_obj.paginator.page_range %}
+                        {% if page_obj.number == num %}
+                        <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                        {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ num }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">{{ num }}</a>
+                        </li>
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">
+                            <i class="fas fa-chevron-right"></i>
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
