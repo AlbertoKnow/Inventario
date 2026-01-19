@@ -36,6 +36,7 @@ django-ratelimit==4.1.0   # Rate limiting para vistas
 Pillow==10.1.0            # Procesamiento de imágenes
 openpyxl==3.1.2           # Lectura y escritura de archivos Excel
 reportlab==4.0.7          # Generación de PDFs
+resend==2.0.0             # Envío de correos electrónicos
 
 # ------------------------------------------------------------------------------
 # DESARROLLO (comentar en producción)

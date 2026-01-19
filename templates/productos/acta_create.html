@@ -1,0 +1,547 @@
+{% extends "base.html" %}
+
+{% block title %}Nueva Acta de {% if tipo %}{{ tipo|title }}{% else %}Entrega{% endif %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Wizard Steps */
+    .wizard-steps {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 2rem;
+    }
+    .wizard-step {
+        display: flex;
+        align-items: center;
+        color: var(--gray-400);
+    }
+    .wizard-step .step-number {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: var(--gray-200);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        margin-right: 0.5rem;
+    }
+    .wizard-step.active .step-number {
+        background: var(--accent);
+        color: white;
+    }
+    .wizard-step.completed .step-number {
+        background: var(--success);
+        color: white;
+    }
+    .wizard-step.active {
+        color: var(--gray-900);
+    }
+    .wizard-step.completed {
+        color: var(--success);
+    }
+    .wizard-connector {
+        width: 60px;
+        height: 2px;
+        background: var(--gray-200);
+        margin: 0 1rem;
+    }
+    .wizard-connector.completed {
+        background: var(--success);
+    }
+
+    /* Signature Canvas */
+    .signature-container {
+        border: 2px dashed var(--gray-300);
+        border-radius: 8px;
+        background: #fafafa;
+    }
+    .signature-canvas {
+        width: 100%;
+        height: 200px;
+        cursor: crosshair;
+    }
+
+    /* Item Selection */
+    .item-card {
+        border: 2px solid var(--gray-200);
+        border-radius: 10px;
+        padding: 1rem;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+    .item-card:hover {
+        border-color: var(--accent);
+        background: #fef2f2;
+    }
+    .item-card.selected {
+        border-color: var(--accent);
+        background: #fef2f2;
+    }
+    .item-card input[type="checkbox"] {
+        display: none;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'productos:dashboard' %}">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'productos:acta-list' %}">Actas</a></li>
+            <li class="breadcrumb-item active">Nueva Acta</li>
+        </ol>
+    </nav>
+
+    <div class="page-header mb-4">
+        <h1>Nueva Acta de {% if tipo %}{{ tipo|title }}{% else %}Entrega/Devolución{% endif %}</h1>
+        <p class="text-muted">Complete los pasos para generar el acta</p>
+    </div>
+
+    <!-- Wizard Steps -->
+    <div class="wizard-steps">
+        <div class="wizard-step {% if paso == 1 %}active{% elif paso > 1 %}completed{% endif %}">
+            <span class="step-number">{% if paso > 1 %}<i class="fas fa-check"></i>{% else %}1{% endif %}</span>
+            <span>Colaborador</span>
+        </div>
+        <div class="wizard-connector {% if paso > 1 %}completed{% endif %}"></div>
+        <div class="wizard-step {% if paso == 2 %}active{% elif paso > 2 %}completed{% endif %}">
+            <span class="step-number">{% if paso > 2 %}<i class="fas fa-check"></i>{% else %}2{% endif %}</span>
+            <span>Equipos</span>
+        </div>
+        <div class="wizard-connector {% if paso > 2 %}completed{% endif %}"></div>
+        <div class="wizard-step {% if paso == 3 %}active{% endif %}">
+            <span class="step-number">3</span>
+            <span>Firmas</span>
+        </div>
+    </div>
+
+    <form method="post" enctype="multipart/form-data" id="actaForm">
+        {% csrf_token %}
+        <input type="hidden" name="paso" value="{{ paso }}">
+
+        {% if paso == 1 %}
+        <!-- PASO 1: Seleccionar Tipo y Colaborador -->
+        <div class="card">
+            <div class="card-header">
+                <i class="fas fa-user me-2"></i>Paso 1: Datos Generales
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <!-- Tipo de Acta -->
+                    <div class="col-md-6">
+                        <label class="form-label">Tipo de Acta *</label>
+                        {{ form.tipo }}
+                        {% if form.tipo.errors %}
+                        <div class="invalid-feedback d-block">{{ form.tipo.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Ticket -->
+                    <div class="col-md-6">
+                        <label class="form-label">Ticket de Referencia</label>
+                        {{ form.ticket }}
+                    </div>
+
+                    <!-- Colaborador -->
+                    <div class="col-12">
+                        <label class="form-label">Colaborador *</label>
+                        {{ form.colaborador }}
+                        {% if form.colaborador.errors %}
+                        <div class="invalid-feedback d-block">{{ form.colaborador.errors.0 }}</div>
+                        {% endif %}
+                        <small class="text-muted">
+                            Si el colaborador no existe, <a href="{% url 'productos:colaborador-create' %}" target="_blank">créelo aquí</a>.
+                        </small>
+                    </div>
+
+                    <!-- Observaciones -->
+                    <div class="col-12">
+                        <label class="form-label">Observaciones</label>
+                        {{ form.observaciones }}
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer d-flex justify-content-between">
+                <a href="{% url 'productos:acta-list' %}" class="btn btn-outline-secondary">
+                    <i class="fas fa-times me-1"></i> Cancelar
+                </a>
+                <button type="submit" class="btn btn-primary">
+                    Siguiente <i class="fas fa-arrow-right ms-1"></i>
+                </button>
+            </div>
+        </div>
+
+        {% elif paso == 2 %}
+        <!-- PASO 2: Seleccionar Equipos y Software -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="fas fa-laptop me-2"></i>Paso 2: Seleccionar Equipos
+            </div>
+            <div class="card-body">
+                <!-- Info del colaborador -->
+                <div class="alert alert-info mb-4">
+                    <strong>Colaborador:</strong> {{ colaborador.nombre_completo }} ({{ colaborador.dni }})
+                    <br><small>{{ colaborador.cargo }} - {{ colaborador.gerencia.nombre }}</small>
+                    <br><strong>Tipo de Acta:</strong> {{ tipo|title }}
+                </div>
+
+                {% if tipo == 'entrega' %}
+                <p class="text-muted">Seleccione los equipos que se entregarán al colaborador:</p>
+                {% else %}
+                <p class="text-muted">Seleccione los equipos que el colaborador devolverá:</p>
+                {% endif %}
+
+                <!-- Items Disponibles -->
+                <div class="row g-3 mb-4">
+                    {% for item in items_disponibles %}
+                    <div class="col-md-6">
+                        <label class="item-card d-block">
+                            <input type="checkbox" name="items" value="{{ item.id }}">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <strong>{{ item.codigo_interno }}</strong>
+                                    <br><span class="text-muted">{{ item.nombre }}</span>
+                                    {% if item.especificaciones_sistemas %}
+                                    <br><small>{{ item.especificaciones_sistemas.marca }} {{ item.especificaciones_sistemas.modelo }}</small>
+                                    {% endif %}
+                                </div>
+                                <div class="text-end">
+                                    <small class="text-muted">Serie: {{ item.serie }}</small>
+                                    <br>
+                                    {% if item.estado == 'operativo' %}
+                                    <span class="badge bg-success">Operativo</span>
+                                    {% elif item.estado == 'mantenimiento' %}
+                                    <span class="badge bg-warning">Mantenimiento</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">{{ item.estado|title }}</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </label>
+                    </div>
+                    {% empty %}
+                    <div class="col-12 text-center text-muted py-4">
+                        <i class="fas fa-box-open fa-2x mb-2"></i>
+                        <p>
+                            {% if tipo == 'entrega' %}
+                            No hay equipos disponibles para asignar.
+                            {% else %}
+                            Este colaborador no tiene equipos asignados para devolver.
+                            {% endif %}
+                        </p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Software -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="fas fa-compact-disc me-2"></i>Software Instalado
+            </div>
+            <div class="card-body">
+                <div class="row g-2">
+                    {% for sw in software_form.software.field.queryset %}
+                    <div class="col-md-4">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="software"
+                                   value="{{ sw.id }}" id="sw{{ sw.id }}"
+                                   {% if sw.es_basico %}checked{% endif %}>
+                            <label class="form-check-label" for="sw{{ sw.id }}">
+                                {{ sw.nombre }}
+                                {% if sw.es_basico %}<small class="text-muted">(Básico)</small>{% endif %}
+                            </label>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="col-12 text-muted">
+                        No hay software estándar configurado. <a href="{% url 'productos:software-create' %}">Agregar software</a>.
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="card-footer d-flex justify-content-between">
+                <a href="{% url 'productos:acta-create' %}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-1"></i> Anterior
+                </a>
+                <button type="submit" class="btn btn-primary">
+                    Siguiente <i class="fas fa-arrow-right ms-1"></i>
+                </button>
+            </div>
+        </div>
+
+        {% elif paso == 3 %}
+        <!-- PASO 3: Accesorios y Firmas -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="fas fa-plug me-2"></i>Paso 3: Accesorios por Equipo
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info mb-4">
+                    <strong>Colaborador:</strong> {{ colaborador.nombre_completo }}<br>
+                    <strong>Tipo:</strong> {{ tipo|title }}<br>
+                    <strong>Equipos seleccionados:</strong> {{ items.count }}
+                </div>
+
+                {% for item in items %}
+                <div class="border rounded p-3 mb-3">
+                    <h6 class="mb-3">
+                        <i class="fas fa-laptop me-2"></i>{{ item.codigo_interno }} - {{ item.nombre }}
+                    </h6>
+                    <div class="row g-2">
+                        <div class="col-md-4">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox"
+                                       name="acc_cargador_{{ item.id }}" id="acc_cargador_{{ item.id }}" checked>
+                                <label class="form-check-label" for="acc_cargador_{{ item.id }}">
+                                    Cargador / Cables
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox"
+                                       name="acc_cable_seguridad_{{ item.id }}" id="acc_cable_seguridad_{{ item.id }}">
+                                <label class="form-check-label" for="acc_cable_seguridad_{{ item.id }}">
+                                    Cable de seguridad
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox"
+                                       name="acc_bateria_{{ item.id }}" id="acc_bateria_{{ item.id }}" checked>
+                                <label class="form-check-label" for="acc_bateria_{{ item.id }}">
+                                    Batería
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox"
+                                       name="acc_maletin_{{ item.id }}" id="acc_maletin_{{ item.id }}">
+                                <label class="form-check-label" for="acc_maletin_{{ item.id }}">
+                                    Maletín
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox"
+                                       name="acc_cable_red_{{ item.id }}" id="acc_cable_red_{{ item.id }}">
+                                <label class="form-check-label" for="acc_cable_red_{{ item.id }}">
+                                    Cable de red
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox"
+                                       name="acc_teclado_mouse_{{ item.id }}" id="acc_teclado_mouse_{{ item.id }}">
+                                <label class="form-check-label" for="acc_teclado_mouse_{{ item.id }}">
+                                    Teclado y Mouse
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Fotos -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="fas fa-camera me-2"></i>Fotos del Equipo (Opcional)
+            </div>
+            <div class="card-body">
+                <input type="file" name="fotos" class="form-control" accept="image/*" multiple>
+                <small class="text-muted">Puede seleccionar múltiples fotos del estado del equipo.</small>
+            </div>
+        </div>
+
+        <!-- Firmas -->
+        <div class="card">
+            <div class="card-header">
+                <i class="fas fa-signature me-2"></i>Firmas
+            </div>
+            <div class="card-body">
+                <div class="row g-4">
+                    <!-- Firma del Receptor -->
+                    <div class="col-md-6">
+                        <label class="form-label">Firma del Receptor ({{ colaborador.nombre_completo }}) *</label>
+                        <div class="signature-container">
+                            <canvas id="firmaReceptor" class="signature-canvas"></canvas>
+                        </div>
+                        <input type="hidden" name="firma_receptor" id="firmaReceptorData">
+                        <button type="button" class="btn btn-sm btn-outline-secondary mt-2" onclick="limpiarFirma('receptor')">
+                            <i class="fas fa-eraser me-1"></i> Limpiar
+                        </button>
+                    </div>
+
+                    <!-- Firma del Emisor -->
+                    <div class="col-md-6">
+                        <label class="form-label">Firma del Emisor ({{ request.user.get_full_name|default:request.user.username }}) *</label>
+                        <div class="signature-container">
+                            <canvas id="firmaEmisor" class="signature-canvas"></canvas>
+                        </div>
+                        <input type="hidden" name="firma_emisor" id="firmaEmisorData">
+                        <button type="button" class="btn btn-sm btn-outline-secondary mt-2" onclick="limpiarFirma('emisor')">
+                            <i class="fas fa-eraser me-1"></i> Limpiar
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer d-flex justify-content-between">
+                <a href="{% url 'productos:acta-create' %}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-1"></i> Cancelar
+                </a>
+                <button type="submit" class="btn btn-success" onclick="return validarYEnviar()">
+                    <i class="fas fa-check me-1"></i> Generar Acta
+                </button>
+            </div>
+        </div>
+        {% endif %}
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+{% if paso == 2 %}
+// Manejo de selección de items
+document.querySelectorAll('.item-card').forEach(card => {
+    const checkbox = card.querySelector('input[type="checkbox"]');
+
+    if (checkbox.checked) {
+        card.classList.add('selected');
+    }
+
+    card.addEventListener('click', function(e) {
+        if (e.target.type !== 'checkbox') {
+            checkbox.checked = !checkbox.checked;
+        }
+        card.classList.toggle('selected', checkbox.checked);
+    });
+});
+{% endif %}
+
+{% if paso == 3 %}
+// Canvas de firma
+class SignaturePad {
+    constructor(canvasId) {
+        this.canvas = document.getElementById(canvasId);
+        this.ctx = this.canvas.getContext('2d');
+        this.isDrawing = false;
+        this.lastX = 0;
+        this.lastY = 0;
+
+        this.resize();
+        window.addEventListener('resize', () => this.resize());
+
+        this.canvas.addEventListener('mousedown', (e) => this.startDrawing(e));
+        this.canvas.addEventListener('mousemove', (e) => this.draw(e));
+        this.canvas.addEventListener('mouseup', () => this.stopDrawing());
+        this.canvas.addEventListener('mouseout', () => this.stopDrawing());
+
+        // Touch events
+        this.canvas.addEventListener('touchstart', (e) => this.startDrawing(e));
+        this.canvas.addEventListener('touchmove', (e) => this.draw(e));
+        this.canvas.addEventListener('touchend', () => this.stopDrawing());
+
+        this.ctx.strokeStyle = '#000';
+        this.ctx.lineWidth = 2;
+        this.ctx.lineCap = 'round';
+        this.ctx.lineJoin = 'round';
+    }
+
+    resize() {
+        const rect = this.canvas.getBoundingClientRect();
+        this.canvas.width = rect.width;
+        this.canvas.height = 200;
+    }
+
+    getPos(e) {
+        const rect = this.canvas.getBoundingClientRect();
+        if (e.touches) {
+            return {
+                x: e.touches[0].clientX - rect.left,
+                y: e.touches[0].clientY - rect.top
+            };
+        }
+        return {
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top
+        };
+    }
+
+    startDrawing(e) {
+        e.preventDefault();
+        this.isDrawing = true;
+        const pos = this.getPos(e);
+        this.lastX = pos.x;
+        this.lastY = pos.y;
+    }
+
+    draw(e) {
+        if (!this.isDrawing) return;
+        e.preventDefault();
+        const pos = this.getPos(e);
+        this.ctx.beginPath();
+        this.ctx.moveTo(this.lastX, this.lastY);
+        this.ctx.lineTo(pos.x, pos.y);
+        this.ctx.stroke();
+        this.lastX = pos.x;
+        this.lastY = pos.y;
+    }
+
+    stopDrawing() {
+        this.isDrawing = false;
+    }
+
+    clear() {
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    }
+
+    isEmpty() {
+        const pixelData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height).data;
+        return !pixelData.some(channel => channel !== 0);
+    }
+
+    toDataURL() {
+        return this.canvas.toDataURL('image/png');
+    }
+}
+
+const padReceptor = new SignaturePad('firmaReceptor');
+const padEmisor = new SignaturePad('firmaEmisor');
+
+function limpiarFirma(tipo) {
+    if (tipo === 'receptor') {
+        padReceptor.clear();
+    } else {
+        padEmisor.clear();
+    }
+}
+
+function validarYEnviar() {
+    if (padReceptor.isEmpty()) {
+        alert('Por favor, capture la firma del receptor.');
+        return false;
+    }
+    if (padEmisor.isEmpty()) {
+        alert('Por favor, capture la firma del emisor.');
+        return false;
+    }
+
+    document.getElementById('firmaReceptorData').value = padReceptor.toDataURL();
+    document.getElementById('firmaEmisorData').value = padEmisor.toDataURL();
+    return true;
+}
+{% endif %}
+</script>
+{% endblock %}

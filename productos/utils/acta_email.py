@@ -1,11 +1,11 @@
 """
 Utilidades para envío de correos de Actas de Entrega/Devolución
-Sistema de Inventario UTP
+Sistema de Inventario UTP - Usando Resend
 """
 
-from django.core.mail import EmailMultiAlternatives
+import base64
+import resend
 from django.conf import settings
-from django.template.loader import render_to_string
 from django.utils import timezone
 
 
@@ -24,7 +24,7 @@ COPIA_CORREO = [
 
 def enviar_acta_por_correo(acta, pdf_bytes, fotos_paths=None):
     """
-    Envía el acta por correo electrónico al colaborador.
+    Envía el acta por correo electrónico al colaborador usando Resend.
 
     Args:
         acta: Instancia del modelo ActaEntrega
@@ -34,6 +34,9 @@ def enviar_acta_por_correo(acta, pdf_bytes, fotos_paths=None):
     Returns:
         bool: True si el envío fue exitoso
     """
+    # Configurar API key de Resend
+    resend.api_key = settings.RESEND_API_KEY
+
     colaborador = acta.colaborador
 
     # Determinar tipo de acta
@@ -135,48 +138,42 @@ def enviar_acta_por_correo(acta, pdf_bytes, fotos_paths=None):
     </html>
     """
 
-    # Versión texto plano
-    cuerpo_texto = f"""
-    Estimado(a) {colaborador.nombre_completo},
-
-    {intro}
-
-    Por favor revise el documento PDF adjunto.
-
-    Saludos cordiales,
-    Oficina de Soporte UTP Arequipa
-    """
-
     try:
-        # Crear mensaje
-        email = EmailMultiAlternatives(
-            subject=titulo,
-            body=cuerpo_texto,
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            to=[colaborador.correo],
-            cc=COPIA_CORREO,
-        )
-
-        # Agregar versión HTML
-        email.attach_alternative(cuerpo_html, "text/html")
-
-        # Adjuntar PDF
-        email.attach(nombre_pdf, pdf_bytes, 'application/pdf')
+        # Preparar adjuntos
+        attachments = [
+            {
+                "filename": nombre_pdf,
+                "content": base64.b64encode(pdf_bytes).decode('utf-8')
+            }
+        ]
 
         # Adjuntar fotos si las hay
         if fotos_paths:
+            import os
             for foto_path in fotos_paths:
                 try:
-                    import os
                     if os.path.exists(foto_path):
                         with open(foto_path, 'rb') as f:
+                            foto_content = f.read()
                             filename = os.path.basename(foto_path)
-                            email.attach(filename, f.read(), 'image/jpeg')
+                            attachments.append({
+                                "filename": filename,
+                                "content": base64.b64encode(foto_content).decode('utf-8')
+                            })
                 except Exception as e:
                     print(f"Error adjuntando foto {foto_path}: {e}")
 
-        # Enviar
-        email.send(fail_silently=False)
+        # Enviar con Resend
+        params = {
+            "from": settings.RESEND_FROM_EMAIL,
+            "to": [colaborador.correo],
+            "cc": COPIA_CORREO,
+            "subject": titulo,
+            "html": cuerpo_html,
+            "attachments": attachments
+        }
+
+        response = resend.Emails.send(params)
 
         # Marcar el acta como enviada
         acta.correo_enviado = True
@@ -186,7 +183,7 @@ def enviar_acta_por_correo(acta, pdf_bytes, fotos_paths=None):
         return True
 
     except Exception as e:
-        print(f"Error enviando correo: {e}")
+        print(f"Error enviando correo con Resend: {e}")
         return False
 
 

@@ -3288,10 +3288,11 @@ class ActaDescargarPDFView(PerfilRequeridoMixin, View):
             return response
 
         # Si no, generar el PDF
-        from .utils.pdf_actas import generar_pdf_acta
+        from .utils.acta_pdf import generar_acta_pdf
 
         try:
-            pdf_bytes = generar_pdf_acta(acta)
+            pdf_buffer = generar_acta_pdf(acta)
+            pdf_bytes = pdf_buffer.getvalue()
 
             # Guardar el PDF en el modelo
             from django.core.files.base import ContentFile
@@ -3316,23 +3317,28 @@ class ActaEnviarCorreoView(PerfilRequeridoMixin, View):
     def post(self, request, pk):
         acta = get_object_or_404(ActaEntrega, pk=pk)
 
-        from .utils.email_actas import enviar_acta_por_correo
+        from .utils.acta_email import enviar_acta_por_correo
+        from .utils.acta_pdf import generar_acta_pdf
 
         try:
-            # Asegurar que el PDF existe
+            # Generar PDF si no existe
             if not acta.pdf_archivo:
-                from .utils.pdf_actas import generar_pdf_acta
                 from django.core.files.base import ContentFile
 
-                pdf_bytes = generar_pdf_acta(acta)
+                pdf_buffer = generar_acta_pdf(acta)
+                pdf_bytes = pdf_buffer.getvalue()
                 acta.pdf_archivo.save(
                     f'{acta.numero_acta}.pdf',
                     ContentFile(pdf_bytes),
                     save=True
                 )
 
+            # Leer el PDF para enviarlo
+            acta.pdf_archivo.seek(0)
+            pdf_bytes = acta.pdf_archivo.read()
+
             # Enviar correo
-            enviar_acta_por_correo(acta)
+            enviar_acta_por_correo(acta, pdf_bytes)
 
             # Marcar como enviado
             acta.correo_enviado = True
