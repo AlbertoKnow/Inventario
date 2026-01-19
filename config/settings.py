@@ -161,6 +161,12 @@ LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'productos:dashboard'
 LOGOUT_REDIRECT_URL = 'home'
 
+# ==============================================================================
+# CONFIGURACIÓN DE EMAIL (Resend)
+# ==============================================================================
+RESEND_API_KEY = config('RESEND_API_KEY', default='')
+RESEND_FROM_EMAIL = config('RESEND_FROM_EMAIL', default='Soporte UTP <onboarding@resend.dev>')
+
 # Session security
 SESSION_COOKIE_AGE = 86400  # 24 horas
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
