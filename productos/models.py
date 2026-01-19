@@ -553,12 +553,20 @@ class Item(models.Model):
     # Estado y asignación
     estado = models.CharField(max_length=20, choices=ESTADOS, default='nuevo')
     usuario_asignado = models.ForeignKey(
-        User, 
-        on_delete=models.SET_NULL, 
-        null=True, 
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
         blank=True,
         related_name='items_asignados',
-        help_text="Usuario que actualmente tiene asignado el ítem"
+        help_text="[DEPRECADO] Usuario que actualmente tiene asignado el ítem"
+    )
+    colaborador_asignado = models.ForeignKey(
+        'Colaborador',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='items_asignados',
+        help_text="Colaborador que tiene asignado el ítem actualmente"
     )
     observaciones = models.TextField(blank=True)
     
@@ -1230,3 +1238,342 @@ class Mantenimiento(models.Model):
         if motivo:
             self.observaciones += f"\nCancelado: {motivo}"
         self.save()
+
+
+# ==============================================================================
+# SISTEMA DE ACTAS DE ENTREGA/DEVOLUCIÓN
+# ==============================================================================
+
+class Gerencia(models.Model):
+    """Gerencias/Departamentos de la organización."""
+
+    nombre = models.CharField(max_length=100, unique=True)
+    descripcion = models.TextField(blank=True)
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = "Gerencia"
+        verbose_name_plural = "Gerencias"
+        ordering = ['nombre']
+
+    def __str__(self):
+        return self.nombre
+
+
+class Colaborador(models.Model):
+    """
+    Colaboradores que pueden recibir equipos en asignación.
+    Son independientes de los usuarios del sistema (no necesitan loguearse).
+    """
+
+    # Identificación
+    dni = models.CharField(
+        max_length=15,
+        unique=True,
+        help_text="DNI del colaborador (para búsqueda rápida)"
+    )
+    nombre_completo = models.CharField(max_length=200)
+
+    # Datos laborales
+    cargo = models.CharField(
+        max_length=100,
+        help_text="Ej: Coordinador Académico, Enfermero, Director"
+    )
+    gerencia = models.ForeignKey(
+        Gerencia,
+        on_delete=models.PROTECT,
+        related_name='colaboradores',
+        help_text="Gerencia/Departamento al que pertenece"
+    )
+    sede = models.ForeignKey(
+        Sede,
+        on_delete=models.PROTECT,
+        related_name='colaboradores',
+        help_text="Sede donde trabaja el colaborador"
+    )
+
+    # Contacto
+    anexo = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="Anexo o RPE (teléfono corporativo)"
+    )
+    correo = models.EmailField(help_text="Correo para envío de actas")
+
+    # Estado
+    activo = models.BooleanField(default=True)
+
+    # Auditoría
+    creado_en = models.DateTimeField(auto_now_add=True)
+    creado_por = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='colaboradores_creados'
+    )
+
+    class Meta:
+        verbose_name = "Colaborador"
+        verbose_name_plural = "Colaboradores"
+        ordering = ['nombre_completo']
+        indexes = [
+            models.Index(fields=['dni']),
+            models.Index(fields=['nombre_completo']),
+            models.Index(fields=['gerencia', 'activo']),
+        ]
+
+    def __str__(self):
+        return f"{self.nombre_completo} - {self.cargo}"
+
+    @property
+    def items_asignados(self):
+        """Retorna los ítems actualmente asignados a este colaborador."""
+        return Item.objects.filter(colaborador_asignado=self)
+
+    @property
+    def cantidad_items_asignados(self):
+        return self.items_asignados.count()
+
+
+class SoftwareEstandar(models.Model):
+    """Lista de software que puede incluirse en las actas."""
+
+    nombre = models.CharField(max_length=100, unique=True)
+    es_basico = models.BooleanField(
+        default=False,
+        help_text="Si es True, aparece seleccionado por defecto en todas las actas"
+    )
+    activo = models.BooleanField(default=True)
+    orden = models.PositiveIntegerField(
+        default=0,
+        help_text="Orden de aparición en el acta"
+    )
+
+    class Meta:
+        verbose_name = "Software Estándar"
+        verbose_name_plural = "Software Estándar"
+        ordering = ['orden', 'nombre']
+
+    def __str__(self):
+        return self.nombre
+
+
+class ActaEntrega(models.Model):
+    """
+    Acta de entrega o devolución de equipos.
+    Puede contener múltiples ítems.
+    """
+
+    TIPOS_ACTA = [
+        ('entrega', 'Entrega'),
+        ('devolucion', 'Devolución'),
+    ]
+
+    # Identificación
+    numero_acta = models.CharField(
+        max_length=30,
+        unique=True,
+        editable=False,
+        help_text="Número autogenerado (ENTREGA-2026-0001)"
+    )
+    tipo = models.CharField(max_length=15, choices=TIPOS_ACTA)
+
+    # Receptor/Entregador
+    colaborador = models.ForeignKey(
+        Colaborador,
+        on_delete=models.PROTECT,
+        related_name='actas',
+        help_text="Colaborador que recibe o devuelve los equipos"
+    )
+
+    # Referencia opcional
+    ticket = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Número de ticket de Mesa de Ayuda (opcional)"
+    )
+
+    # Fechas
+    fecha = models.DateTimeField(auto_now_add=True)
+
+    # Firmas (guardadas como imágenes PNG)
+    firma_receptor = models.ImageField(
+        upload_to='actas/firmas/%Y/%m/',
+        help_text="Firma del colaborador que recibe/devuelve"
+    )
+    firma_emisor = models.ImageField(
+        upload_to='actas/firmas/%Y/%m/',
+        help_text="Firma del usuario que genera el acta"
+    )
+
+    # PDF generado
+    pdf_archivo = models.FileField(
+        upload_to='actas/pdf/%Y/%m/',
+        blank=True,
+        help_text="PDF del acta generada"
+    )
+
+    # Envío de correo
+    correo_enviado = models.BooleanField(default=False)
+    fecha_envio_correo = models.DateTimeField(null=True, blank=True)
+
+    # Observaciones
+    observaciones = models.TextField(blank=True)
+
+    # Auditoría
+    creado_por = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        related_name='actas_creadas',
+        help_text="Usuario que generó el acta"
+    )
+
+    class Meta:
+        verbose_name = "Acta de Entrega"
+        verbose_name_plural = "Actas de Entrega"
+        ordering = ['-fecha']
+        indexes = [
+            models.Index(fields=['numero_acta']),
+            models.Index(fields=['tipo', 'fecha']),
+            models.Index(fields=['colaborador', 'fecha']),
+        ]
+
+    def __str__(self):
+        return f"{self.numero_acta} - {self.colaborador.nombre_completo}"
+
+    def save(self, *args, **kwargs):
+        if not self.numero_acta:
+            self.numero_acta = self.generar_numero_acta()
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def generar_numero_acta(cls):
+        """Genera número de acta: TIPO-AÑO-SECUENCIAL"""
+        from django.utils import timezone
+        año = timezone.now().year
+
+        # Buscar último número del año
+        ultimo = cls.objects.filter(
+            numero_acta__contains=f"-{año}-"
+        ).order_by('-numero_acta').first()
+
+        if ultimo:
+            try:
+                ultimo_num = int(ultimo.numero_acta.split('-')[-1])
+                nuevo_num = ultimo_num + 1
+            except ValueError:
+                nuevo_num = 1
+        else:
+            nuevo_num = 1
+
+        return f"ACTA-{año}-{nuevo_num:04d}"
+
+    @property
+    def cantidad_items(self):
+        return self.items.count()
+
+    @property
+    def nombre_emisor(self):
+        """Nombre completo del usuario que generó el acta."""
+        return self.creado_por.get_full_name() or self.creado_por.username
+
+
+class ActaItem(models.Model):
+    """
+    Relación entre Acta e Item.
+    Guarda los accesorios entregados/devueltos para cada ítem.
+    """
+
+    acta = models.ForeignKey(
+        ActaEntrega,
+        on_delete=models.CASCADE,
+        related_name='items'
+    )
+    item = models.ForeignKey(
+        Item,
+        on_delete=models.PROTECT,
+        related_name='actas_items'
+    )
+
+    # Accesorios incluidos
+    acc_cargador = models.BooleanField(default=False, verbose_name="Cargador/Cables")
+    acc_cable_seguridad = models.BooleanField(default=False, verbose_name="Cable de seguridad")
+    acc_bateria = models.BooleanField(default=False, verbose_name="Batería")
+    acc_maletin = models.BooleanField(default=False, verbose_name="Maletín")
+    acc_cable_red = models.BooleanField(default=False, verbose_name="Cable de red")
+    acc_teclado_mouse = models.BooleanField(default=False, verbose_name="Teclado y Mouse")
+
+    class Meta:
+        verbose_name = "Ítem del Acta"
+        verbose_name_plural = "Ítems del Acta"
+        unique_together = ['acta', 'item']
+
+    def __str__(self):
+        return f"{self.acta.numero_acta} - {self.item.codigo_utp}"
+
+    @property
+    def accesorios_lista(self):
+        """Retorna lista de accesorios marcados."""
+        accesorios = []
+        if self.acc_cargador:
+            accesorios.append("Cargador/Cables")
+        if self.acc_cable_seguridad:
+            accesorios.append("Cable de seguridad")
+        if self.acc_bateria:
+            accesorios.append("Batería")
+        if self.acc_maletin:
+            accesorios.append("Maletín")
+        if self.acc_cable_red:
+            accesorios.append("Cable de red")
+        if self.acc_teclado_mouse:
+            accesorios.append("Teclado y Mouse")
+        return accesorios
+
+
+class ActaFoto(models.Model):
+    """Fotos adjuntas al acta (evidencia del estado del equipo)."""
+
+    acta = models.ForeignKey(
+        ActaEntrega,
+        on_delete=models.CASCADE,
+        related_name='fotos'
+    )
+    foto = models.ImageField(
+        upload_to='actas/fotos/%Y/%m/',
+        help_text="Foto del equipo (se convierte a WebP)"
+    )
+    descripcion = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Descripción opcional de la foto"
+    )
+
+    class Meta:
+        verbose_name = "Foto del Acta"
+        verbose_name_plural = "Fotos del Acta"
+
+    def __str__(self):
+        return f"Foto - {self.acta.numero_acta}"
+
+
+class ActaSoftware(models.Model):
+    """Software incluido en el acta."""
+
+    acta = models.ForeignKey(
+        ActaEntrega,
+        on_delete=models.CASCADE,
+        related_name='software'
+    )
+    software = models.ForeignKey(
+        SoftwareEstandar,
+        on_delete=models.PROTECT,
+        related_name='actas'
+    )
+
+    class Meta:
+        verbose_name = "Software del Acta"
+        verbose_name_plural = "Software del Acta"
+        unique_together = ['acta', 'software']
+
+    def __str__(self):
+        return f"{self.acta.numero_acta} - {self.software.nombre}"

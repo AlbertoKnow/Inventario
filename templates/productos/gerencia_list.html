@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}Gerencias{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Page Header -->
+    <div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div>
+            <h1>Gerencias</h1>
+            <p class="text-muted mb-0">Gerencias/Departamentos de la organización</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'productos:gerencia-create' %}" class="btn btn-primary">
+                <i class="fas fa-plus me-1"></i> Nueva Gerencia
+            </a>
+        </div>
+    </div>
+
+    <!-- Tabla -->
+    <div class="card">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Nombre</th>
+                            <th>Descripción</th>
+                            <th>Colaboradores</th>
+                            <th>Estado</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for gerencia in gerencias %}
+                        <tr>
+                            <td><strong>{{ gerencia.nombre }}</strong></td>
+                            <td>{{ gerencia.descripcion|truncatechars:50|default:"-" }}</td>
+                            <td>
+                                <span class="badge bg-secondary">{{ gerencia.colaboradores.count }}</span>
+                            </td>
+                            <td>
+                                {% if gerencia.activo %}
+                                <span class="badge bg-success">Activo</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Inactivo</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
+                                <a href="{% url 'productos:gerencia-update' gerencia.pk %}" class="btn btn-sm btn-outline-secondary">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" class="text-center text-muted py-5">
+                                <i class="fas fa-building fa-3x mb-3 d-block"></i>
+                                No hay gerencias registradas
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

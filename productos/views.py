@@ -2859,3 +2859,523 @@ class MantenimientoLoteView(PerfilRequeridoMixin, View):
             'form': form,
             'items': items
         })
+
+
+# ==============================================================================
+# SISTEMA DE ACTAS DE ENTREGA/DEVOLUCIÓN
+# ==============================================================================
+
+from .models import Gerencia, Colaborador, SoftwareEstandar, ActaEntrega, ActaItem, ActaFoto, ActaSoftware
+from .forms import (
+    GerenciaForm, ColaboradorForm, SoftwareEstandarForm, ActaEntregaForm,
+    ActaItemFormSet, ActaFotoFormSet, FirmaForm, SeleccionarSoftwareForm
+)
+
+
+class GerenciaListView(PerfilRequeridoMixin, ListView):
+    """Lista de gerencias."""
+    model = Gerencia
+    template_name = 'productos/gerencia_list.html'
+    context_object_name = 'gerencias'
+
+    def get_queryset(self):
+        return Gerencia.objects.all().order_by('nombre')
+
+
+class GerenciaCreateView(PerfilRequeridoMixin, CreateView):
+    """Crear nueva gerencia."""
+    model = Gerencia
+    form_class = GerenciaForm
+    template_name = 'productos/gerencia_form.html'
+    success_url = '/productos/gerencias/'
+
+    def form_valid(self, form):
+        messages.success(self.request, 'Gerencia creada correctamente.')
+        return super().form_valid(form)
+
+
+class GerenciaUpdateView(PerfilRequeridoMixin, UpdateView):
+    """Editar gerencia."""
+    model = Gerencia
+    form_class = GerenciaForm
+    template_name = 'productos/gerencia_form.html'
+    success_url = '/productos/gerencias/'
+
+    def form_valid(self, form):
+        messages.success(self.request, 'Gerencia actualizada correctamente.')
+        return super().form_valid(form)
+
+
+class ColaboradorListView(PerfilRequeridoMixin, ListView):
+    """Lista de colaboradores."""
+    model = Colaborador
+    template_name = 'productos/colaborador_list.html'
+    context_object_name = 'colaboradores'
+    paginate_by = 20
+
+    def get_queryset(self):
+        queryset = Colaborador.objects.select_related('gerencia', 'sede').all()
+
+        # Filtros
+        buscar = self.request.GET.get('buscar', '')
+        gerencia = self.request.GET.get('gerencia', '')
+        sede = self.request.GET.get('sede', '')
+        activo = self.request.GET.get('activo', '')
+
+        if buscar:
+            queryset = queryset.filter(
+                models.Q(nombre_completo__icontains=buscar) |
+                models.Q(dni__icontains=buscar) |
+                models.Q(correo__icontains=buscar)
+            )
+
+        if gerencia:
+            queryset = queryset.filter(gerencia_id=gerencia)
+
+        if sede:
+            queryset = queryset.filter(sede_id=sede)
+
+        if activo == '1':
+            queryset = queryset.filter(activo=True)
+        elif activo == '0':
+            queryset = queryset.filter(activo=False)
+
+        return queryset.order_by('nombre_completo')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['gerencias'] = Gerencia.objects.filter(activo=True)
+        context['sedes'] = Sede.objects.filter(activo=True)
+        context['filtros'] = {
+            'buscar': self.request.GET.get('buscar', ''),
+            'gerencia': self.request.GET.get('gerencia', ''),
+            'sede': self.request.GET.get('sede', ''),
+            'activo': self.request.GET.get('activo', ''),
+        }
+        return context
+
+
+class ColaboradorCreateView(PerfilRequeridoMixin, CreateView):
+    """Crear nuevo colaborador."""
+    model = Colaborador
+    form_class = ColaboradorForm
+    template_name = 'productos/colaborador_form.html'
+    success_url = '/productos/colaboradores/'
+
+    def form_valid(self, form):
+        form.instance.creado_por = self.request.user
+        messages.success(self.request, 'Colaborador creado correctamente.')
+        return super().form_valid(form)
+
+
+class ColaboradorUpdateView(PerfilRequeridoMixin, UpdateView):
+    """Editar colaborador."""
+    model = Colaborador
+    form_class = ColaboradorForm
+    template_name = 'productos/colaborador_form.html'
+    success_url = '/productos/colaboradores/'
+
+    def form_valid(self, form):
+        messages.success(self.request, 'Colaborador actualizado correctamente.')
+        return super().form_valid(form)
+
+
+class ColaboradorDetailView(PerfilRequeridoMixin, DetailView):
+    """Detalle de colaborador con sus ítems asignados."""
+    model = Colaborador
+    template_name = 'productos/colaborador_detail.html'
+    context_object_name = 'colaborador'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['items_asignados'] = Item.objects.filter(
+            colaborador_asignado=self.object
+        ).select_related('tipo_item', 'area')
+        context['actas'] = ActaEntrega.objects.filter(
+            colaborador=self.object
+        ).order_by('-fecha')[:10]
+        return context
+
+
+class BuscarColaboradorView(PerfilRequeridoMixin, View):
+    """API para buscar colaborador por DNI (AJAX)."""
+
+    def get(self, request):
+        dni = request.GET.get('dni', '').strip()
+
+        if not dni:
+            return JsonResponse({'error': 'DNI requerido'}, status=400)
+
+        try:
+            colaborador = Colaborador.objects.select_related('gerencia', 'sede').get(dni=dni)
+            return JsonResponse({
+                'id': colaborador.id,
+                'dni': colaborador.dni,
+                'nombre_completo': colaborador.nombre_completo,
+                'cargo': colaborador.cargo,
+                'gerencia': colaborador.gerencia.nombre,
+                'sede': str(colaborador.sede),
+                'anexo': colaborador.anexo,
+                'correo': colaborador.correo,
+                'items_asignados': colaborador.cantidad_items_asignados,
+            })
+        except Colaborador.DoesNotExist:
+            return JsonResponse({'error': 'Colaborador no encontrado'}, status=404)
+
+
+class ActaListView(PerfilRequeridoMixin, ListView):
+    """Lista de actas de entrega/devolución."""
+    model = ActaEntrega
+    template_name = 'productos/acta_list.html'
+    context_object_name = 'actas'
+    paginate_by = 20
+
+    def get_queryset(self):
+        queryset = ActaEntrega.objects.select_related(
+            'colaborador', 'creado_por'
+        ).prefetch_related('items')
+
+        # Filtros
+        tipo = self.request.GET.get('tipo', '')
+        buscar = self.request.GET.get('buscar', '')
+        fecha_desde = self.request.GET.get('fecha_desde', '')
+        fecha_hasta = self.request.GET.get('fecha_hasta', '')
+
+        if tipo:
+            queryset = queryset.filter(tipo=tipo)
+
+        if buscar:
+            queryset = queryset.filter(
+                models.Q(numero_acta__icontains=buscar) |
+                models.Q(colaborador__nombre_completo__icontains=buscar) |
+                models.Q(colaborador__dni__icontains=buscar)
+            )
+
+        if fecha_desde:
+            queryset = queryset.filter(fecha__date__gte=fecha_desde)
+
+        if fecha_hasta:
+            queryset = queryset.filter(fecha__date__lte=fecha_hasta)
+
+        return queryset.order_by('-fecha')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['filtros'] = {
+            'tipo': self.request.GET.get('tipo', ''),
+            'buscar': self.request.GET.get('buscar', ''),
+            'fecha_desde': self.request.GET.get('fecha_desde', ''),
+            'fecha_hasta': self.request.GET.get('fecha_hasta', ''),
+        }
+        return context
+
+
+class ActaDetailView(PerfilRequeridoMixin, DetailView):
+    """Detalle de un acta."""
+    model = ActaEntrega
+    template_name = 'productos/acta_detail.html'
+    context_object_name = 'acta'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['acta_items'] = self.object.items.select_related(
+            'item', 'item__tipo_item'
+        ).all()
+        context['acta_software'] = self.object.software.select_related('software').all()
+        context['acta_fotos'] = self.object.fotos.all()
+        return context
+
+
+class ActaCreateView(PerfilRequeridoMixin, View):
+    """Crear nueva acta de entrega/devolución - Wizard de múltiples pasos."""
+    template_name = 'productos/acta_create.html'
+
+    def get(self, request):
+        # Paso inicial: seleccionar tipo y colaborador
+        form = ActaEntregaForm(user=request.user)
+        software_form = SeleccionarSoftwareForm()
+
+        return render(request, self.template_name, {
+            'form': form,
+            'software_form': software_form,
+            'paso': 1,
+        })
+
+    def post(self, request):
+        paso = request.POST.get('paso', '1')
+
+        if paso == '1':
+            # Validar tipo y colaborador, mostrar selección de ítems
+            form = ActaEntregaForm(request.POST, user=request.user)
+
+            if form.is_valid():
+                tipo = form.cleaned_data['tipo']
+                colaborador = form.cleaned_data['colaborador']
+
+                # Obtener ítems disponibles según el tipo
+                if tipo == 'entrega':
+                    items_disponibles = Item.objects.filter(
+                        colaborador_asignado__isnull=True
+                    ).select_related('tipo_item', 'area')
+                else:
+                    items_disponibles = Item.objects.filter(
+                        colaborador_asignado=colaborador
+                    ).select_related('tipo_item', 'area')
+
+                # Filtrar por área si no es admin
+                perfil = request.user.perfil
+                if perfil.rol != 'admin' and perfil.area:
+                    items_disponibles = items_disponibles.filter(area=perfil.area)
+
+                # Guardar datos en sesión
+                request.session['acta_tipo'] = tipo
+                request.session['acta_colaborador_id'] = colaborador.id
+                request.session['acta_ticket'] = form.cleaned_data.get('ticket', '')
+                request.session['acta_observaciones'] = form.cleaned_data.get('observaciones', '')
+
+                software_form = SeleccionarSoftwareForm()
+
+                return render(request, self.template_name, {
+                    'form': form,
+                    'software_form': software_form,
+                    'items_disponibles': items_disponibles,
+                    'colaborador': colaborador,
+                    'tipo': tipo,
+                    'paso': 2,
+                })
+
+            software_form = SeleccionarSoftwareForm()
+            return render(request, self.template_name, {
+                'form': form,
+                'software_form': software_form,
+                'paso': 1,
+            })
+
+        elif paso == '2':
+            # Validar ítems seleccionados, mostrar formulario de accesorios
+            items_ids = request.POST.getlist('items')
+            software_ids = request.POST.getlist('software')
+
+            if not items_ids:
+                messages.error(request, 'Debe seleccionar al menos un ítem.')
+                return redirect('productos:acta-create')
+
+            # Guardar en sesión
+            request.session['acta_items_ids'] = items_ids
+            request.session['acta_software_ids'] = software_ids
+
+            items = Item.objects.filter(id__in=items_ids).select_related('tipo_item')
+            colaborador_id = request.session.get('acta_colaborador_id')
+            colaborador = Colaborador.objects.get(id=colaborador_id)
+
+            return render(request, self.template_name, {
+                'items': items,
+                'colaborador': colaborador,
+                'tipo': request.session.get('acta_tipo'),
+                'paso': 3,
+            })
+
+        elif paso == '3':
+            # Validar accesorios y firmas, crear el acta
+            import base64
+            from django.core.files.base import ContentFile
+
+            firma_receptor_data = request.POST.get('firma_receptor')
+            firma_emisor_data = request.POST.get('firma_emisor')
+
+            if not firma_receptor_data or not firma_emisor_data:
+                messages.error(request, 'Ambas firmas son obligatorias.')
+                return redirect('productos:acta-create')
+
+            # Recuperar datos de sesión
+            tipo = request.session.get('acta_tipo')
+            colaborador_id = request.session.get('acta_colaborador_id')
+            ticket = request.session.get('acta_ticket', '')
+            observaciones = request.session.get('acta_observaciones', '')
+            items_ids = request.session.get('acta_items_ids', [])
+            software_ids = request.session.get('acta_software_ids', [])
+
+            colaborador = Colaborador.objects.get(id=colaborador_id)
+
+            # Procesar firmas (base64 a imagen)
+            def base64_to_image(data, filename):
+                if ',' in data:
+                    data = data.split(',')[1]
+                image_data = base64.b64decode(data)
+                return ContentFile(image_data, name=filename)
+
+            firma_receptor_file = base64_to_image(
+                firma_receptor_data,
+                f'firma_receptor_{colaborador.dni}.png'
+            )
+            firma_emisor_file = base64_to_image(
+                firma_emisor_data,
+                f'firma_emisor_{request.user.username}.png'
+            )
+
+            # Crear el acta
+            acta = ActaEntrega.objects.create(
+                tipo=tipo,
+                colaborador=colaborador,
+                ticket=ticket,
+                observaciones=observaciones,
+                firma_receptor=firma_receptor_file,
+                firma_emisor=firma_emisor_file,
+                creado_por=request.user
+            )
+
+            # Crear ActaItems con accesorios
+            items = Item.objects.filter(id__in=items_ids)
+            for item in items:
+                ActaItem.objects.create(
+                    acta=acta,
+                    item=item,
+                    acc_cargador=request.POST.get(f'acc_cargador_{item.id}') == 'on',
+                    acc_cable_seguridad=request.POST.get(f'acc_cable_seguridad_{item.id}') == 'on',
+                    acc_bateria=request.POST.get(f'acc_bateria_{item.id}') == 'on',
+                    acc_maletin=request.POST.get(f'acc_maletin_{item.id}') == 'on',
+                    acc_cable_red=request.POST.get(f'acc_cable_red_{item.id}') == 'on',
+                    acc_teclado_mouse=request.POST.get(f'acc_teclado_mouse_{item.id}') == 'on',
+                )
+
+                # Actualizar asignación del ítem
+                if tipo == 'entrega':
+                    item.colaborador_asignado = colaborador
+                else:
+                    item.colaborador_asignado = None
+                item.save()
+
+            # Crear ActaSoftware
+            for software_id in software_ids:
+                ActaSoftware.objects.create(
+                    acta=acta,
+                    software_id=software_id
+                )
+
+            # Procesar fotos si hay
+            fotos = request.FILES.getlist('fotos')
+            for foto in fotos:
+                ActaFoto.objects.create(
+                    acta=acta,
+                    foto=foto
+                )
+
+            # Limpiar sesión
+            for key in ['acta_tipo', 'acta_colaborador_id', 'acta_ticket',
+                       'acta_observaciones', 'acta_items_ids', 'acta_software_ids']:
+                request.session.pop(key, None)
+
+            messages.success(
+                request,
+                f'Acta {acta.numero_acta} creada correctamente.'
+            )
+
+            return redirect('productos:acta-detail', pk=acta.pk)
+
+        return redirect('productos:acta-create')
+
+
+class ActaDescargarPDFView(PerfilRequeridoMixin, View):
+    """Descargar PDF del acta."""
+
+    def get(self, request, pk):
+        acta = get_object_or_404(ActaEntrega, pk=pk)
+
+        # Si ya tiene PDF generado, devolverlo
+        if acta.pdf_archivo:
+            response = HttpResponse(acta.pdf_archivo, content_type='application/pdf')
+            response['Content-Disposition'] = f'attachment; filename="{acta.numero_acta}.pdf"'
+            return response
+
+        # Si no, generar el PDF
+        from .utils.pdf_actas import generar_pdf_acta
+
+        try:
+            pdf_bytes = generar_pdf_acta(acta)
+
+            # Guardar el PDF en el modelo
+            from django.core.files.base import ContentFile
+            acta.pdf_archivo.save(
+                f'{acta.numero_acta}.pdf',
+                ContentFile(pdf_bytes),
+                save=True
+            )
+
+            response = HttpResponse(pdf_bytes, content_type='application/pdf')
+            response['Content-Disposition'] = f'attachment; filename="{acta.numero_acta}.pdf"'
+            return response
+
+        except Exception as e:
+            messages.error(request, f'Error al generar PDF: {str(e)}')
+            return redirect('productos:acta-detail', pk=pk)
+
+
+class ActaEnviarCorreoView(PerfilRequeridoMixin, View):
+    """Enviar acta por correo al colaborador."""
+
+    def post(self, request, pk):
+        acta = get_object_or_404(ActaEntrega, pk=pk)
+
+        from .utils.email_actas import enviar_acta_por_correo
+
+        try:
+            # Asegurar que el PDF existe
+            if not acta.pdf_archivo:
+                from .utils.pdf_actas import generar_pdf_acta
+                from django.core.files.base import ContentFile
+
+                pdf_bytes = generar_pdf_acta(acta)
+                acta.pdf_archivo.save(
+                    f'{acta.numero_acta}.pdf',
+                    ContentFile(pdf_bytes),
+                    save=True
+                )
+
+            # Enviar correo
+            enviar_acta_por_correo(acta)
+
+            # Marcar como enviado
+            acta.correo_enviado = True
+            acta.fecha_envio_correo = timezone.now()
+            acta.save()
+
+            messages.success(
+                request,
+                f'Acta enviada por correo a {acta.colaborador.correo}'
+            )
+
+        except Exception as e:
+            messages.error(request, f'Error al enviar correo: {str(e)}')
+
+        return redirect('productos:acta-detail', pk=pk)
+
+
+class SoftwareEstandarListView(PerfilRequeridoMixin, ListView):
+    """Lista de software estándar."""
+    model = SoftwareEstandar
+    template_name = 'productos/software_list.html'
+    context_object_name = 'software_list'
+
+
+class SoftwareEstandarCreateView(PerfilRequeridoMixin, CreateView):
+    """Crear nuevo software estándar."""
+    model = SoftwareEstandar
+    form_class = SoftwareEstandarForm
+    template_name = 'productos/software_form.html'
+    success_url = '/productos/software/'
+
+    def form_valid(self, form):
+        messages.success(self.request, 'Software agregado correctamente.')
+        return super().form_valid(form)
+
+
+class SoftwareEstandarUpdateView(PerfilRequeridoMixin, UpdateView):
+    """Editar software estándar."""
+    model = SoftwareEstandar
+    form_class = SoftwareEstandarForm
+    template_name = 'productos/software_form.html'
+    success_url = '/productos/software/'
+
+    def form_valid(self, form):
+        messages.success(self.request, 'Software actualizado correctamente.')
+        return super().form_valid(form)

@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+
+{% block title %}Actas de Entrega/Devolución{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Page Header -->
+    <div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div>
+            <h1>Actas de Entrega/Devolución</h1>
+            <p class="text-muted mb-0">Gestión de actas de asignación y devolución de equipos</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'productos:acta-create' %}" class="btn btn-primary">
+                <i class="fas fa-plus me-1"></i> Nueva Acta
+            </a>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="card mb-3">
+        <div class="card-body">
+            <form method="get" id="filterForm">
+                <div class="row g-2">
+                    <div class="col-md-4">
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="fas fa-search"></i></span>
+                            <input type="text" name="q" class="form-control"
+                                   placeholder="Buscar por número, colaborador, DNI..."
+                                   value="{{ request.GET.q }}">
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <select name="tipo" class="form-select">
+                            <option value="">Todos los tipos</option>
+                            <option value="entrega" {% if request.GET.tipo == 'entrega' %}selected{% endif %}>Entrega</option>
+                            <option value="devolucion" {% if request.GET.tipo == 'devolucion' %}selected{% endif %}>Devolución</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <input type="date" name="fecha_desde" class="form-control"
+                               placeholder="Desde" value="{{ request.GET.fecha_desde }}">
+                    </div>
+                    <div class="col-md-2">
+                        <input type="date" name="fecha_hasta" class="form-control"
+                               placeholder="Hasta" value="{{ request.GET.fecha_hasta }}">
+                    </div>
+                    <div class="col-md-auto">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-search me-1"></i> Buscar
+                        </button>
+                    </div>
+                    <div class="col-md-auto">
+                        <a href="{% url 'productos:acta-list' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-times me-1"></i> Limpiar
+                        </a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Tabla de Actas -->
+    <div class="card">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>N° Acta</th>
+                            <th>Tipo</th>
+                            <th>Colaborador</th>
+                            <th>Fecha</th>
+                            <th>Items</th>
+                            <th>Correo</th>
+                            <th>Creado por</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for acta in actas %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'productos:acta-detail' acta.pk %}" class="fw-semibold text-decoration-none">
+                                    {{ acta.numero_acta }}
+                                </a>
+                            </td>
+                            <td>
+                                {% if acta.tipo == 'entrega' %}
+                                <span class="badge bg-success"><i class="fas fa-arrow-right me-1"></i>Entrega</span>
+                                {% else %}
+                                <span class="badge bg-info"><i class="fas fa-arrow-left me-1"></i>Devolución</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <strong>{{ acta.colaborador.nombre_completo }}</strong>
+                                <br><small class="text-muted">DNI: {{ acta.colaborador.dni }}</small>
+                            </td>
+                            <td>{{ acta.fecha|date:"d/m/Y H:i" }}</td>
+                            <td>
+                                <span class="badge bg-secondary">{{ acta.items.count }} ítem(s)</span>
+                            </td>
+                            <td>
+                                {% if acta.correo_enviado %}
+                                <span class="badge bg-success" title="Enviado: {{ acta.fecha_envio_correo|date:'d/m/Y H:i' }}">
+                                    <i class="fas fa-check"></i> Enviado
+                                </span>
+                                {% else %}
+                                <span class="badge bg-warning text-dark">
+                                    <i class="fas fa-clock"></i> Pendiente
+                                </span>
+                                {% endif %}
+                            </td>
+                            <td>{{ acta.creado_por.get_short_name|default:acta.creado_por.username }}</td>
+                            <td class="text-end">
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{% url 'productos:acta-detail' acta.pk %}" class="btn btn-outline-secondary" title="Ver">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    <a href="{% url 'productos:acta-pdf' acta.pk %}" class="btn btn-outline-secondary" title="Descargar PDF">
+                                        <i class="fas fa-file-pdf"></i>
+                                    </a>
+                                    {% if not acta.correo_enviado %}
+                                    <a href="{% url 'productos:acta-enviar-correo' acta.pk %}" class="btn btn-outline-secondary" title="Enviar correo">
+                                        <i class="fas fa-envelope"></i>
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="8" class="text-center text-muted py-5">
+                                <i class="fas fa-file-signature fa-3x mb-3 d-block"></i>
+                                No se encontraron actas
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Paginación -->
+        {% if page_obj.has_other_pages %}
+        <div class="card-footer">
+            <nav aria-label="Paginación">
+                <ul class="pagination justify-content-center mb-0">
+                    {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">
+                            <i class="fas fa-chevron-left"></i>
+                        </a>
+                    </li>
+                    {% endif %}
+
+                    {% for num in page_obj.paginator.page_range %}
+                        {% if page_obj.number == num %}
+                        <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                        {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ num }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">{{ num }}</a>
+                        </li>
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">
+                            <i class="fas fa-chevron-right"></i>
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
