@@ -60,12 +60,17 @@
                         
                         <h5 class="mb-3">Informacion del Ambiente</h5>
                         <div class="row g-3 mb-4">
-                            <div class="col-md-3">
+                            <div class="col-md-2">
                                 <label class="form-label">Piso <span class="text-danger">*</span></label>
                                 {{ form.piso }}
                                 <small class="text-muted">Use -1, -2 para sotanos</small>
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-2">
+                                <label class="form-label">Numero <span class="text-danger">*</span></label>
+                                {{ form.numero }}
+                                <small class="text-muted">01-99</small>
+                            </div>
+                            <div class="col-md-3">
                                 <label class="form-label">Tipo de Ambiente <span class="text-danger">*</span></label>
                                 {{ form.tipo }}
                             </div>
