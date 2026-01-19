@@ -165,7 +165,7 @@ LOGOUT_REDIRECT_URL = 'home'
 # CONFIGURACIÓN DE EMAIL (Resend)
 # ==============================================================================
 RESEND_API_KEY = config('RESEND_API_KEY', default='')
-RESEND_FROM_EMAIL = config('RESEND_FROM_EMAIL', default='Soporte UTP <onboarding@resend.dev>')
+RESEND_FROM_EMAIL = config('RESEND_FROM_EMAIL', default='Soporte UTP <soporte@albertoknow.com>')
 
 # Session security
 SESSION_COOKIE_AGE = 86400  # 24 horas
