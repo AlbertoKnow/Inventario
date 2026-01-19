@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{{ item.codigo_interno }}{% endblock %}
+{% block title %}{{ item.codigo_utp }}{% endblock %}
 
 {% block content %}
 <div class="container">
@@ -9,32 +9,16 @@
         <ol class="breadcrumb">
             <li class="breadcrumb-item"><a href="{% url 'productos:dashboard' %}">Dashboard</a></li>
             <li class="breadcrumb-item"><a href="{% url 'productos:item-list' %}">Inventario</a></li>
-            <li class="breadcrumb-item active">{{ item.codigo_interno }}</li>
+            <li class="breadcrumb-item active">{{ item.codigo_utp }}</li>
         </ol>
     </nav>
-
-    <!-- Advertencia de Código UTP Pendiente -->
-    {% if item.codigo_utp_pendiente %}
-    <div class="alert alert-warning d-flex align-items-center" role="alert">
-        <i class="fas fa-exclamation-triangle me-2"></i>
-        <div>
-            <strong>Código UTP Pendiente:</strong> Este ítem aún no tiene etiqueta física de logística asignada.
-            <a href="{% url 'productos:item-update' item.codigo_interno %}" class="alert-link">Actualizar código UTP</a>
-        </div>
-    </div>
-    {% endif %}
-
+    
     <!-- Header -->
     <div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-3 mb-4">
         <div>
             <h1>{{ item.nombre }}</h1>
             <div class="d-flex gap-2 align-items-center mt-2">
-                <code class="fs-6">{{ item.codigo_interno }}</code>
-                {% if not item.codigo_utp_pendiente %}
-                <span class="badge bg-secondary">UTP: {{ item.codigo_utp }}</span>
-                {% else %}
-                <span class="badge bg-warning text-dark"><i class="fas fa-clock me-1"></i>UTP Pendiente</span>
-                {% endif %}
+                <code class="fs-6">{{ item.codigo_utp }}</code>
                 {% if item.estado == 'nuevo' %}
                 <span class="badge bg-success">Nuevo</span>
                 {% elif item.estado == 'instalado' %}
@@ -56,7 +40,7 @@
             <a href="{% url 'productos:movimiento-create' %}?item={{ item.pk }}" class="btn btn-outline-primary">
                 <i class="fas fa-exchange-alt me-1"></i> Nuevo Movimiento
             </a>
-            <a href="{% url 'productos:item-update' item.codigo_interno %}" class="btn btn-primary">
+            <a href="{% url 'productos:item-update' item.codigo_utp %}" class="btn btn-primary">
                 <i class="fas fa-edit me-1"></i> Editar
             </a>
         </div>
@@ -71,22 +55,6 @@
                 </div>
                 <div class="card-body">
                     <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="text-muted small">Código Interno</label>
-                            <div class="fw-semibold"><code>{{ item.codigo_interno }}</code></div>
-                            <small class="text-muted">Autogenerado por el sistema</small>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="text-muted small">Código UTP (Etiqueta Física)</label>
-                            <div class="fw-semibold">
-                                {% if item.codigo_utp_pendiente %}
-                                <span class="text-warning"><i class="fas fa-clock me-1"></i>PENDIENTE</span>
-                                {% else %}
-                                <code>{{ item.codigo_utp }}</code>
-                                {% endif %}
-                            </div>
-                            <small class="text-muted">Etiqueta de logística</small>
-                        </div>
                         <div class="col-md-6">
                             <label class="text-muted small">Número de Serie</label>
                             <div class="fw-semibold">{{ item.serie }}</div>
@@ -107,8 +75,17 @@
                             {% endif %}
                         </div>
                         <div class="col-md-6">
-                            <label class="text-muted small">Usuario Asignado</label>
-                            <div class="fw-semibold">{{ item.usuario_asignado.get_full_name|default:"Sin asignar" }}</div>
+                            <label class="text-muted small">Colaborador Asignado</label>
+                            <div class="fw-semibold">
+                                {% if item.colaborador_asignado %}
+                                <a href="{% url 'productos:colaborador-detail' item.colaborador_asignado.pk %}">
+                                    {{ item.colaborador_asignado.nombre_completo }}
+                                </a>
+                                <br><small class="text-muted">{{ item.colaborador_asignado.cargo }} - {{ item.colaborador_asignado.gerencia.nombre }}</small>
+                                {% else %}
+                                Sin asignar
+                                {% endif %}
+                            </div>
                         </div>
                         <div class="col-md-6">
                             <label class="text-muted small">Fecha de Adquisición</label>

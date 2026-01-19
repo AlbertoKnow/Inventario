@@ -362,13 +362,11 @@
             </div>
             
             <div class="col-lg-4">
-                <!-- Sidebar sticky -->
-                <div style="position: sticky; top: 20px;">
-                    <!-- Info del Flujo -->
-                    <div class="card mb-4">
-                        <div class="card-header">
-                            <i class="fas fa-route me-2"></i>Flujo de Aprobación
-                        </div>
+                <!-- Info del Flujo -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <i class="fas fa-route me-2"></i>Flujo de Aprobación
+                    </div>
                     <div class="card-body">
                         <!-- Paso 1 -->
                         <div class="d-flex align-items-center mb-3">
@@ -414,30 +412,29 @@
                     </div>
                 </div>
                 
-                    <!-- Leyenda de tipos -->
-                    <div class="card mb-4">
-                        <div class="card-header">Tipos de Movimiento</div>
-                        <div class="card-body small">
-                            <p><strong>Traslado:</strong> Mover ítem a otra ubicación</p>
-                            <p><strong>Entrada:</strong> Ingreso de nuevo ítem al inventario</p>
-                            <p><strong>Salida:</strong> Retiro temporal del ítem</p>
-                            <p><strong>Préstamo:</strong> Préstamo temporal a usuario</p>
-                            <p><strong>Devolución:</strong> Retorno de préstamo</p>
-                            <p><strong>Mantenimiento:</strong> Envío a reparación</p>
-                            <p class="mb-0"><strong>Baja:</strong> Dar de baja definitiva</p>
-                        </div>
+                <!-- Leyenda de tipos -->
+                <div class="card mb-4">
+                    <div class="card-header">Tipos de Movimiento</div>
+                    <div class="card-body small">
+                        <p><strong>Traslado:</strong> Mover ítem a otra ubicación</p>
+                        <p><strong>Entrada:</strong> Ingreso de nuevo ítem al inventario</p>
+                        <p><strong>Salida:</strong> Retiro temporal del ítem</p>
+                        <p><strong>Préstamo:</strong> Préstamo temporal a usuario</p>
+                        <p><strong>Devolución:</strong> Retorno de préstamo</p>
+                        <p><strong>Mantenimiento:</strong> Envío a reparación</p>
+                        <p class="mb-0"><strong>Baja:</strong> Dar de baja definitiva</p>
                     </div>
-
-                    <!-- Acciones -->
-                    <div class="card">
-                        <div class="card-body">
-                            <button type="submit" class="btn btn-primary w-100 mb-2" id="btnEnviar">
-                                <i class="fas fa-paper-plane me-1"></i> Enviar Solicitud
-                            </button>
-                            <a href="{% if item %}{% url 'productos:item-detail' item.codigo_interno %}{% else %}{% url 'productos:movimiento-list' %}{% endif %}" class="btn btn-light w-100">
-                                Cancelar
-                            </a>
-                        </div>
+                </div>
+                
+                <!-- Acciones -->
+                <div class="card">
+                    <div class="card-body">
+                        <button type="submit" class="btn btn-primary w-100 mb-2" id="btnEnviar">
+                            <i class="fas fa-paper-plane me-1"></i> Enviar Solicitud
+                        </button>
+                        <a href="{% if item %}{% url 'productos:item-detail' item.codigo_utp %}{% else %}{% url 'productos:movimiento-list' %}{% endif %}" class="btn btn-light w-100">
+                            Cancelar
+                        </a>
                     </div>
                 </div>
             </div>
