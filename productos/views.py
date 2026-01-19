@@ -363,6 +363,11 @@ class ItemListView(PerfilRequeridoMixin, ListView):
                            if v and k != 'order_by' and v != [])
         context['filtros_count'] = filtros_count
 
+        # Contar solo filtros avanzados (excluyendo búsqueda simple 'q')
+        filtros_avanzados = sum(1 for k, v in context['filtros_activos'].items()
+                               if v and k not in ['order_by', 'q'] and v != [])
+        context['filtros_avanzados_activos'] = filtros_avanzados > 0
+
         return context
 
 
