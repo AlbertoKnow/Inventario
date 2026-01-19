@@ -529,7 +529,9 @@
                         </a>
                         <ul class="dropdown-menu">
                             <li><a class="dropdown-item" href="{% url 'productos:movimiento-list' %}"><i class="fas fa-history me-2"></i>Historial</a></li>
+                            {% if perfil.rol == 'admin' or perfil.rol == 'supervisor' %}
                             <li><a class="dropdown-item" href="{% url 'productos:movimiento-pendientes' %}"><i class="fas fa-clock me-2"></i>Pendientes</a></li>
+                            {% endif %}
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="{% url 'productos:movimiento-create' %}"><i class="fas fa-plus me-2"></i>Nuevo movimiento</a></li>
                         </ul>
@@ -544,20 +546,30 @@
                             <i class="fas fa-tools me-1"></i> Mantenimiento
                         </a>
                     </li>
+                    <!-- Menú de Actas - Visible para todos los usuarios -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
+                            <i class="fas fa-file-signature me-1"></i> Actas
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{% url 'productos:acta-list' %}"><i class="fas fa-list me-2"></i>Todas las Actas</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{% url 'productos:acta-create' %}?tipo=entrega"><i class="fas fa-arrow-right me-2 text-success"></i>Nueva Entrega</a></li>
+                            <li><a class="dropdown-item" href="{% url 'productos:acta-create' %}?tipo=devolucion"><i class="fas fa-arrow-left me-2 text-info"></i>Nueva Devolución</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li class="dropdown-header">Catálogos</li>
+                            <li><a class="dropdown-item" href="{% url 'productos:colaborador-list' %}"><i class="fas fa-users me-2"></i>Colaboradores</a></li>
+                            <li><a class="dropdown-item" href="{% url 'productos:gerencia-list' %}"><i class="fas fa-sitemap me-2"></i>Gerencias</a></li>
+                            <li><a class="dropdown-item" href="{% url 'productos:software-list' %}"><i class="fas fa-compact-disc me-2"></i>Software Estándar</a></li>
+                        </ul>
+                    </li>
                     {% if perfil.rol == 'admin' or perfil.rol == 'supervisor' %}
+                    <!-- Menú de Gestión - Solo Admin/Supervisor -->
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
                             <i class="fas fa-cogs me-1"></i> Gestión
                         </a>
                         <ul class="dropdown-menu">
-                            <li class="dropdown-header">Actas de Entrega</li>
-                            <li><a class="dropdown-item" href="{% url 'productos:acta-list' %}"><i class="fas fa-file-signature me-2"></i>Todas las Actas</a></li>
-                            <li><a class="dropdown-item" href="{% url 'productos:acta-create' %}?tipo=entrega"><i class="fas fa-arrow-right me-2 text-success"></i>Nueva Entrega</a></li>
-                            <li><a class="dropdown-item" href="{% url 'productos:acta-create' %}?tipo=devolucion"><i class="fas fa-arrow-left me-2 text-info"></i>Nueva Devolución</a></li>
-                            <li><a class="dropdown-item" href="{% url 'productos:colaborador-list' %}"><i class="fas fa-users me-2"></i>Colaboradores</a></li>
-                            <li><a class="dropdown-item" href="{% url 'productos:gerencia-list' %}"><i class="fas fa-sitemap me-2"></i>Gerencias</a></li>
-                            <li><a class="dropdown-item" href="{% url 'productos:software-list' %}"><i class="fas fa-compact-disc me-2"></i>Software Estándar</a></li>
-                            <li><hr class="dropdown-divider"></li>
                             <li class="dropdown-header">Ubicaciones</li>
                             <li><a class="dropdown-item" href="{% url 'productos:ubicacion-list' %}"><i class="fas fa-door-open me-2"></i>Ambientes</a></li>
                             <li><a class="dropdown-item" href="{% url 'productos:campus-list' %}"><i class="fas fa-university me-2"></i>Campus</a></li>
@@ -570,6 +582,7 @@
                         </ul>
                     </li>
                     {% else %}
+                    <!-- Menú de Ubicaciones - Solo Operadores -->
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
                             <i class="fas fa-map-marker-alt me-1"></i> Ubicaciones
