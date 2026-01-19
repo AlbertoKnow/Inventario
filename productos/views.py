@@ -3,20 +3,26 @@ from django.views.generic import (
     ListView, DetailView, CreateView, UpdateView, DeleteView, TemplateView, View
 )
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.contrib.auth.models import User
 from django.urls import reverse_lazy, reverse
 from django.db.models import Q, Sum, Count
 from django.contrib import messages
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.utils import timezone
-from datetime import timedelta
+from datetime import timedelta, date
 
 from .models import (
     Area, Campus, Sede, Pabellon, Ambiente, TipoItem, Item, EspecificacionesSistemas,
     Movimiento, HistorialCambio, Notificacion, PerfilUsuario,
-    Proveedor, Contrato, AnexoContrato, Lote
+    Proveedor, Contrato, AnexoContrato, Lote, Mantenimiento
 )
-from .forms import ItemForm, ItemSistemasForm, MovimientoForm, TipoItemForm, AmbienteForm, CampusForm, SedeForm, PabellonForm
+from .forms import (
+    ItemForm, ItemSistemasForm, MovimientoForm, TipoItemForm, AmbienteForm,
+    CampusForm, SedeForm, PabellonForm, MantenimientoForm, MantenimientoFinalizarForm,
+    MantenimientoLoteForm
+)
 from .signals import set_current_user
+from .ratelimit import RateLimitMixin
 
 
 # ============================================================================
@@ -154,6 +160,9 @@ class DashboardView(PerfilRequeridoMixin, TemplateView):
             garantia_hasta__lte=fecha_limite,
             garantia_hasta__gte=timezone.now().date()
         ).count()
+
+        # Ítems sin código UTP (pendientes de etiqueta de logística)
+        context['items_sin_codigo_utp'] = items.filter(codigo_utp='PENDIENTE').count()
         
         # Últimos movimientos
         movimientos = Movimiento.objects.select_related('item', 'solicitado_por')
@@ -172,7 +181,19 @@ class DashboardView(PerfilRequeridoMixin, TemplateView):
         context['notificaciones'] = Notificacion.objects.filter(
             usuario=user, leida=False
         )[:5]
-        
+
+        # Mantenimientos
+        mantenimientos = Mantenimiento.objects.select_related('item')
+        if perfil and perfil.rol != 'admin' and perfil.area:
+            mantenimientos = mantenimientos.filter(item__area=perfil.area)
+
+        context['mantenimientos_pendientes'] = mantenimientos.filter(estado='pendiente').count()
+        context['mantenimientos_vencidos'] = mantenimientos.filter(
+            estado='pendiente',
+            fecha_programada__lt=timezone.now().date()
+        ).count()
+        context['ultimos_mantenimientos'] = mantenimientos.order_by('-fecha_programada')[:5]
+
         return context
 
 
@@ -189,9 +210,9 @@ class ItemListView(PerfilRequeridoMixin, ListView):
     
     def get_queryset(self):
         queryset = Item.objects.select_related('area', 'tipo_item', 'ambiente', 'usuario_asignado')
-        
+
         perfil = getattr(self.request.user, 'perfil', None)
-        
+
         # Filtrar por área si no es admin - SIEMPRE aplicar esta restricción
         if perfil and perfil.rol != 'admin' and perfil.area:
             # Operadores y supervisores SOLO ven su área, no pueden filtrar otras
@@ -201,48 +222,147 @@ class ItemListView(PerfilRequeridoMixin, ListView):
             area = self.request.GET.get('area')
             if area:
                 queryset = queryset.filter(area__codigo=area)
-        
-        # Filtros de búsqueda
+
+        # ===== FILTROS AVANZADOS =====
+
+        # Búsqueda general (código interno, código UTP, serie, nombre)
         search = self.request.GET.get('q')
         if search:
             queryset = queryset.filter(
+                Q(codigo_interno__icontains=search) |
                 Q(codigo_utp__icontains=search) |
                 Q(serie__icontains=search) |
-                Q(nombre__icontains=search)
+                Q(nombre__icontains=search) |
+                Q(descripcion__icontains=search)
             )
-        
-        # Filtro por estado
-        estado = self.request.GET.get('estado')
-        if estado:
-            queryset = queryset.filter(estado=estado)
-        
+
+        # Filtro por estado (puede ser múltiple)
+        estados = self.request.GET.getlist('estado')
+        if estados:
+            queryset = queryset.filter(estado__in=estados)
+
+        # Filtro por tipo de ítem
+        tipo_item = self.request.GET.get('tipo_item')
+        if tipo_item:
+            queryset = queryset.filter(tipo_item_id=tipo_item)
+
+        # Filtro por código UTP pendiente
+        utp_pendiente = self.request.GET.get('utp_pendiente')
+        if utp_pendiente == '1':
+            queryset = queryset.filter(codigo_utp='PENDIENTE')
+        elif utp_pendiente == '0':
+            queryset = queryset.exclude(codigo_utp='PENDIENTE')
+
+        # Filtro por usuario asignado
+        usuario_asignado = self.request.GET.get('usuario_asignado')
+        if usuario_asignado == 'sin_asignar':
+            queryset = queryset.filter(usuario_asignado__isnull=True)
+        elif usuario_asignado == 'asignado':
+            queryset = queryset.filter(usuario_asignado__isnull=False)
+        elif usuario_asignado:
+            queryset = queryset.filter(usuario_asignado_id=usuario_asignado)
+
         # Filtro por ambiente
         ambiente = self.request.GET.get('ambiente')
-        if ambiente:
+        if ambiente == 'sin_ubicacion':
+            queryset = queryset.filter(ambiente__isnull=True)
+        elif ambiente:
             queryset = queryset.filter(ambiente_id=ambiente)
-        
+
         # Filtro por campus
         campus = self.request.GET.get('campus')
         if campus:
             queryset = queryset.filter(ambiente__pabellon__sede__campus_id=campus)
-        
-        # Filtro por garantía próxima a vencer (30 días)
-        garantia_proxima = self.request.GET.get('garantia_proxima')
-        if garantia_proxima:
+
+        # Filtro por rango de precios
+        precio_min = self.request.GET.get('precio_min')
+        precio_max = self.request.GET.get('precio_max')
+        if precio_min:
+            queryset = queryset.filter(precio__gte=precio_min)
+        if precio_max:
+            queryset = queryset.filter(precio__lte=precio_max)
+
+        # Filtro por rango de fechas de adquisición
+        fecha_adq_desde = self.request.GET.get('fecha_adq_desde')
+        fecha_adq_hasta = self.request.GET.get('fecha_adq_hasta')
+        if fecha_adq_desde:
+            queryset = queryset.filter(fecha_adquisicion__gte=fecha_adq_desde)
+        if fecha_adq_hasta:
+            queryset = queryset.filter(fecha_adquisicion__lte=fecha_adq_hasta)
+
+        # Filtro por garantía
+        garantia = self.request.GET.get('garantia')
+        if garantia == 'vigente':
+            queryset = queryset.filter(garantia_hasta__gte=timezone.now().date())
+        elif garantia == 'vencida':
+            queryset = queryset.filter(garantia_hasta__lt=timezone.now().date())
+        elif garantia == 'sin_garantia':
+            queryset = queryset.filter(garantia_hasta__isnull=True)
+        elif garantia == 'proxima_vencer':  # 30 días
             fecha_limite = timezone.now().date() + timedelta(days=30)
             queryset = queryset.filter(
                 garantia_hasta__lte=fecha_limite,
                 garantia_hasta__gte=timezone.now().date()
             )
-        
+
+        # Filtro por leasing
+        es_leasing = self.request.GET.get('es_leasing')
+        if es_leasing == '1':
+            queryset = queryset.filter(es_leasing=True)
+        elif es_leasing == '0':
+            queryset = queryset.filter(es_leasing=False)
+
+        # Filtro por lote
+        lote = self.request.GET.get('lote')
+        if lote == 'sin_lote':
+            queryset = queryset.filter(lote__isnull=True)
+        elif lote:
+            queryset = queryset.filter(lote_id=lote)
+
+        # Ordenamiento
+        order_by = self.request.GET.get('order_by', '-creado_en')
+        if order_by:
+            queryset = queryset.order_by(order_by)
+
         return queryset
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+
+        # Opciones para filtros
         context['areas'] = Area.objects.filter(activo=True)
         context['campus_list'] = Campus.objects.filter(activo=True)
         context['ambientes'] = Ambiente.objects.filter(activo=True).select_related('pabellon__sede__campus')
         context['estados'] = Item.ESTADOS
+        context['tipos_item'] = TipoItem.objects.filter(activo=True).select_related('area')
+        context['usuarios'] = User.objects.filter(is_active=True).order_by('first_name', 'last_name')
+        context['lotes'] = Lote.objects.filter(activo=True).order_by('-creado_en')[:50]
+
+        # Filtros activos (para mostrar chips)
+        context['filtros_activos'] = {
+            'q': self.request.GET.get('q', ''),
+            'area': self.request.GET.get('area', ''),
+            'estado': self.request.GET.getlist('estado'),
+            'tipo_item': self.request.GET.get('tipo_item', ''),
+            'utp_pendiente': self.request.GET.get('utp_pendiente', ''),
+            'usuario_asignado': self.request.GET.get('usuario_asignado', ''),
+            'ambiente': self.request.GET.get('ambiente', ''),
+            'campus': self.request.GET.get('campus', ''),
+            'precio_min': self.request.GET.get('precio_min', ''),
+            'precio_max': self.request.GET.get('precio_max', ''),
+            'fecha_adq_desde': self.request.GET.get('fecha_adq_desde', ''),
+            'fecha_adq_hasta': self.request.GET.get('fecha_adq_hasta', ''),
+            'garantia': self.request.GET.get('garantia', ''),
+            'es_leasing': self.request.GET.get('es_leasing', ''),
+            'lote': self.request.GET.get('lote', ''),
+            'order_by': self.request.GET.get('order_by', '-creado_en'),
+        }
+
+        # Contar filtros activos (para badge)
+        filtros_count = sum(1 for k, v in context['filtros_activos'].items()
+                           if v and k != 'order_by' and v != [])
+        context['filtros_count'] = filtros_count
+
         return context
 
 
@@ -251,7 +371,7 @@ class ItemDetailView(PerfilRequeridoMixin, DetailView):
     model = Item
     template_name = 'productos/item_detail.html'
     context_object_name = 'item'
-    slug_field = 'codigo_utp'
+    slug_field = 'codigo_interno'
     slug_url_kwarg = 'codigo'
     
     def get_queryset(self):
@@ -325,9 +445,9 @@ class ItemCreateView(PerfilRequeridoMixin, CreateView):
             item.codigo_utp = Item.generar_codigo_utp(item.area.codigo)
         
         item.save()
-        
-        messages.success(self.request, f'Ítem {item.codigo_utp} creado correctamente.')
-        return redirect('productos:item-detail', codigo=item.codigo_utp)
+
+        messages.success(self.request, f'Ítem {item.codigo_interno} creado correctamente.')
+        return redirect('productos:item-detail', codigo=item.codigo_interno)
 
 
 class ItemUpdateView(PerfilRequeridoMixin, UpdateView):
@@ -335,7 +455,7 @@ class ItemUpdateView(PerfilRequeridoMixin, UpdateView):
     model = Item
     form_class = ItemForm
     template_name = 'productos/item_form.html'
-    slug_field = 'codigo_utp'
+    slug_field = 'codigo_interno'
     slug_url_kwarg = 'codigo'
     
     def get_queryset(self):
@@ -363,9 +483,9 @@ class ItemUpdateView(PerfilRequeridoMixin, UpdateView):
         item = form.save(commit=False)
         item.modificado_por = self.request.user
         item.save()
-        
-        messages.success(self.request, f'Ítem {item.codigo_utp} actualizado correctamente.')
-        return redirect('productos:item-detail', codigo=item.codigo_utp)
+
+        messages.success(self.request, f'Ítem {item.codigo_interno} actualizado correctamente.')
+        return redirect('productos:item-detail', codigo=item.codigo_interno)
 
 
 class ItemDeleteView(AdminRequeridoMixin, DeleteView):
@@ -373,12 +493,12 @@ class ItemDeleteView(AdminRequeridoMixin, DeleteView):
     model = Item
     template_name = 'productos/item_confirm_delete.html'
     success_url = reverse_lazy('productos:item-list')
-    slug_field = 'codigo_utp'
+    slug_field = 'codigo_interno'
     slug_url_kwarg = 'codigo'
-    
+
     def delete(self, request, *args, **kwargs):
         item = self.get_object()
-        messages.success(request, f'Ítem {item.codigo_utp} eliminado.')
+        messages.success(request, f'Ítem {item.codigo_interno} eliminado.')
         return super().delete(request, *args, **kwargs)
 
 
@@ -894,9 +1014,10 @@ class AmbientesPorPabellonView(LoginRequiredMixin, View):
         return JsonResponse([], safe=False)
 
 
-class BuscarItemsView(LoginRequiredMixin, View):
+class BuscarItemsView(RateLimitMixin, LoginRequiredMixin, View):
     """API para buscar ítems con autocompletado."""
-    
+    ratelimit_key = 'search'
+
     def get(self, request):
         query = request.GET.get('q', '').strip()
         area_id = request.GET.get('area')
@@ -1543,13 +1664,17 @@ class LoteUpdateView(SupervisorRequeridoMixin, UpdateView):
 
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font, PatternFill, Alignment
+from openpyxl.utils.exceptions import InvalidFileException
 from django.http import HttpResponse
 from django.db import transaction
 from datetime import datetime
 import io
+import logging
+
+logger = logging.getLogger(__name__)
 
 
-class ItemImportarPlantillaView(SupervisorRequeridoMixin, View):
+class ItemImportarPlantillaView(PerfilRequeridoMixin, View):
     """Descargar plantilla Excel para importación masiva."""
 
     def get(self, request):
@@ -1565,7 +1690,7 @@ class ItemImportarPlantillaView(SupervisorRequeridoMixin, View):
             'serie', 'nombre', 'area', 'tipo_item', 'precio', 'fecha_adquisicion'
         ]
         headers_opcionales = [
-            'descripcion', 'ambiente_codigo', 'estado', 'garantia_hasta',
+            'codigo_utp', 'descripcion', 'ambiente_codigo', 'estado', 'garantia_hasta',
             'observaciones', 'lote_codigo', 'es_leasing', 'leasing_empresa',
             'leasing_contrato', 'leasing_vencimiento'
         ]
@@ -1616,6 +1741,7 @@ class ItemImportarPlantillaView(SupervisorRequeridoMixin, View):
             'Laptop',  # tipo_item
             '3500.00',  # precio
             '2026-01-10',  # fecha_adquisicion
+            'UTP296375',  # codigo_utp (opcional, puede ser PENDIENTE o vacío)
             'Laptop corporativa i7',  # descripcion
             '',  # ambiente_codigo
             'nuevo',  # estado
@@ -1645,6 +1771,7 @@ class ItemImportarPlantillaView(SupervisorRequeridoMixin, View):
             'Silla',  # tipo_item
             '450.00',  # precio
             '2026-01-10',  # fecha_adquisicion
+            'PENDIENTE',  # codigo_utp (aún sin etiqueta de logística)
             'Silla de oficina con soporte lumbar',  # descripcion
             '',  # ambiente_codigo
             'nuevo',  # estado
@@ -1673,6 +1800,9 @@ class ItemImportarPlantillaView(SupervisorRequeridoMixin, View):
             ["   - fecha_adquisicion: Formato YYYY-MM-DD (ej: 2026-01-10)", ""],
             ["", ""],
             ["2. COLUMNAS OPCIONALES (Gris):", ""],
+            ["   - codigo_utp: Código de etiqueta física (ej: UTP296375)", ""],
+            ["     Dejar vacío o PENDIENTE si aún no tiene etiqueta de logística", ""],
+            ["     Formato: UTP seguido de números", ""],
             ["   - descripcion: Descripción adicional", ""],
             ["   - ambiente_codigo: Código del ambiente (ej: CLN-SP-A-P1-LC-001)", ""],
             ["   - estado: nuevo, instalado, dañado u obsoleto (default: nuevo)", ""],
@@ -1685,7 +1815,8 @@ class ItemImportarPlantillaView(SupervisorRequeridoMixin, View):
             ["   - Especificaciones técnicas del equipo", ""],
             ["", ""],
             ["4. NOTAS IMPORTANTES:", ""],
-            ["   - El código UTP se genera automáticamente", ""],
+            ["   - El código interno se genera automáticamente (ej: SIS-2026-0001)", ""],
+            ["   - El código UTP es la etiqueta física de logística (opcional)", ""],
             ["   - La serie debe ser única en el sistema", ""],
             ["   - Máximo 1000 ítems por archivo", ""],
             ["   - Formato de archivo: .xlsx", ""],
@@ -1718,8 +1849,10 @@ class ItemImportarPlantillaView(SupervisorRequeridoMixin, View):
         return response
 
 
-class ItemImportarView(SupervisorRequeridoMixin, TemplateView):
+class ItemImportarView(RateLimitMixin, PerfilRequeridoMixin, TemplateView):
     """Vista para subir archivo Excel y mostrar preview con validaciones."""
+    ratelimit_key = 'import'
+    ratelimit_method = 'POST'
 
     template_name = 'productos/item_importar.html'
 
@@ -1737,6 +1870,13 @@ class ItemImportarView(SupervisorRequeridoMixin, TemplateView):
 
         if not archivo:
             messages.error(request, 'Debe seleccionar un archivo Excel.')
+            return redirect('productos:item-importar')
+
+        # CRÍTICO: Validar tamaño de archivo antes de procesarlo
+        MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+        if archivo.size > MAX_FILE_SIZE:
+            messages.error(request, f'El archivo es demasiado grande. Tamaño máximo: 10MB')
+            logger.warning(f'Usuario {request.user.username} intentó subir archivo de {archivo.size} bytes')
             return redirect('productos:item-importar')
 
         if not archivo.name.endswith('.xlsx'):
@@ -1761,6 +1901,7 @@ class ItemImportarView(SupervisorRequeridoMixin, TemplateView):
             # Procesar filas
             items_preview = []
             errores_globales = []
+            series_en_archivo = set()  # CRÍTICO: Detectar series duplicadas dentro del Excel
 
             # Obtener perfil del usuario
             perfil = request.user.perfil
@@ -1791,8 +1932,30 @@ class ItemImportarView(SupervisorRequeridoMixin, TemplateView):
                 serie = get_str(item_data.get('serie'))
                 if not serie:
                     errores.append('Serie vacía')
+                elif serie in series_en_archivo:
+                    # CRÍTICO: Detectar duplicados dentro del mismo archivo
+                    errores.append(f'Serie {serie} duplicada dentro del archivo')
                 elif Item.objects.filter(serie=serie).exists():
                     errores.append(f'Serie {serie} ya existe en el sistema')
+                else:
+                    # Agregar a lista de series procesadas
+                    series_en_archivo.add(serie)
+
+                # Validar código UTP (opcional)
+                codigo_utp = get_str(item_data.get('codigo_utp', 'PENDIENTE')).upper()
+                if not codigo_utp:
+                    codigo_utp = 'PENDIENTE'
+                    advertencias.append('Código UTP pendiente - se asignará etiqueta de logística posteriormente')
+                elif codigo_utp != 'PENDIENTE':
+                    # Validar formato UTP + números
+                    import re
+                    if not re.match(r'^UTP\d+$', codigo_utp):
+                        errores.append(f'Código UTP "{codigo_utp}" inválido - debe ser UTP seguido de números (ej: UTP296375)')
+                    elif Item.objects.filter(codigo_utp=codigo_utp).exists():
+                        errores.append(f'Código UTP {codigo_utp} ya existe en el sistema')
+                else:
+                    # Es PENDIENTE
+                    advertencias.append('Código UTP pendiente - se asignará etiqueta de logística posteriormente')
 
                 # Validar área
                 area_codigo = get_str(item_data.get('area')).lower()
@@ -1934,12 +2097,22 @@ class ItemImportarView(SupervisorRequeridoMixin, TemplateView):
 
             return self.render_to_response(context)
 
+        except InvalidFileException:
+            messages.error(request, 'El archivo Excel está corrupto o no es válido.')
+            logger.error(f'Archivo Excel inválido subido por {request.user.username}')
+            return redirect('productos:item-importar')
+        except MemoryError:
+            messages.error(request, 'El archivo es demasiado grande para procesar.')
+            logger.error(f'MemoryError al procesar archivo de {request.user.username}')
+            return redirect('productos:item-importar')
         except Exception as e:
-            messages.error(request, f'Error al procesar el archivo: {str(e)}')
+            # Log detallado para debugging, mensaje genérico para usuario
+            logger.exception(f'Error inesperado en importación de {request.user.username}: {e}')
+            messages.error(request, 'Ocurrió un error al procesar el archivo. Por favor, contacte al administrador.')
             return redirect('productos:item-importar')
 
 
-class ItemImportarConfirmarView(SupervisorRequeridoMixin, View):
+class ItemImportarConfirmarView(PerfilRequeridoMixin, View):
     """Confirmar y ejecutar la importación masiva."""
 
     def post(self, request):
@@ -1992,8 +2165,10 @@ class ItemImportarConfirmarView(SupervisorRequeridoMixin, View):
                         area=area
                     )
 
-                    # Generar código UTP
-                    codigo_utp = Item.generar_codigo_utp(area.codigo)
+                    # Obtener código UTP del Excel (opcional, default PENDIENTE)
+                    codigo_utp = get_str(data.get('codigo_utp', 'PENDIENTE')).upper()
+                    if not codigo_utp:
+                        codigo_utp = 'PENDIENTE'
 
                     # Parsear fecha de adquisición
                     fecha_adq = data.get('fecha_adquisicion', '')
@@ -2110,11 +2285,1106 @@ class ItemImportarConfirmarView(SupervisorRequeridoMixin, View):
 
                 messages.success(request, mensaje)
 
+                # AUDITORÍA: Registrar importación exitosa
+                logger.info(
+                    f'IMPORT_SUCCESS: User={request.user.username}, '
+                    f'Items={len(items_creados)}, Area={perfil.area.codigo if perfil.area else "todas"}, '
+                    f'IP={request.META.get("REMOTE_ADDR")}, Lote={lote.codigo_interno if lote else "N/A"}'
+                )
+
                 # Redirigir a la lista de ítems
                 return redirect('productos:item-list')
 
         except Exception as e:
-            messages.error(request, f'Error al importar ítems: {str(e)}')
+            # Log detallado para debugging
+            logger.exception(f'Error al confirmar importación de {request.user.username}: {e}')
+            messages.error(request, 'Ocurrió un error al importar los ítems. Por favor, contacte al administrador.')
             return redirect('productos:item-importar')
 
 
+
+
+
+# ==============================================================================
+# VISTAS DE REPORTES Y EXPORTACIÓN
+# ==============================================================================
+
+from .utils.export_utils import ExcelExporter, PDFExporter, format_currency, format_date, format_boolean
+
+
+class ReportesView(LoginRequiredMixin, TemplateView):
+    """Vista principal para seleccionar y generar reportes"""
+    template_name = 'productos/reportes.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        perfil = self.request.user.perfil
+
+        if perfil.area:
+            items = Item.objects.filter(area=perfil.area)
+        else:
+            items = Item.objects.all()
+
+        context['total_items'] = items.count()
+        context['valor_total'] = items.aggregate(Sum('precio'))['precio__sum'] or 0
+        context['items_operativos'] = items.filter(estado='operativo').count()
+        context['items_mantenimiento'] = items.filter(estado='en_mantenimiento').count()
+
+        if perfil.area:
+            context['areas'] = [perfil.area]
+        else:
+            context['areas'] = Area.objects.filter(activo=True)
+
+        context['tipos_item'] = TipoItem.objects.filter(activo=True)
+        return context
+
+
+class ExportarInventarioExcelView(RateLimitMixin, LoginRequiredMixin, View):
+    """Exporta el inventario completo a Excel"""
+    ratelimit_key = 'export'
+
+    def get(self, request, *args, **kwargs):
+        perfil = request.user.perfil
+        area_id = request.GET.get('area')
+        tipo_id = request.GET.get('tipo')
+        estado = request.GET.get('estado')
+
+        if perfil.area:
+            items = Item.objects.filter(area=perfil.area)
+        else:
+            items = Item.objects.all()
+
+        if area_id:
+            items = items.filter(area_id=area_id)
+        if tipo_id:
+            items = items.filter(tipo_item_id=tipo_id)
+        if estado:
+            items = items.filter(estado=estado)
+
+        exporter = ExcelExporter(title="Inventario")
+        titulo = "INVENTARIO COMPLETO"
+        subtitulo = f"Total de ítems: {items.count()}"
+        if perfil.area:
+            subtitulo += f" | Área: {perfil.area.nombre}"
+
+        exporter.add_title(titulo, subtitulo)
+
+        headers = ['Código Interno', 'Código UTP', 'Serie', 'Nombre', 'Área', 'Tipo', 'Estado',
+                   'Ubicación', 'Usuario Asignado', 'Precio', 'Fecha Adquisición', 'Garantía Hasta', 'Leasing']
+        exporter.add_headers(headers)
+
+        for idx, item in enumerate(items.select_related('area', 'tipo_item', 'ambiente', 'usuario_asignado')):
+            ubicacion = item.ambiente.codigo_completo if item.ambiente else 'Sin asignar'
+            usuario = item.usuario_asignado.get_full_name() if item.usuario_asignado else 'Sin asignar'
+            row = [item.codigo_interno, item.codigo_utp, item.serie, item.nombre, item.area.nombre,
+                   item.tipo_item.nombre, item.get_estado_display(), ubicacion, usuario,
+                   format_currency(item.precio), format_date(item.fecha_adquisicion),
+                   format_date(item.garantia_hasta), format_boolean(item.es_leasing)]
+            exporter.add_row(row, alternate=(idx % 2 == 0))
+
+        valor_total = items.aggregate(Sum('precio'))['precio__sum'] or 0
+        summary = {'Total de ítems': items.count(), 'Valor total': format_currency(valor_total),
+                   'Ítems operativos': items.filter(estado='operativo').count(),
+                   'Ítems en mantenimiento': items.filter(estado='en_mantenimiento').count(),
+                   'Ítems con código UTP pendiente': items.filter(codigo_utp='PENDIENTE').count()}
+        exporter.add_summary(summary)
+
+        fecha = timezone.now().strftime('%Y%m%d_%H%M%S')
+        return exporter.get_response(f"inventario_{fecha}.xlsx")
+
+
+class ExportarReportePorAreaExcelView(RateLimitMixin, LoginRequiredMixin, View):
+    """Exporta reporte de ítems agrupados por área"""
+    ratelimit_key = 'export'
+
+    def get(self, request, *args, **kwargs):
+        perfil = request.user.perfil
+        if perfil.area:
+            areas = Area.objects.filter(id=perfil.area.id, activo=True)
+        else:
+            areas = Area.objects.filter(activo=True)
+
+        exporter = ExcelExporter(title="Reporte por Área")
+        exporter.add_title("REPORTE DE INVENTARIO POR ÁREA", "Distribución de ítems y valores")
+
+        headers = ['Área', 'Cantidad de Ítems', 'Valor Total', '% del Total', 'Operativos', 'En Mantenimiento', 'Dañados']
+        exporter.add_headers(headers)
+
+        total_items = Item.objects.count()
+        total_valor = Item.objects.aggregate(Sum('precio'))['precio__sum'] or 0
+
+        for idx, area in enumerate(areas):
+            items_area = Item.objects.filter(area=area)
+            cantidad = items_area.count()
+            valor = items_area.aggregate(Sum('precio'))['precio__sum'] or 0
+            porcentaje = (valor / total_valor * 100) if total_valor > 0 else 0
+            row = [area.nombre, cantidad, format_currency(valor), f"{porcentaje:.2f}%",
+                   items_area.filter(estado='operativo').count(),
+                   items_area.filter(estado='en_mantenimiento').count(),
+                   items_area.filter(estado='danado').count()]
+            exporter.add_row(row, alternate=(idx % 2 == 0))
+
+        summary = {'Total general de ítems': total_items, 'Valor total general': format_currency(total_valor)}
+        exporter.add_summary(summary)
+
+        fecha = timezone.now().strftime('%Y%m%d_%H%M%S')
+        return exporter.get_response(f"reporte_por_area_{fecha}.xlsx")
+
+
+class ExportarGarantiasVencenExcelView(RateLimitMixin, LoginRequiredMixin, View):
+    """Exporta reporte de garantías próximas a vencer"""
+    ratelimit_key = 'export'
+
+    def get(self, request, *args, **kwargs):
+        perfil = request.user.perfil
+        dias = int(request.GET.get('dias', 30))
+        hoy = date.today()
+        fecha_limite = hoy + timedelta(days=dias)
+
+        if perfil.area:
+            items = Item.objects.filter(area=perfil.area, garantia_hasta__gte=hoy, garantia_hasta__lte=fecha_limite)
+        else:
+            items = Item.objects.filter(garantia_hasta__gte=hoy, garantia_hasta__lte=fecha_limite)
+
+        exporter = ExcelExporter(title="Garantías")
+        exporter.add_title(f"GARANTÍAS QUE VENCEN EN {dias} DÍAS",
+                          f"Del {hoy.strftime('%d/%m/%Y')} al {fecha_limite.strftime('%d/%m/%Y')}")
+
+        headers = ['Código Interno', 'Serie', 'Nombre', 'Área', 'Fecha Adquisición',
+                   'Garantía Hasta', 'Días Restantes', 'Precio', 'Proveedor/Lote']
+        exporter.add_headers(headers)
+
+        for idx, item in enumerate(items.select_related('area', 'lote')):
+            dias_restantes = (item.garantia_hasta - hoy).days
+            proveedor = item.lote.contrato.proveedor.nombre if (item.lote and item.lote.contrato) else 'N/A'
+            row = [item.codigo_interno, item.serie, item.nombre, item.area.nombre,
+                   format_date(item.fecha_adquisicion), format_date(item.garantia_hasta),
+                   f"{dias_restantes} días", format_currency(item.precio), proveedor]
+            exporter.add_row(row, alternate=(idx % 2 == 0))
+
+        valor_total = items.aggregate(Sum('precio'))['precio__sum'] or 0
+        summary = {'Total de ítems': items.count(), 'Valor total en riesgo': format_currency(valor_total)}
+        exporter.add_summary(summary)
+
+        fecha = timezone.now().strftime('%Y%m%d_%H%M%S')
+        return exporter.get_response(f"garantias_vencen_{dias}dias_{fecha}.xlsx")
+
+
+class ExportarInventarioPDFView(RateLimitMixin, LoginRequiredMixin, View):
+    """Exporta el inventario completo a PDF"""
+    ratelimit_key = 'export'
+
+    def get(self, request, *args, **kwargs):
+        perfil = request.user.perfil
+        area_id = request.GET.get('area')
+        tipo_id = request.GET.get('tipo')
+        estado = request.GET.get('estado')
+
+        if perfil.area:
+            items = Item.objects.filter(area=perfil.area)
+        else:
+            items = Item.objects.all()
+
+        if area_id:
+            items = items.filter(area_id=area_id)
+        if tipo_id:
+            items = items.filter(tipo_item_id=tipo_id)
+        if estado:
+            items = items.filter(estado=estado)
+
+        exporter = PDFExporter(title="Inventario", orientation="landscape")
+        titulo = "INVENTARIO COMPLETO"
+        subtitulo = f"Total de ítems: {items.count()}"
+        if perfil.area:
+            subtitulo += f" | Área: {perfil.area.nombre}"
+
+        exporter.add_title(titulo, subtitulo)
+
+        headers = ['Código', 'Serie', 'Nombre', 'Área', 'Tipo', 'Estado', 'Precio']
+        data = []
+        for item in items.select_related('area', 'tipo_item')[:100]:
+            data.append([item.codigo_interno, item.serie[:15], item.nombre[:25], item.area.codigo,
+                        item.tipo_item.nombre[:15], item.get_estado_display()[:10], format_currency(item.precio)])
+
+        exporter.add_table(headers, data)
+
+        valor_total = items.aggregate(Sum('precio'))['precio__sum'] or 0
+        summary = {'Total de ítems': items.count(), 'Valor total': format_currency(valor_total),
+                   'Ítems operativos': items.filter(estado='operativo').count(),
+                   'Ítems en mantenimiento': items.filter(estado='en_mantenimiento').count()}
+        exporter.add_summary_section(summary)
+
+        fecha = timezone.now().strftime('%Y%m%d_%H%M%S')
+        return exporter.get_response(f"inventario_{fecha}.pdf")
+
+
+class ExportarReportePorAreaPDFView(RateLimitMixin, LoginRequiredMixin, View):
+    """Exporta reporte de ítems agrupados por área a PDF"""
+    ratelimit_key = 'export'
+
+    def get(self, request, *args, **kwargs):
+        perfil = request.user.perfil
+        if perfil.area:
+            areas = Area.objects.filter(id=perfil.area.id, activo=True)
+        else:
+            areas = Area.objects.filter(activo=True)
+
+        exporter = PDFExporter(title="Reporte por Área")
+        exporter.add_title("REPORTE DE INVENTARIO POR ÁREA", "Distribución de ítems y valores")
+
+        total_items = Item.objects.count()
+        total_valor = Item.objects.aggregate(Sum('precio'))['precio__sum'] or 0
+
+        headers = ['Área', 'Cantidad', 'Valor Total', '% Total', 'Operativos', 'Mant.', 'Dañados']
+        data = []
+        for area in areas:
+            items_area = Item.objects.filter(area=area)
+            cantidad = items_area.count()
+            valor = items_area.aggregate(Sum('precio'))['precio__sum'] or 0
+            porcentaje = (valor / total_valor * 100) if total_valor > 0 else 0
+            data.append([area.nombre[:20], str(cantidad), format_currency(valor), f"{porcentaje:.1f}%",
+                        str(items_area.filter(estado='operativo').count()),
+                        str(items_area.filter(estado='en_mantenimiento').count()),
+                        str(items_area.filter(estado='danado').count())])
+
+        exporter.add_table(headers, data)
+
+        summary = {'Total general de ítems': total_items, 'Valor total general': format_currency(total_valor)}
+        exporter.add_summary_section(summary)
+
+        fecha = timezone.now().strftime('%Y%m%d_%H%M%S')
+        return exporter.get_response(f"reporte_por_area_{fecha}.pdf")
+
+
+# ==============================================================================
+# VISTAS DE MANTENIMIENTO
+# ==============================================================================
+
+class MantenimientoListView(PerfilRequeridoMixin, ListView):
+    """Lista de mantenimientos"""
+    model = Mantenimiento
+    template_name = 'productos/mantenimiento_list.html'
+    context_object_name = 'mantenimientos'
+    paginate_by = 20
+
+    def get_queryset(self):
+        queryset = Mantenimiento.objects.select_related('item', 'responsable', 'creado_por')
+        perfil = getattr(self.request.user, 'perfil', None)
+
+        # Filtrar por área si no es admin
+        if perfil and perfil.rol != 'admin' and perfil.area:
+            queryset = queryset.filter(item__area=perfil.area)
+
+        # Filtros
+        estado = self.request.GET.get('estado')
+        tipo = self.request.GET.get('tipo')
+
+        if estado:
+            queryset = queryset.filter(estado=estado)
+        if tipo:
+            queryset = queryset.filter(tipo=tipo)
+
+        return queryset.order_by('-fecha_programada')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        queryset = self.get_queryset()
+
+        # Estadísticas
+        context['total_mantenimientos'] = queryset.count()
+        context['pendientes'] = queryset.filter(estado='pendiente').count()
+        context['en_proceso'] = queryset.filter(estado='en_proceso').count()
+        context['completados'] = queryset.filter(estado='completado').count()
+
+        return context
+
+
+class MantenimientoDetailView(PerfilRequeridoMixin, DetailView):
+    """Detalle de un mantenimiento"""
+    model = Mantenimiento
+    template_name = 'productos/mantenimiento_detail.html'
+    context_object_name = 'mantenimiento'
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        perfil = getattr(self.request.user, 'perfil', None)
+
+        if perfil and perfil.rol != 'admin' and perfil.area:
+            queryset = queryset.filter(item__area=perfil.area)
+
+        return queryset
+
+
+class MantenimientoCreateView(PerfilRequeridoMixin, CreateView):
+    """Crear un nuevo mantenimiento"""
+    model = Mantenimiento
+    form_class = MantenimientoForm
+    template_name = 'productos/mantenimiento_form.html'
+    success_url = reverse_lazy('productos:mantenimiento-list')
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['user'] = self.request.user
+        return kwargs
+
+    def form_valid(self, form):
+        mantenimiento = form.save(commit=False)
+        mantenimiento.creado_por = self.request.user
+        mantenimiento.responsable = self.request.user
+        mantenimiento.save()
+
+        messages.success(self.request, f'Mantenimiento programado correctamente para {mantenimiento.item.codigo_interno}.')
+        return redirect('productos:mantenimiento-detail', pk=mantenimiento.pk)
+
+
+class MantenimientoUpdateView(PerfilRequeridoMixin, UpdateView):
+    """Editar un mantenimiento"""
+    model = Mantenimiento
+    form_class = MantenimientoForm
+    template_name = 'productos/mantenimiento_form.html'
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        perfil = getattr(self.request.user, 'perfil', None)
+
+        if perfil and perfil.rol != 'admin' and perfil.area:
+            queryset = queryset.filter(item__area=perfil.area)
+
+        return queryset
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['user'] = self.request.user
+        return kwargs
+
+    def form_valid(self, form):
+        mantenimiento = form.save()
+        messages.success(self.request, f'Mantenimiento actualizado correctamente.')
+        return redirect('productos:mantenimiento-detail', pk=mantenimiento.pk)
+
+
+class MantenimientoIniciarView(PerfilRequeridoMixin, View):
+    """Iniciar un mantenimiento"""
+
+    def post(self, request, pk):
+        mantenimiento = get_object_or_404(Mantenimiento, pk=pk)
+        perfil = request.user.perfil
+
+        # Verificar permisos
+        if perfil.rol != 'admin' and perfil.area and mantenimiento.item.area != perfil.area:
+            messages.error(request, 'No tienes permisos para iniciar este mantenimiento.')
+            return redirect('productos:mantenimiento-detail', pk=pk)
+
+        if mantenimiento.estado != 'pendiente':
+            messages.warning(request, 'Este mantenimiento ya fue iniciado.')
+            return redirect('productos:mantenimiento-detail', pk=pk)
+
+        # Cambiar estado del ítem a en_mantenimiento
+        mantenimiento.item.estado = 'en_mantenimiento'
+        mantenimiento.item.save()
+
+        # Iniciar mantenimiento
+        mantenimiento.iniciar(usuario=request.user)
+
+        messages.success(request, f'Mantenimiento iniciado. El ítem {mantenimiento.item.codigo_interno} está ahora en mantenimiento.')
+        return redirect('productos:mantenimiento-detail', pk=pk)
+
+
+class MantenimientoFinalizarView(PerfilRequeridoMixin, View):
+    """Finalizar un mantenimiento"""
+    template_name = 'productos/mantenimiento_finalizar.html'
+
+    def get(self, request, pk):
+        mantenimiento = get_object_or_404(Mantenimiento, pk=pk)
+        perfil = request.user.perfil
+
+        # Verificar permisos
+        if perfil.rol != 'admin' and perfil.area and mantenimiento.item.area != perfil.area:
+            messages.error(request, 'No tienes permisos para finalizar este mantenimiento.')
+            return redirect('productos:mantenimiento-detail', pk=pk)
+
+        if mantenimiento.estado not in ['pendiente', 'en_proceso']:
+            messages.warning(request, 'Este mantenimiento ya fue finalizado o cancelado.')
+            return redirect('productos:mantenimiento-detail', pk=pk)
+
+        form = MantenimientoFinalizarForm()
+        return render(request, self.template_name, {
+            'mantenimiento': mantenimiento,
+            'form': form
+        })
+
+    def post(self, request, pk):
+        mantenimiento = get_object_or_404(Mantenimiento, pk=pk)
+        perfil = request.user.perfil
+
+        # Verificar permisos
+        if perfil.rol != 'admin' and perfil.area and mantenimiento.item.area != perfil.area:
+            messages.error(request, 'No tienes permisos para finalizar este mantenimiento.')
+            return redirect('productos:mantenimiento-detail', pk=pk)
+
+        form = MantenimientoFinalizarForm(request.POST)
+        if form.is_valid():
+            resultado = form.cleaned_data['resultado']
+            trabajo_realizado = form.cleaned_data['trabajo_realizado']
+            costo = form.cleaned_data.get('costo')
+
+            mantenimiento.finalizar(resultado, trabajo_realizado, costo)
+
+            messages.success(request, f'Mantenimiento finalizado. Estado del ítem actualizado a {mantenimiento.item.get_estado_display()}.')
+            return redirect('productos:mantenimiento-detail', pk=pk)
+
+        return render(request, self.template_name, {
+            'mantenimiento': mantenimiento,
+            'form': form
+        })
+
+
+class MantenimientoCancelarView(PerfilRequeridoMixin, View):
+    """Cancelar un mantenimiento"""
+
+    def post(self, request, pk):
+        mantenimiento = get_object_or_404(Mantenimiento, pk=pk)
+        perfil = request.user.perfil
+
+        # Verificar permisos
+        if perfil.rol not in ['admin', 'supervisor']:
+            messages.error(request, 'Solo administradores y supervisores pueden cancelar mantenimientos.')
+            return redirect('productos:mantenimiento-detail', pk=pk)
+
+        if perfil.rol != 'admin' and perfil.area and mantenimiento.item.area != perfil.area:
+            messages.error(request, 'No tienes permisos para cancelar este mantenimiento.')
+            return redirect('productos:mantenimiento-detail', pk=pk)
+
+        if mantenimiento.estado in ['completado', 'cancelado']:
+            messages.warning(request, 'Este mantenimiento ya fue completado o cancelado.')
+            return redirect('productos:mantenimiento-detail', pk=pk)
+
+        motivo = request.POST.get('motivo', '')
+        mantenimiento.cancelar(motivo)
+
+        # Si el ítem estaba en mantenimiento, regresarlo a operativo
+        if mantenimiento.item.estado == 'en_mantenimiento':
+            mantenimiento.item.estado = 'operativo'
+            mantenimiento.item.save()
+
+        messages.success(request, 'Mantenimiento cancelado.')
+        return redirect('productos:mantenimiento-detail', pk=pk)
+
+
+class MantenimientoDeleteView(AdminRequeridoMixin, DeleteView):
+    """Eliminar un mantenimiento (solo admin)"""
+    model = Mantenimiento
+    template_name = 'productos/mantenimiento_confirm_delete.html'
+    success_url = reverse_lazy('productos:mantenimiento-list')
+
+    def delete(self, request, *args, **kwargs):
+        mantenimiento = self.get_object()
+        messages.success(request, f'Mantenimiento eliminado.')
+        return super().delete(request, *args, **kwargs)
+
+
+class MantenimientoLoteView(PerfilRequeridoMixin, View):
+    """Crear mantenimientos en lote para múltiples ítems"""
+    template_name = 'productos/mantenimiento_lote.html'
+
+    def get(self, request):
+        # Si vienen items pre-seleccionados por query params
+        items_ids = request.GET.getlist('items')
+        
+        form = MantenimientoLoteForm(user=request.user)
+        
+        # Pre-seleccionar items si vienen en query params
+        if items_ids:
+            form.fields['items'].initial = items_ids
+        
+        # Obtener items disponibles para contexto
+        perfil = request.user.perfil
+        if perfil.area and perfil.rol != 'admin':
+            items = Item.objects.filter(area=perfil.area)
+        else:
+            items = Item.objects.all()
+        
+        return render(request, self.template_name, {
+            'form': form,
+            'items': items,
+            'items_preseleccionados': len(items_ids) if items_ids else 0
+        })
+
+    def post(self, request):
+        form = MantenimientoLoteForm(request.POST, user=request.user)
+        
+        if form.is_valid():
+            items = form.cleaned_data['items']
+            tipo = form.cleaned_data['tipo']
+            fecha_programada = form.cleaned_data['fecha_programada']
+            descripcion = form.cleaned_data.get('descripcion_problema', '')
+            tecnico = form.cleaned_data.get('tecnico_asignado', '')
+            proveedor = form.cleaned_data.get('proveedor_servicio', '')
+            costo = form.cleaned_data.get('costo_estimado')
+            proximo = form.cleaned_data.get('proximo_mantenimiento')
+            observaciones = form.cleaned_data.get('observaciones', '')
+            
+            # Crear mantenimientos para cada ítem seleccionado
+            mantenimientos_creados = []
+            for item in items:
+                mantenimiento = Mantenimiento.objects.create(
+                    item=item,
+                    tipo=tipo,
+                    fecha_programada=fecha_programada,
+                    descripcion_problema=descripcion,
+                    tecnico_asignado=tecnico,
+                    proveedor_servicio=proveedor,
+                    costo=costo,
+                    proximo_mantenimiento=proximo,
+                    observaciones=observaciones,
+                    responsable=request.user,
+                    creado_por=request.user
+                )
+                mantenimientos_creados.append(mantenimiento)
+            
+            messages.success(
+                request,
+                f'Se programaron {len(mantenimientos_creados)} mantenimientos correctamente.'
+            )
+            return redirect('productos:mantenimiento-list')
+        
+        # Si hay errores, volver a mostrar el formulario
+        perfil = request.user.perfil
+        if perfil.area and perfil.rol != 'admin':
+            items = Item.objects.filter(area=perfil.area)
+        else:
+            items = Item.objects.all()
+        
+        return render(request, self.template_name, {
+            'form': form,
+            'items': items
+        })
+
+
+# ==============================================================================
+# SISTEMA DE ACTAS DE ENTREGA/DEVOLUCIÓN
+# ==============================================================================
+
+from .models import Gerencia, Colaborador, SoftwareEstandar, ActaEntrega, ActaItem, ActaFoto, ActaSoftware
+from .forms import (
+    GerenciaForm, ColaboradorForm, SoftwareEstandarForm, ActaEntregaForm,
+    ActaItemFormSet, ActaFotoFormSet, FirmaForm, SeleccionarSoftwareForm
+)
+
+
+class GerenciaListView(PerfilRequeridoMixin, ListView):
+    """Lista de gerencias."""
+    model = Gerencia
+    template_name = 'productos/gerencia_list.html'
+    context_object_name = 'gerencias'
+
+    def get_queryset(self):
+        return Gerencia.objects.all().order_by('nombre')
+
+
+class GerenciaCreateView(PerfilRequeridoMixin, CreateView):
+    """Crear nueva gerencia."""
+    model = Gerencia
+    form_class = GerenciaForm
+    template_name = 'productos/gerencia_form.html'
+    success_url = '/productos/gerencias/'
+
+    def form_valid(self, form):
+        messages.success(self.request, 'Gerencia creada correctamente.')
+        return super().form_valid(form)
+
+
+class GerenciaUpdateView(PerfilRequeridoMixin, UpdateView):
+    """Editar gerencia."""
+    model = Gerencia
+    form_class = GerenciaForm
+    template_name = 'productos/gerencia_form.html'
+    success_url = '/productos/gerencias/'
+
+    def form_valid(self, form):
+        messages.success(self.request, 'Gerencia actualizada correctamente.')
+        return super().form_valid(form)
+
+
+class ColaboradorListView(PerfilRequeridoMixin, ListView):
+    """Lista de colaboradores."""
+    model = Colaborador
+    template_name = 'productos/colaborador_list.html'
+    context_object_name = 'colaboradores'
+    paginate_by = 20
+
+    def get_queryset(self):
+        queryset = Colaborador.objects.select_related('gerencia', 'sede').all()
+
+        # Filtros
+        buscar = self.request.GET.get('buscar', '')
+        gerencia = self.request.GET.get('gerencia', '')
+        sede = self.request.GET.get('sede', '')
+        activo = self.request.GET.get('activo', '')
+
+        if buscar:
+            queryset = queryset.filter(
+                models.Q(nombre_completo__icontains=buscar) |
+                models.Q(dni__icontains=buscar) |
+                models.Q(correo__icontains=buscar)
+            )
+
+        if gerencia:
+            queryset = queryset.filter(gerencia_id=gerencia)
+
+        if sede:
+            queryset = queryset.filter(sede_id=sede)
+
+        if activo == '1':
+            queryset = queryset.filter(activo=True)
+        elif activo == '0':
+            queryset = queryset.filter(activo=False)
+
+        return queryset.order_by('nombre_completo')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['gerencias'] = Gerencia.objects.filter(activo=True)
+        context['sedes'] = Sede.objects.filter(activo=True)
+        context['filtros'] = {
+            'buscar': self.request.GET.get('buscar', ''),
+            'gerencia': self.request.GET.get('gerencia', ''),
+            'sede': self.request.GET.get('sede', ''),
+            'activo': self.request.GET.get('activo', ''),
+        }
+        return context
+
+
+class ColaboradorCreateView(PerfilRequeridoMixin, CreateView):
+    """Crear nuevo colaborador."""
+    model = Colaborador
+    form_class = ColaboradorForm
+    template_name = 'productos/colaborador_form.html'
+    success_url = '/productos/colaboradores/'
+
+    def form_valid(self, form):
+        form.instance.creado_por = self.request.user
+        messages.success(self.request, 'Colaborador creado correctamente.')
+        return super().form_valid(form)
+
+
+class ColaboradorUpdateView(PerfilRequeridoMixin, UpdateView):
+    """Editar colaborador."""
+    model = Colaborador
+    form_class = ColaboradorForm
+    template_name = 'productos/colaborador_form.html'
+    success_url = '/productos/colaboradores/'
+
+    def form_valid(self, form):
+        messages.success(self.request, 'Colaborador actualizado correctamente.')
+        return super().form_valid(form)
+
+
+class ColaboradorDetailView(PerfilRequeridoMixin, DetailView):
+    """Detalle de colaborador con sus ítems asignados."""
+    model = Colaborador
+    template_name = 'productos/colaborador_detail.html'
+    context_object_name = 'colaborador'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['items_asignados'] = Item.objects.filter(
+            colaborador_asignado=self.object
+        ).select_related('tipo_item', 'area')
+        context['actas'] = ActaEntrega.objects.filter(
+            colaborador=self.object
+        ).order_by('-fecha')[:10]
+        return context
+
+
+class BuscarColaboradorView(PerfilRequeridoMixin, View):
+    """API para buscar colaborador por DNI (AJAX)."""
+
+    def get(self, request):
+        dni = request.GET.get('dni', '').strip()
+
+        if not dni:
+            return JsonResponse({'error': 'DNI requerido'}, status=400)
+
+        try:
+            colaborador = Colaborador.objects.select_related('gerencia', 'sede').get(dni=dni)
+            return JsonResponse({
+                'id': colaborador.id,
+                'dni': colaborador.dni,
+                'nombre_completo': colaborador.nombre_completo,
+                'cargo': colaborador.cargo,
+                'gerencia': colaborador.gerencia.nombre,
+                'sede': str(colaborador.sede),
+                'anexo': colaborador.anexo,
+                'correo': colaborador.correo,
+                'items_asignados': colaborador.cantidad_items_asignados,
+            })
+        except Colaborador.DoesNotExist:
+            return JsonResponse({'error': 'Colaborador no encontrado'}, status=404)
+
+
+class ActaListView(PerfilRequeridoMixin, ListView):
+    """Lista de actas de entrega/devolución."""
+    model = ActaEntrega
+    template_name = 'productos/acta_list.html'
+    context_object_name = 'actas'
+    paginate_by = 20
+
+    def get_queryset(self):
+        queryset = ActaEntrega.objects.select_related(
+            'colaborador', 'creado_por'
+        ).prefetch_related('items')
+
+        # Filtros
+        tipo = self.request.GET.get('tipo', '')
+        buscar = self.request.GET.get('buscar', '')
+        fecha_desde = self.request.GET.get('fecha_desde', '')
+        fecha_hasta = self.request.GET.get('fecha_hasta', '')
+
+        if tipo:
+            queryset = queryset.filter(tipo=tipo)
+
+        if buscar:
+            queryset = queryset.filter(
+                models.Q(numero_acta__icontains=buscar) |
+                models.Q(colaborador__nombre_completo__icontains=buscar) |
+                models.Q(colaborador__dni__icontains=buscar)
+            )
+
+        if fecha_desde:
+            queryset = queryset.filter(fecha__date__gte=fecha_desde)
+
+        if fecha_hasta:
+            queryset = queryset.filter(fecha__date__lte=fecha_hasta)
+
+        return queryset.order_by('-fecha')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['filtros'] = {
+            'tipo': self.request.GET.get('tipo', ''),
+            'buscar': self.request.GET.get('buscar', ''),
+            'fecha_desde': self.request.GET.get('fecha_desde', ''),
+            'fecha_hasta': self.request.GET.get('fecha_hasta', ''),
+        }
+        return context
+
+
+class ActaDetailView(PerfilRequeridoMixin, DetailView):
+    """Detalle de un acta."""
+    model = ActaEntrega
+    template_name = 'productos/acta_detail.html'
+    context_object_name = 'acta'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['acta_items'] = self.object.items.select_related(
+            'item', 'item__tipo_item'
+        ).all()
+        context['acta_software'] = self.object.software.select_related('software').all()
+        context['acta_fotos'] = self.object.fotos.all()
+        return context
+
+
+class ActaCreateView(PerfilRequeridoMixin, View):
+    """Crear nueva acta de entrega/devolución - Wizard de múltiples pasos."""
+    template_name = 'productos/acta_create.html'
+
+    def get(self, request):
+        # Paso inicial: seleccionar tipo y colaborador
+        form = ActaEntregaForm(user=request.user)
+        software_form = SeleccionarSoftwareForm()
+
+        return render(request, self.template_name, {
+            'form': form,
+            'software_form': software_form,
+            'paso': 1,
+        })
+
+    def post(self, request):
+        paso = request.POST.get('paso', '1')
+
+        if paso == '1':
+            # Validar tipo y colaborador, mostrar selección de ítems
+            form = ActaEntregaForm(request.POST, user=request.user)
+
+            if form.is_valid():
+                tipo = form.cleaned_data['tipo']
+                colaborador = form.cleaned_data['colaborador']
+
+                # Obtener ítems disponibles según el tipo
+                if tipo == 'entrega':
+                    # Para entrega: items sin asignar y en buen estado (nuevo/instalado)
+                    items_disponibles = Item.objects.filter(
+                        colaborador_asignado__isnull=True,
+                        estado__in=['nuevo', 'instalado']
+                    ).select_related('tipo_item', 'area')
+                else:
+                    # Para devolución: items asignados al colaborador
+                    items_disponibles = Item.objects.filter(
+                        colaborador_asignado=colaborador
+                    ).select_related('tipo_item', 'area')
+
+                # Filtrar por área si no es admin
+                perfil = request.user.perfil
+                if perfil.rol != 'admin' and perfil.area:
+                    items_disponibles = items_disponibles.filter(area=perfil.area)
+
+                # Guardar datos en sesión
+                request.session['acta_tipo'] = tipo
+                request.session['acta_colaborador_id'] = colaborador.id
+                request.session['acta_ticket'] = form.cleaned_data.get('ticket', '')
+                request.session['acta_observaciones'] = form.cleaned_data.get('observaciones', '')
+
+                software_form = SeleccionarSoftwareForm()
+
+                return render(request, self.template_name, {
+                    'form': form,
+                    'software_form': software_form,
+                    'items_disponibles': items_disponibles,
+                    'colaborador': colaborador,
+                    'tipo': tipo,
+                    'paso': 2,
+                })
+
+            software_form = SeleccionarSoftwareForm()
+            return render(request, self.template_name, {
+                'form': form,
+                'software_form': software_form,
+                'paso': 1,
+            })
+
+        elif paso == '2':
+            # Validar ítems seleccionados, mostrar formulario de accesorios
+            items_ids = request.POST.getlist('items')
+            software_ids = request.POST.getlist('software')
+
+            if not items_ids:
+                messages.error(request, 'Debe seleccionar al menos un ítem.')
+                return redirect('productos:acta-create')
+
+            # Guardar en sesión
+            request.session['acta_items_ids'] = items_ids
+            request.session['acta_software_ids'] = software_ids
+
+            items = Item.objects.filter(id__in=items_ids).select_related('tipo_item')
+            colaborador_id = request.session.get('acta_colaborador_id')
+            colaborador = Colaborador.objects.get(id=colaborador_id)
+
+            return render(request, self.template_name, {
+                'items': items,
+                'colaborador': colaborador,
+                'tipo': request.session.get('acta_tipo'),
+                'paso': 3,
+            })
+
+        elif paso == '3':
+            # Validar accesorios y firmas, crear el acta
+            import base64
+            from django.core.files.base import ContentFile
+
+            firma_receptor_data = request.POST.get('firma_receptor')
+            firma_emisor_data = request.POST.get('firma_emisor')
+
+            if not firma_receptor_data or not firma_emisor_data:
+                messages.error(request, 'Ambas firmas son obligatorias.')
+                return redirect('productos:acta-create')
+
+            # Recuperar datos de sesión
+            tipo = request.session.get('acta_tipo')
+            colaborador_id = request.session.get('acta_colaborador_id')
+            ticket = request.session.get('acta_ticket', '')
+            observaciones = request.session.get('acta_observaciones', '')
+            items_ids = request.session.get('acta_items_ids', [])
+            software_ids = request.session.get('acta_software_ids', [])
+
+            colaborador = Colaborador.objects.get(id=colaborador_id)
+
+            # Procesar firmas (base64 a imagen)
+            def base64_to_image(data, filename):
+                if ',' in data:
+                    data = data.split(',')[1]
+                image_data = base64.b64decode(data)
+                return ContentFile(image_data, name=filename)
+
+            firma_receptor_file = base64_to_image(
+                firma_receptor_data,
+                f'firma_receptor_{colaborador.dni}.png'
+            )
+            firma_emisor_file = base64_to_image(
+                firma_emisor_data,
+                f'firma_emisor_{request.user.username}.png'
+            )
+
+            # Crear el acta
+            acta = ActaEntrega.objects.create(
+                tipo=tipo,
+                colaborador=colaborador,
+                ticket=ticket,
+                observaciones=observaciones,
+                firma_receptor=firma_receptor_file,
+                firma_emisor=firma_emisor_file,
+                creado_por=request.user
+            )
+
+            # Crear ActaItems con accesorios
+            items = Item.objects.filter(id__in=items_ids)
+            for item in items:
+                ActaItem.objects.create(
+                    acta=acta,
+                    item=item,
+                    acc_cargador=request.POST.get(f'acc_cargador_{item.id}') == 'on',
+                    acc_cable_seguridad=request.POST.get(f'acc_cable_seguridad_{item.id}') == 'on',
+                    acc_bateria=request.POST.get(f'acc_bateria_{item.id}') == 'on',
+                    acc_maletin=request.POST.get(f'acc_maletin_{item.id}') == 'on',
+                    acc_cable_red=request.POST.get(f'acc_cable_red_{item.id}') == 'on',
+                    acc_teclado_mouse=request.POST.get(f'acc_teclado_mouse_{item.id}') == 'on',
+                )
+
+                # Actualizar asignación del ítem
+                if tipo == 'entrega':
+                    item.colaborador_asignado = colaborador
+                else:
+                    item.colaborador_asignado = None
+                item.save()
+
+            # Crear ActaSoftware
+            for software_id in software_ids:
+                ActaSoftware.objects.create(
+                    acta=acta,
+                    software_id=software_id
+                )
+
+            # Procesar fotos si hay
+            fotos = request.FILES.getlist('fotos')
+            for foto in fotos:
+                ActaFoto.objects.create(
+                    acta=acta,
+                    foto=foto
+                )
+
+            # Limpiar sesión
+            for key in ['acta_tipo', 'acta_colaborador_id', 'acta_ticket',
+                       'acta_observaciones', 'acta_items_ids', 'acta_software_ids']:
+                request.session.pop(key, None)
+
+            messages.success(
+                request,
+                f'Acta {acta.numero_acta} creada correctamente.'
+            )
+
+            return redirect('productos:acta-detail', pk=acta.pk)
+
+        return redirect('productos:acta-create')
+
+
+class ActaDescargarPDFView(PerfilRequeridoMixin, View):
+    """Descargar PDF del acta."""
+
+    def get(self, request, pk):
+        acta = get_object_or_404(ActaEntrega, pk=pk)
+
+        # Si ya tiene PDF generado, devolverlo
+        if acta.pdf_archivo:
+            response = HttpResponse(acta.pdf_archivo, content_type='application/pdf')
+            response['Content-Disposition'] = f'attachment; filename="{acta.numero_acta}.pdf"'
+            return response
+
+        # Si no, generar el PDF
+        from .utils.acta_pdf import generar_acta_pdf
+
+        try:
+            pdf_buffer = generar_acta_pdf(acta)
+            pdf_bytes = pdf_buffer.getvalue()
+
+            # Guardar el PDF en el modelo
+            from django.core.files.base import ContentFile
+            acta.pdf_archivo.save(
+                f'{acta.numero_acta}.pdf',
+                ContentFile(pdf_bytes),
+                save=True
+            )
+
+            response = HttpResponse(pdf_bytes, content_type='application/pdf')
+            response['Content-Disposition'] = f'attachment; filename="{acta.numero_acta}.pdf"'
+            return response
+
+        except Exception as e:
+            messages.error(request, f'Error al generar PDF: {str(e)}')
+            return redirect('productos:acta-detail', pk=pk)
+
+
+class ActaEnviarCorreoView(PerfilRequeridoMixin, View):
+    """Enviar acta por correo al colaborador."""
+
+    def post(self, request, pk):
+        acta = get_object_or_404(ActaEntrega, pk=pk)
+
+        from .utils.acta_email import enviar_acta_por_correo
+        from .utils.acta_pdf import generar_acta_pdf
+
+        try:
+            # Generar PDF si no existe
+            if not acta.pdf_archivo:
+                from django.core.files.base import ContentFile
+
+                pdf_buffer = generar_acta_pdf(acta)
+                pdf_bytes = pdf_buffer.getvalue()
+                acta.pdf_archivo.save(
+                    f'{acta.numero_acta}.pdf',
+                    ContentFile(pdf_bytes),
+                    save=True
+                )
+
+            # Leer el PDF para enviarlo
+            acta.pdf_archivo.seek(0)
+            pdf_bytes = acta.pdf_archivo.read()
+
+            # Enviar correo
+            enviar_acta_por_correo(acta, pdf_bytes)
+
+            # Marcar como enviado
+            acta.correo_enviado = True
+            acta.fecha_envio_correo = timezone.now()
+            acta.save()
+
+            messages.success(
+                request,
+                f'Acta enviada por correo a {acta.colaborador.correo}'
+            )
+
+        except Exception as e:
+            messages.error(request, f'Error al enviar correo: {str(e)}')
+
+        return redirect('productos:acta-detail', pk=pk)
+
+
+class SoftwareEstandarListView(PerfilRequeridoMixin, ListView):
+    """Lista de software estándar."""
+    model = SoftwareEstandar
+    template_name = 'productos/software_list.html'
+    context_object_name = 'software_list'
+
+
+class SoftwareEstandarCreateView(PerfilRequeridoMixin, CreateView):
+    """Crear nuevo software estándar."""
+    model = SoftwareEstandar
+    form_class = SoftwareEstandarForm
+    template_name = 'productos/software_form.html'
+    success_url = '/productos/software/'
+
+    def form_valid(self, form):
+        messages.success(self.request, 'Software agregado correctamente.')
+        return super().form_valid(form)
+
+
+class SoftwareEstandarUpdateView(PerfilRequeridoMixin, UpdateView):
+    """Editar software estándar."""
+    model = SoftwareEstandar
+    form_class = SoftwareEstandarForm
+    template_name = 'productos/software_form.html'
+    success_url = '/productos/software/'
+
+    def form_valid(self, form):
+        messages.success(self.request, 'Software actualizado correctamente.')
+        return super().form_valid(form)
