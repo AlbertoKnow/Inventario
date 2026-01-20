@@ -74,9 +74,56 @@ class SupervisorRequeridoMixin(PerfilRequeridoMixin, UserPassesTestMixin):
 
 class AdminRequeridoMixin(PerfilRequeridoMixin, UserPassesTestMixin):
     """Solo admins pueden acceder."""
-    
+
     def test_func(self):
         return self.get_user_rol() == 'admin'
+
+
+class CampusFilterMixin:
+    """
+    Mixin para filtrar querysets según los campus permitidos del usuario.
+
+    Uso:
+    - Admin: ve todo (sin filtro)
+    - Supervisor: ve solo los campus que tiene asignados
+    - Operador: ve solo su campus asignado
+    """
+
+    def get_campus_permitidos(self):
+        """Retorna los campus que el usuario puede ver."""
+        if hasattr(self.request.user, 'perfil'):
+            return self.request.user.perfil.get_campus_permitidos()
+        return Campus.objects.none()
+
+    def filtrar_por_campus(self, queryset, campo_campus='ambiente__pabellon__sede__campus'):
+        """
+        Filtra un queryset según los campus permitidos del usuario.
+
+        Args:
+            queryset: El queryset a filtrar
+            campo_campus: El campo que relaciona con campus (ej: 'ambiente__pabellon__sede__campus')
+
+        Returns:
+            Queryset filtrado
+        """
+        if not hasattr(self.request.user, 'perfil'):
+            return queryset.none()
+
+        perfil = self.request.user.perfil
+
+        # Admin ve todo
+        if perfil.rol == 'admin':
+            return queryset
+
+        # Obtener IDs de campus permitidos
+        campus_ids = list(self.get_campus_permitidos().values_list('id', flat=True))
+
+        if not campus_ids:
+            return queryset.none()
+
+        # Construir filtro dinámico
+        filtro = {f'{campo_campus}__in': campus_ids}
+        return queryset.filter(**filtro)
 
 
 # ============================================================================
@@ -124,21 +171,26 @@ class HomeView(TemplateView):
 # DASHBOARD
 # ============================================================================
 
-class DashboardView(PerfilRequeridoMixin, TemplateView):
+class DashboardView(PerfilRequeridoMixin, CampusFilterMixin, TemplateView):
     """Dashboard principal del inventario."""
     template_name = 'productos/dashboard.html'
-    
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        
+
         user = self.request.user
         perfil = getattr(user, 'perfil', None)
-        
-        # Base queryset
+
+        # Base queryset - filtrado por campus permitidos
         items = Item.objects.all()
+
+        # Filtrar por campus según permisos
+        items = self.filtrar_por_campus(items, 'ambiente__pabellon__sede__campus')
+
+        # Filtrar por área si no es admin
         if perfil and perfil.rol != 'admin' and perfil.area:
             items = items.filter(area=perfil.area)
-        
+
         # Estadísticas generales
         context['total_items'] = items.count()
         context['items_por_estado'] = {
@@ -148,12 +200,18 @@ class DashboardView(PerfilRequeridoMixin, TemplateView):
             'obsoleto': items.filter(estado='obsoleto').count(),
         }
         context['valor_total'] = items.aggregate(valor=Sum('precio'))['valor'] or 0
-        
-        # Items por área
-        context['items_por_area'] = Area.objects.annotate(
-            total=Count('items')
-        ).values('nombre', 'total')
-        
+
+        # Items por área (filtrado por campus)
+        campus_ids = list(self.get_campus_permitidos().values_list('id', flat=True))
+        if perfil and perfil.rol == 'admin':
+            context['items_por_area'] = Area.objects.annotate(
+                total=Count('items')
+            ).values('nombre', 'total')
+        else:
+            context['items_por_area'] = Area.objects.annotate(
+                total=Count('items', filter=Q(items__ambiente__pabellon__sede__campus_id__in=campus_ids))
+            ).values('nombre', 'total')
+
         # Garantías próximas a vencer (30 días)
         fecha_limite = timezone.now().date() + timezone.timedelta(days=30)
         context['garantias_proximas'] = items.filter(
@@ -163,27 +221,30 @@ class DashboardView(PerfilRequeridoMixin, TemplateView):
 
         # Ítems sin código UTP (pendientes de etiqueta de logística)
         context['items_sin_codigo_utp'] = items.filter(codigo_utp='PENDIENTE').count()
-        
-        # Últimos movimientos
+
+        # Últimos movimientos - filtrados por campus
         movimientos = Movimiento.objects.select_related('item', 'solicitado_por')
+        movimientos = self.filtrar_por_campus(movimientos, 'item__ambiente__pabellon__sede__campus')
         if perfil and perfil.rol != 'admin' and perfil.area:
             movimientos = movimientos.filter(item__area=perfil.area)
         context['ultimos_movimientos'] = movimientos[:10]
-        
+
         # Movimientos pendientes de aprobar
         if perfil and perfil.rol in ['admin', 'supervisor']:
             pendientes = Movimiento.objects.filter(estado='pendiente')
+            pendientes = self.filtrar_por_campus(pendientes, 'item__ambiente__pabellon__sede__campus')
             if perfil.rol == 'supervisor' and perfil.area:
                 pendientes = pendientes.filter(item__area=perfil.area)
             context['movimientos_pendientes'] = pendientes[:5]
-        
+
         # Notificaciones
         context['notificaciones'] = Notificacion.objects.filter(
             usuario=user, leida=False
         )[:5]
 
-        # Mantenimientos
+        # Mantenimientos - filtrados por campus
         mantenimientos = Mantenimiento.objects.select_related('item')
+        mantenimientos = self.filtrar_por_campus(mantenimientos, 'item__ambiente__pabellon__sede__campus')
         if perfil and perfil.rol != 'admin' and perfil.area:
             mantenimientos = mantenimientos.filter(item__area=perfil.area)
 
@@ -194,6 +255,9 @@ class DashboardView(PerfilRequeridoMixin, TemplateView):
         ).count()
         context['ultimos_mantenimientos'] = mantenimientos.order_by('-fecha_programada')[:5]
 
+        # Campus del usuario para mostrar en dashboard
+        context['campus_usuario'] = self.get_campus_permitidos()
+
         return context
 
 
@@ -201,17 +265,23 @@ class DashboardView(PerfilRequeridoMixin, TemplateView):
 # VISTAS DE ITEMS
 # ============================================================================
 
-class ItemListView(PerfilRequeridoMixin, ListView):
+class ItemListView(PerfilRequeridoMixin, CampusFilterMixin, ListView):
     """Lista de ítems del inventario."""
     model = Item
     template_name = 'productos/item_list.html'
     context_object_name = 'items'
     paginate_by = 20
-    
+
     def get_queryset(self):
-        queryset = Item.objects.select_related('area', 'tipo_item', 'ambiente', 'usuario_asignado')
+        queryset = Item.objects.select_related(
+            'area', 'tipo_item', 'ambiente', 'usuario_asignado',
+            'ambiente__pabellon__sede__campus', 'colaborador_asignado'
+        )
 
         perfil = getattr(self.request.user, 'perfil', None)
+
+        # Filtrar por campus según permisos del usuario
+        queryset = self.filtrar_por_campus(queryset, 'ambiente__pabellon__sede__campus')
 
         # Filtrar por área si no es admin - SIEMPRE aplicar esta restricción
         if perfil and perfil.rol != 'admin' and perfil.area:
@@ -887,25 +957,28 @@ class TipoItemListView(PerfilRequeridoMixin, ListView):
 # VISTAS PARA UBICACIONES
 # ============================================================================
 
-class UbicacionListView(PerfilRequeridoMixin, ListView):
-    """Lista de ambientes (ubicaciones)."""
+class UbicacionListView(PerfilRequeridoMixin, CampusFilterMixin, ListView):
+    """Lista de ambientes (ubicaciones) según permisos de campus."""
     model = Ambiente
     template_name = 'productos/ubicacion_list.html'
     context_object_name = 'ambientes'
     paginate_by = 20
-    
+
     def get_queryset(self):
         queryset = Ambiente.objects.filter(activo=True).select_related(
             'pabellon', 'pabellon__sede', 'pabellon__sede__campus'
         )
-        
-        # Filtros
+
+        # Filtrar por campus permitidos del usuario
+        queryset = self.filtrar_por_campus(queryset, 'pabellon__sede__campus')
+
+        # Filtros adicionales
         campus = self.request.GET.get('campus')
         sede = self.request.GET.get('sede')
         pabellon = self.request.GET.get('pabellon')
         tipo = self.request.GET.get('tipo')
         search = self.request.GET.get('q')
-        
+
         if campus:
             queryset = queryset.filter(pabellon__sede__campus_id=campus)
         if sede:
@@ -919,15 +992,18 @@ class UbicacionListView(PerfilRequeridoMixin, ListView):
                 Q(nombre__icontains=search) |
                 Q(codigo__icontains=search)
             )
-        
+
         return queryset.order_by('pabellon__sede__campus__nombre', 'pabellon__sede__nombre', 'pabellon__nombre', 'piso')
-    
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        # Valores para filtros (ahora son ForeignKeys)
-        context['campus_list'] = Campus.objects.filter(activo=True)
-        context['sedes_list'] = Sede.objects.filter(activo=True).select_related('campus')
-        context['pabellones_list'] = Pabellon.objects.filter(activo=True).select_related('sede')
+        # Solo mostrar campus/sedes/pabellones que el usuario puede ver
+        campus_permitidos = self.get_campus_permitidos()
+        campus_ids = list(campus_permitidos.values_list('id', flat=True))
+
+        context['campus_list'] = campus_permitidos
+        context['sedes_list'] = Sede.objects.filter(activo=True, campus_id__in=campus_ids).select_related('campus')
+        context['pabellones_list'] = Pabellon.objects.filter(activo=True, sede__campus_id__in=campus_ids).select_related('sede')
         context['tipos_ambiente'] = Ambiente.TIPOS_AMBIENTE
         return context
 
@@ -1233,42 +1309,46 @@ class CampusDeleteView(AdminRequeridoMixin, DeleteView):
 # VISTAS CRUD PARA SEDES
 # ============================================================================
 
-class SedeListView(AdminRequeridoMixin, ListView):
-    """Listar todas las sedes (solo admins)."""
+class SedeListView(PerfilRequeridoMixin, CampusFilterMixin, ListView):
+    """Listar sedes según permisos de campus del usuario."""
     model = Sede
     template_name = 'productos/sede_list.html'
     context_object_name = 'sedes'
-    
+
     def get_queryset(self):
         queryset = Sede.objects.select_related('campus').annotate(
             total_pabellones=Count('pabellones')
         ).order_by('campus__nombre', 'nombre')
-        
+
+        # Filtrar por campus permitidos del usuario
+        queryset = self.filtrar_por_campus(queryset, 'campus')
+
         # Búsqueda
         q = self.request.GET.get('q')
         if q:
             queryset = queryset.filter(
                 Q(nombre__icontains=q) | Q(codigo__icontains=q) | Q(campus__nombre__icontains=q)
             )
-        
-        # Filtro por campus
+
+        # Filtro por campus (solo si tiene acceso a múltiples)
         campus_id = self.request.GET.get('campus')
         if campus_id:
             queryset = queryset.filter(campus_id=campus_id)
-        
+
         # Filtro por estado
         activo = self.request.GET.get('activo')
         if activo == '1':
             queryset = queryset.filter(activo=True)
         elif activo == '0':
             queryset = queryset.filter(activo=False)
-        
+
         return queryset
-    
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['titulo'] = 'Gestión de Sedes'
-        context['campus_list'] = Campus.objects.filter(activo=True)
+        # Solo mostrar campus que el usuario puede ver
+        context['campus_list'] = self.get_campus_permitidos()
         return context
 
 
@@ -1322,48 +1402,54 @@ class SedeDeleteView(AdminRequeridoMixin, DeleteView):
 # VISTAS CRUD PARA PABELLONES
 # ============================================================================
 
-class PabellonListView(AdminRequeridoMixin, ListView):
-    """Listar todos los pabellones (solo admins)."""
+class PabellonListView(PerfilRequeridoMixin, CampusFilterMixin, ListView):
+    """Listar pabellones según permisos de campus del usuario."""
     model = Pabellon
     template_name = 'productos/pabellon_list.html'
     context_object_name = 'pabellones'
-    
+
     def get_queryset(self):
         queryset = Pabellon.objects.select_related('sede', 'sede__campus').annotate(
             total_ambientes=Count('ambientes')
         ).order_by('sede__campus__nombre', 'sede__nombre', 'nombre')
-        
+
+        # Filtrar por campus permitidos del usuario
+        queryset = self.filtrar_por_campus(queryset, 'sede__campus')
+
         # Búsqueda
         q = self.request.GET.get('q')
         if q:
             queryset = queryset.filter(
                 Q(nombre__icontains=q) | Q(sede__nombre__icontains=q) | Q(sede__campus__nombre__icontains=q)
             )
-        
+
         # Filtro por campus
         campus_id = self.request.GET.get('campus')
         if campus_id:
             queryset = queryset.filter(sede__campus_id=campus_id)
-        
+
         # Filtro por sede
         sede_id = self.request.GET.get('sede')
         if sede_id:
             queryset = queryset.filter(sede_id=sede_id)
-        
+
         # Filtro por estado
         activo = self.request.GET.get('activo')
         if activo == '1':
             queryset = queryset.filter(activo=True)
         elif activo == '0':
             queryset = queryset.filter(activo=False)
-        
+
         return queryset
-    
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['titulo'] = 'Gestión de Pabellones'
-        context['campus_list'] = Campus.objects.filter(activo=True)
-        context['sedes'] = Sede.objects.filter(activo=True).select_related('campus')
+        # Solo campus permitidos
+        context['campus_list'] = self.get_campus_permitidos()
+        # Sedes filtradas por campus permitidos
+        campus_ids = list(self.get_campus_permitidos().values_list('id', flat=True))
+        context['sedes'] = Sede.objects.filter(activo=True, campus_id__in=campus_ids).select_related('campus')
         return context
 
 
@@ -3028,8 +3114,8 @@ class BuscarColaboradorView(PerfilRequeridoMixin, View):
             return JsonResponse({'error': 'Colaborador no encontrado'}, status=404)
 
 
-class ActaListView(PerfilRequeridoMixin, ListView):
-    """Lista de actas de entrega/devolución."""
+class ActaListView(PerfilRequeridoMixin, CampusFilterMixin, ListView):
+    """Lista de actas de entrega/devolución según permisos de campus."""
     model = ActaEntrega
     template_name = 'productos/acta_list.html'
     context_object_name = 'actas'
@@ -3039,6 +3125,16 @@ class ActaListView(PerfilRequeridoMixin, ListView):
         queryset = ActaEntrega.objects.select_related(
             'colaborador', 'creado_por'
         ).prefetch_related('items')
+
+        # Filtrar por campus - solo actas que contengan items del campus del usuario
+        perfil = getattr(self.request.user, 'perfil', None)
+        if perfil and perfil.rol != 'admin':
+            campus_ids = list(self.get_campus_permitidos().values_list('id', flat=True))
+            # Obtener actas que tienen al menos un item en los campus permitidos
+            actas_con_items_permitidos = ActaItem.objects.filter(
+                item__ambiente__pabellon__sede__campus_id__in=campus_ids
+            ).values_list('acta_id', flat=True).distinct()
+            queryset = queryset.filter(id__in=actas_con_items_permitidos)
 
         # Filtros
         tipo = self.request.GET.get('tipo', '')

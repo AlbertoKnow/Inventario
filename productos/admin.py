@@ -18,24 +18,43 @@ class PerfilUsuarioInline(admin.StackedInline):
     can_delete = False
     verbose_name_plural = 'Perfil'
     fk_name = 'usuario'
-    fields = ('rol', 'area', 'departamento', 'telefono', 'activo')
-    
+    fields = ('rol', 'area', 'campus', 'campus_asignados', 'departamento', 'telefono', 'activo')
+    filter_horizontal = ('campus_asignados',)
+
     def get_readonly_fields(self, request, obj=None):
         # Si ya es externo, mostrar is_active como referencia
         return []
 
+    class Media:
+        js = ('admin/js/perfil_campus.js',)  # JS para mostrar/ocultar campos según rol
+
 
 class UserAdmin(BaseUserAdmin):
     inlines = (PerfilUsuarioInline,)
-    list_display = ('username', 'email', 'first_name', 'last_name', 'get_rol', 'get_area_o_depto', 'is_active')
-    list_filter = BaseUserAdmin.list_filter + ('perfil__rol', 'perfil__area')
-    
+    list_display = ('username', 'email', 'first_name', 'last_name', 'get_rol', 'get_campus_info', 'get_area_o_depto', 'is_active')
+    list_filter = BaseUserAdmin.list_filter + ('perfil__rol', 'perfil__campus', 'perfil__area')
+
     def get_rol(self, obj):
         if hasattr(obj, 'perfil'):
             return obj.perfil.get_rol_display()
         return '-'
     get_rol.short_description = 'Rol'
-    
+
+    def get_campus_info(self, obj):
+        if hasattr(obj, 'perfil'):
+            perfil = obj.perfil
+            if perfil.rol == 'admin':
+                return 'Todos'
+            elif perfil.rol == 'supervisor':
+                campus_list = perfil.campus_asignados.all()
+                if campus_list:
+                    return ', '.join([c.nombre for c in campus_list[:3]])
+                return 'Sin asignar'
+            elif perfil.rol == 'operador':
+                return perfil.campus.nombre if perfil.campus else 'Sin asignar'
+        return '-'
+    get_campus_info.short_description = 'Campus'
+
     def get_area_o_depto(self, obj):
         if hasattr(obj, 'perfil'):
             if obj.perfil.rol == 'externo' and obj.perfil.departamento:
