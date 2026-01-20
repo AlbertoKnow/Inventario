@@ -31,10 +31,14 @@ class ItemForm(forms.ModelForm):
     class Meta:
         model = Item
         fields = [
+            # Campos principales
             'codigo_utp', 'serie', 'nombre', 'descripcion', 'area', 'tipo_item', 'ambiente',
-            'estado', 'usuario_asignado', 'observaciones', 'fecha_adquisicion',
-            'precio', 'garantia_hasta', 'es_leasing', 'leasing_empresa',
-            'leasing_contrato', 'leasing_vencimiento', 'lote'
+            'estado', 'usuario_asignado', 'observaciones',
+            # Garantía y Leasing (se mantienen visibles)
+            'garantia_hasta', 'es_leasing', 'leasing_empresa',
+            'leasing_contrato', 'leasing_vencimiento',
+            # Campos de logística (ocultos pero disponibles)
+            # 'fecha_adquisicion', 'precio', 'lote'
         ]
         widgets = {
             'codigo_utp': forms.TextInput(attrs={
@@ -50,14 +54,15 @@ class ItemForm(forms.ModelForm):
             'estado': forms.Select(attrs={'class': 'form-select'}),
             'usuario_asignado': forms.Select(attrs={'class': 'form-select'}),
             'observaciones': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
-            'fecha_adquisicion': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}, format='%Y-%m-%d'),
-            'precio': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
             'garantia_hasta': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}, format='%Y-%m-%d'),
             'es_leasing': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'leasing_empresa': forms.TextInput(attrs={'class': 'form-control'}),
             'leasing_contrato': forms.TextInput(attrs={'class': 'form-control'}),
             'leasing_vencimiento': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}, format='%Y-%m-%d'),
-            'lote': forms.Select(attrs={'class': 'form-select'}),
+            # Campos de logística (ocultos)
+            # 'fecha_adquisicion': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}, format='%Y-%m-%d'),
+            # 'precio': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            # 'lote': forms.Select(attrs={'class': 'form-select'}),
         }
     
     def __init__(self, *args, **kwargs):
