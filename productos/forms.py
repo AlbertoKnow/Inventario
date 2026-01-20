@@ -2,7 +2,7 @@ from django import forms
 from django.contrib.auth.models import User
 from .models import (
     Area, Campus, Sede, Pabellon, Ambiente, TipoItem, Item,
-    EspecificacionesSistemas, Movimiento, PerfilUsuario, Lote, Mantenimiento,
+    EspecificacionesSistemas, Movimiento, PerfilUsuario, Mantenimiento,
     Gerencia, Colaborador, SoftwareEstandar, ActaEntrega, ActaItem, ActaFoto
 )
 from .validators import validate_image
@@ -105,8 +105,6 @@ class ItemForm(forms.ModelForm):
         self.fields['leasing_contrato'].required = False
         self.fields['leasing_vencimiento'].required = False
         self.fields['ambiente'].required = False
-        self.fields['lote'].required = False
-        self.fields['lote'].queryset = Lote.objects.filter(activo=True)
 
         # codigo_utp no es requerido en el form (se auto-completa con PENDIENTE)
         self.fields['codigo_utp'].required = False
