@@ -425,32 +425,39 @@ class Lote(models.Model):
 # ============================================================================
 
 class PerfilUsuario(models.Model):
-    """Perfil extendido del usuario con rol, área y campus asignados."""
+    """
+    Perfil extendido del usuario con rol, área y campus asignados.
+
+    NOTA: Los colaboradores (personas que reciben equipos) se manejan
+    con el modelo Colaborador separado. Este modelo es SOLO para
+    usuarios que acceden al sistema.
+    """
 
     ROLES = [
         ('admin', 'Administrador'),
+        ('gerente', 'Gerente'),
         ('supervisor', 'Supervisor'),
-        ('operador', 'Operador'),
-        ('externo', 'Externo'),  # Solo para asignación de ítems, sin acceso al sistema
+        ('auxiliar', 'Auxiliar de TI'),
+        ('almacen', 'Encargado de Almacén'),
     ]
 
     usuario = models.OneToOneField(User, on_delete=models.CASCADE, related_name='perfil')
-    rol = models.CharField(max_length=20, choices=ROLES, default='operador')
+    rol = models.CharField(max_length=20, choices=ROLES, default='auxiliar')
     area = models.ForeignKey(
         Area,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        help_text="Área asignada (NULL para administradores y externos)"
+        help_text="Área asignada (Gerentes ven todo su área en todos los campus)"
     )
-    # Campus para operadores (un solo campus)
+    # Campus para auxiliares (un solo campus)
     campus = models.ForeignKey(
         Campus,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='operadores',
-        help_text="Campus asignado para operadores"
+        related_name='auxiliares',
+        help_text="Campus asignado para auxiliares de TI"
     )
     # Campus para supervisores (pueden tener múltiples)
     campus_asignados = models.ManyToManyField(
@@ -459,71 +466,71 @@ class PerfilUsuario(models.Model):
         related_name='supervisores',
         help_text="Campus asignados para supervisores (pueden supervisar varios)"
     )
-    departamento = models.CharField(
-        max_length=100,
-        blank=True,
-        help_text="Departamento para usuarios externos (Marketing, Tópico, etc.)"
-    )
     telefono = models.CharField(max_length=20, blank=True)
     activo = models.BooleanField(default=True)
-    
+
     class Meta:
         verbose_name = "Perfil de Usuario"
         verbose_name_plural = "Perfiles de Usuario"
-    
+
     def __str__(self):
         nombre = self.usuario.get_full_name() or self.usuario.username
-        if self.rol == 'externo' and self.departamento:
-            return f"{nombre} - {self.departamento} (Externo)"
         return f"{nombre} - {self.get_rol_display()}"
-    
-    def save(self, *args, **kwargs):
-        # Si es externo, desactivar el usuario para que no pueda loguearse
-        if self.rol == 'externo':
-            self.usuario.is_active = False
-            self.usuario.save(update_fields=['is_active'])
-        super().save(*args, **kwargs)
 
     def get_campus_permitidos(self):
         """
         Retorna los campus que el usuario puede ver según su rol.
         - Admin: todos los campus
+        - Gerente: todos los campus (filtrado por área se hace en las vistas)
         - Supervisor: sus campus_asignados
-        - Operador: solo su campus
+        - Auxiliar: solo su campus
+        - Almacén: todos (opera desde almacén central)
         """
-        if self.rol == 'admin':
+        if self.rol in ['admin', 'gerente', 'almacen']:
             return Campus.objects.filter(activo=True)
         elif self.rol == 'supervisor':
             return self.campus_asignados.filter(activo=True)
-        elif self.rol == 'operador' and self.campus:
+        elif self.rol == 'auxiliar' and self.campus:
             return Campus.objects.filter(pk=self.campus.pk, activo=True)
         return Campus.objects.none()
 
     def puede_ver_campus(self, campus):
         """Verifica si el usuario puede ver un campus específico."""
-        if self.rol == 'admin':
+        if self.rol in ['admin', 'gerente', 'almacen']:
             return True
         elif self.rol == 'supervisor':
             return self.campus_asignados.filter(pk=campus.pk).exists()
-        elif self.rol == 'operador':
+        elif self.rol == 'auxiliar':
             return self.campus and self.campus.pk == campus.pk
         return False
+
+    def puede_crear_items(self):
+        """Solo admin y encargado de almacén pueden crear/editar items."""
+        return self.rol in ['admin', 'almacen']
+
+    def puede_aprobar_movimientos(self):
+        """Admin, gerente y supervisor pueden aprobar movimientos."""
+        return self.rol in ['admin', 'gerente', 'supervisor']
 
     @property
     def es_admin(self):
         return self.rol == 'admin'
-    
+
+    @property
+    def es_gerente(self):
+        return self.rol == 'gerente'
+
     @property
     def es_supervisor(self):
         return self.rol == 'supervisor'
-    
+
     @property
-    def es_operador(self):
-        return self.rol == 'operador'
-    
+    def es_auxiliar(self):
+        return self.rol == 'auxiliar'
+
     @property
-    def es_externo(self):
-        return self.rol == 'externo'
+    def es_almacen(self):
+        return self.rol == 'almacen'
 
 
 # ============================================================================
@@ -532,12 +539,15 @@ class PerfilUsuario(models.Model):
 
 class Item(models.Model):
     """Modelo principal para todos los ítems del inventario."""
-    
+
     ESTADOS = [
-        ('nuevo', 'Nuevo'),
+        ('backup', 'Backup'),
+        ('custodia', 'En Custodia'),
         ('instalado', 'Instalado'),
-        ('dañado', 'Dañado'),
-        ('obsoleto', 'Obsoleto'),
+        ('garantia', 'En Garantía'),
+        ('mantenimiento', 'En Mantenimiento'),
+        ('transito', 'En Tránsito'),
+        ('baja', 'Baja'),
     ]
     
     # Identificación (únicos e inmutables)
@@ -592,7 +602,7 @@ class Item(models.Model):
     )
     
     # Estado y asignación
-    estado = models.CharField(max_length=20, choices=ESTADOS, default='nuevo')
+    estado = models.CharField(max_length=20, choices=ESTADOS, default='custodia')
     usuario_asignado = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
@@ -839,96 +849,152 @@ class EspecificacionesSistemas(models.Model):
 # ============================================================================
 
 class Movimiento(models.Model):
-    """Registro de movimientos y cambios en los ítems."""
-    
+    """
+    Registro de movimientos de ítems.
+
+    Flujo de estados:
+    PENDIENTE → APROBADO → EN_EJECUCION → EN_TRANSITO (si aplica) → EJECUTADO
+                  ↓
+              RECHAZADO
+
+    Para movimientos entre campus diferentes:
+    - El auxiliar de ORIGEN marca "En Ejecución" (retira el equipo)
+    - El auxiliar de ORIGEN marca "En Tránsito" (el equipo sale)
+    - El auxiliar de DESTINO marca "Ejecutado" (confirma recepción)
+    """
+
     TIPOS_MOVIMIENTO = [
         ('traslado', 'Traslado'),
-        ('cambio_estado', 'Cambio de Estado'),
-        ('asignacion', 'Asignación de Usuario'),
-        ('entrada', 'Entrada al Inventario'),
-        ('baja', 'Baja del Inventario'),
+        ('asignacion', 'Asignación'),
+        ('prestamo', 'Préstamo'),
         ('mantenimiento', 'Mantenimiento'),
+        ('garantia', 'Garantía'),
+        ('reemplazo', 'Reemplazo'),
+        ('leasing', 'Devolución Leasing'),
     ]
-    
+
     ESTADOS_MOVIMIENTO = [
         ('pendiente', 'Pendiente de Aprobación'),
         ('aprobado', 'Aprobado'),
-        ('rechazado', 'Rechazado'),
+        ('en_ejecucion', 'En Ejecución'),
+        ('en_transito', 'En Tránsito'),
         ('ejecutado', 'Ejecutado'),
-        ('ejecutado_emergencia', 'Ejecutado (Emergencia)'),
-        ('revertido', 'Revertido'),
+        ('rechazado', 'Rechazado'),
+        ('cancelado', 'Cancelado'),
     ]
-    
-    item = models.ForeignKey(Item, on_delete=models.CASCADE, related_name='movimientos')
+
+    # Item principal del movimiento
+    item = models.ForeignKey(
+        Item,
+        on_delete=models.CASCADE,
+        related_name='movimientos',
+        help_text="Ítem que se mueve/sale"
+    )
     tipo = models.CharField(max_length=20, choices=TIPOS_MOVIMIENTO)
     estado = models.CharField(max_length=25, choices=ESTADOS_MOVIMIENTO, default='pendiente')
-    es_emergencia = models.BooleanField(default=False)
-    
-    # Cambios de ubicación (ahora referencia a Ambiente)
+
+    # Item de reemplazo (para mantenimiento, garantía, reemplazo, leasing)
+    item_reemplazo = models.ForeignKey(
+        Item,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='movimientos_como_reemplazo',
+        help_text="Ítem que entra como reemplazo (temporal o definitivo)"
+    )
+    reemplazo_es_temporal = models.BooleanField(
+        default=False,
+        help_text="Si es True, el reemplazo es temporal (mantenimiento/garantía)"
+    )
+
+    # Ubicaciones
     ambiente_origen = models.ForeignKey(
-        Ambiente, 
-        on_delete=models.SET_NULL, 
-        null=True, 
+        Ambiente,
+        on_delete=models.SET_NULL,
+        null=True,
         blank=True,
         related_name='movimientos_salida',
         verbose_name="Ubicación origen"
     )
     ambiente_destino = models.ForeignKey(
-        Ambiente, 
-        on_delete=models.SET_NULL, 
-        null=True, 
+        Ambiente,
+        on_delete=models.SET_NULL,
+        null=True,
         blank=True,
         related_name='movimientos_entrada',
         verbose_name="Ubicación destino"
     )
-    
-    # Cambios de estado
-    estado_item_anterior = models.CharField(max_length=20, blank=True)
-    estado_item_nuevo = models.CharField(max_length=20, blank=True)
-    
-    # Cambios de asignación
-    usuario_anterior = models.ForeignKey(
-        User, 
-        on_delete=models.SET_NULL, 
-        null=True, 
+
+    # Estado del item al finalizar (para saber cómo queda: backup, instalado, baja, etc.)
+    estado_item_destino = models.CharField(
+        max_length=20,
         blank=True,
-        related_name='movimientos_usuario_anterior'
+        help_text="Estado final del ítem al ejecutar (instalado, backup, baja, etc.)"
     )
-    usuario_nuevo = models.ForeignKey(
-        User, 
-        on_delete=models.SET_NULL, 
-        null=True, 
+
+    # Asignación a colaborador
+    colaborador_anterior = models.ForeignKey(
+        'Colaborador',
+        on_delete=models.SET_NULL,
+        null=True,
         blank=True,
-        related_name='movimientos_usuario_nuevo'
+        related_name='movimientos_anterior'
     )
-    
+    colaborador_nuevo = models.ForeignKey(
+        'Colaborador',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='movimientos_nuevo'
+    )
+
+    # Para préstamos
+    fecha_devolucion_esperada = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Fecha esperada de devolución (para préstamos)"
+    )
+    fecha_devolucion_real = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Fecha real de devolución"
+    )
+
     # Justificación
     motivo = models.TextField(help_text="Razón del movimiento")
     observaciones = models.TextField(blank=True)
-    
-    # Autorización
+    motivo_rechazo = models.TextField(blank=True)
+
+    # Flujo de trabajo - Quién hace qué
     solicitado_por = models.ForeignKey(
-        User, 
-        on_delete=models.SET_NULL, 
+        User,
+        on_delete=models.SET_NULL,
         null=True,
         related_name='movimientos_solicitados'
     )
-    autorizado_por = models.ForeignKey(
-        User, 
-        on_delete=models.SET_NULL, 
+    aprobado_por = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
         null=True,
-        related_name='movimientos_autorizados',
-        help_text="Supervisor que debe aprobar"
+        blank=True,
+        related_name='movimientos_aprobados'
     )
-    
-    # Fechas
+    ejecutado_por = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='movimientos_ejecutados',
+        help_text="Usuario que confirmó la ejecución/recepción"
+    )
+
+    # Timestamps del flujo
     fecha_solicitud = models.DateTimeField(auto_now_add=True)
-    fecha_respuesta = models.DateTimeField(null=True, blank=True)
+    fecha_aprobacion = models.DateTimeField(null=True, blank=True)
+    fecha_en_ejecucion = models.DateTimeField(null=True, blank=True)
+    fecha_en_transito = models.DateTimeField(null=True, blank=True)
     fecha_ejecucion = models.DateTimeField(null=True, blank=True)
-    
-    # Rechazo
-    motivo_rechazo = models.TextField(blank=True)
-    
+
     # Evidencia
     foto_evidencia = models.ImageField(
         upload_to='movimientos/%Y/%m/',
@@ -938,18 +1004,7 @@ class Movimiento(models.Model):
         help_text=f'Formatos permitidos: {", ".join(ALLOWED_IMAGE_EXTENSIONS)}. Máximo 5MB.'
     )
     notas_evidencia = models.TextField(blank=True)
-    
-    # Escalamiento
-    escalado = models.BooleanField(default=False)
-    fecha_escalamiento = models.DateTimeField(null=True, blank=True)
-    escalado_a = models.ForeignKey(
-        User, 
-        on_delete=models.SET_NULL, 
-        null=True, 
-        blank=True,
-        related_name='movimientos_escalados'
-    )
-    
+
     class Meta:
         verbose_name = "Movimiento"
         verbose_name_plural = "Movimientos"
@@ -957,48 +1012,143 @@ class Movimiento(models.Model):
         indexes = [
             models.Index(fields=['item', 'fecha_solicitud']),
             models.Index(fields=['estado', 'fecha_solicitud']),
-            models.Index(fields=['autorizado_por', 'estado']),
+            models.Index(fields=['tipo', 'estado']),
+            models.Index(fields=['aprobado_por', 'estado']),
         ]
-    
+
     def __str__(self):
-        return f"{self.get_tipo_display()} - {self.item.codigo_utp} ({self.get_estado_display()})"
-    
+        return f"{self.get_tipo_display()} - {self.item.codigo_interno} ({self.get_estado_display()})"
+
+    @property
+    def es_entre_campus(self):
+        """Determina si el movimiento es entre campus diferentes."""
+        if self.ambiente_origen and self.ambiente_destino:
+            return self.ambiente_origen.campus != self.ambiente_destino.campus
+        return False
+
+    @property
+    def campus_origen(self):
+        """Retorna el campus de origen."""
+        if self.ambiente_origen:
+            return self.ambiente_origen.campus
+        return None
+
+    @property
+    def campus_destino(self):
+        """Retorna el campus de destino."""
+        if self.ambiente_destino:
+            return self.ambiente_destino.campus
+        return None
+
+    @property
+    def requiere_item_reemplazo(self):
+        """Indica si este tipo de movimiento puede necesitar un ítem de reemplazo."""
+        return self.tipo in ['mantenimiento', 'garantia', 'reemplazo', 'leasing']
+
     def aprobar(self, usuario):
         """Aprueba el movimiento."""
+        if self.estado != 'pendiente':
+            return False
         self.estado = 'aprobado'
-        self.fecha_respuesta = timezone.now()
+        self.aprobado_por = usuario
+        self.fecha_aprobacion = timezone.now()
         self.save()
-    
+        return True
+
     def rechazar(self, usuario, motivo):
         """Rechaza el movimiento."""
-        self.estado = 'rechazado'
-        self.motivo_rechazo = motivo
-        self.fecha_respuesta = timezone.now()
-        self.save()
-    
-    def ejecutar(self):
-        """Ejecuta el movimiento aprobado, actualizando el ítem."""
-        if self.estado not in ['aprobado', 'ejecutado_emergencia']:
+        if self.estado != 'pendiente':
             return False
-        
+        self.estado = 'rechazado'
+        self.aprobado_por = usuario
+        self.motivo_rechazo = motivo
+        self.fecha_aprobacion = timezone.now()
+        self.save()
+        return True
+
+    def marcar_en_ejecucion(self, usuario):
+        """
+        Marca el movimiento como en ejecución (el auxiliar retiró el equipo).
+        El ítem aún no cambia de ubicación.
+        """
+        if self.estado != 'aprobado':
+            return False
+        self.estado = 'en_ejecucion'
+        self.fecha_en_ejecucion = timezone.now()
+        self.save()
+        return True
+
+    def marcar_en_transito(self, usuario):
+        """
+        Marca el movimiento como en tránsito (el equipo salió físicamente).
+        El ítem cambia su estado a "En Tránsito".
+        Solo aplica para movimientos entre campus.
+        """
+        if self.estado != 'en_ejecucion':
+            return False
+        if not self.es_entre_campus:
+            return False
+
+        self.estado = 'en_transito'
+        self.fecha_en_transito = timezone.now()
+        self.save()
+
+        # Cambiar estado del ítem a "En Tránsito"
+        self.item.estado = 'transito'
+        self.item.save()
+
+        return True
+
+    def ejecutar(self, usuario):
+        """
+        Ejecuta el movimiento (confirma recepción/instalación).
+        Actualiza la ubicación y estado del ítem.
+        """
+        estados_validos = ['aprobado', 'en_ejecucion', 'en_transito']
+        if self.estado not in estados_validos:
+            return False
+
         item = self.item
-        
-        # Aplicar cambios según el tipo
-        if self.tipo == 'traslado' and self.ambiente_destino:
+
+        # Actualizar ubicación
+        if self.ambiente_destino:
             item.ambiente = self.ambiente_destino
-        
-        if self.tipo == 'cambio_estado' and self.estado_item_nuevo:
-            item.estado = self.estado_item_nuevo
-        
-        if self.tipo == 'asignacion':
-            item.usuario_asignado = self.usuario_nuevo
-        
+
+        # Actualizar estado del ítem
+        if self.estado_item_destino:
+            item.estado = self.estado_item_destino
+        elif self.tipo == 'asignacion':
+            item.estado = 'instalado'
+
+        # Actualizar asignación de colaborador
+        if self.tipo in ['asignacion', 'prestamo']:
+            item.colaborador_asignado = self.colaborador_nuevo
+
         item.save()
-        
+
+        # Si hay ítem de reemplazo, actualizar su ubicación también
+        if self.item_reemplazo and self.ambiente_origen:
+            self.item_reemplazo.ambiente = self.ambiente_origen
+            self.item_reemplazo.estado = 'instalado'
+            if self.colaborador_anterior:
+                self.item_reemplazo.colaborador_asignado = self.colaborador_anterior
+            self.item_reemplazo.save()
+
         self.estado = 'ejecutado'
+        self.ejecutado_por = usuario
         self.fecha_ejecucion = timezone.now()
         self.save()
-        
+
+        return True
+
+    def cancelar(self, usuario, motivo=''):
+        """Cancela el movimiento si aún no está ejecutado."""
+        if self.estado in ['ejecutado', 'cancelado']:
+            return False
+        self.estado = 'cancelado'
+        if motivo:
+            self.observaciones += f"\nCancelado por {usuario}: {motivo}"
+        self.save()
         return True
 
 
