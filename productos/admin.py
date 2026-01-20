@@ -18,7 +18,7 @@ class PerfilUsuarioInline(admin.StackedInline):
     can_delete = False
     verbose_name_plural = 'Perfil'
     fk_name = 'usuario'
-    fields = ('rol', 'area', 'campus', 'campus_asignados', 'departamento', 'telefono', 'activo')
+    fields = ('rol', 'area', 'campus', 'campus_asignados', 'telefono', 'activo')
     filter_horizontal = ('campus_asignados',)
 
     def get_readonly_fields(self, request, obj=None):
@@ -39,27 +39,25 @@ class UserAdmin(BaseUserAdmin):
     def get_campus_info(self, obj):
         if hasattr(obj, 'perfil'):
             perfil = obj.perfil
-            if perfil.rol == 'admin':
+            if perfil.rol in ['admin', 'gerente', 'almacen']:
                 return 'Todos'
             elif perfil.rol == 'supervisor':
                 campus_list = perfil.campus_asignados.all()
                 if campus_list:
                     return ', '.join([c.nombre for c in campus_list[:3]])
                 return 'Sin asignar'
-            elif perfil.rol == 'operador':
+            elif perfil.rol == 'auxiliar':
                 return perfil.campus.nombre if perfil.campus else 'Sin asignar'
         return '-'
     get_campus_info.short_description = 'Campus'
 
     def get_area_o_depto(self, obj):
         if hasattr(obj, 'perfil'):
-            if obj.perfil.rol == 'externo' and obj.perfil.departamento:
-                return f"📋 {obj.perfil.departamento}"
-            elif obj.perfil.area:
+            if obj.perfil.area:
                 return obj.perfil.area.nombre
-            return 'Todas (Admin)'
+            return 'Todas'
         return '-'
-    get_area_o_depto.short_description = 'Área/Depto'
+    get_area_o_depto.short_description = 'Área'
 
 
 # Re-registrar UserAdmin
@@ -213,13 +211,13 @@ class HistorialCambioInline(admin.TabularInline):
 class MovimientoInline(admin.TabularInline):
     model = Movimiento
     extra = 0
-    readonly_fields = ('tipo', 'estado', 'solicitado_por', 'autorizado_por', 'fecha_solicitud')
+    readonly_fields = ('tipo', 'estado', 'solicitado_por', 'aprobado_por', 'fecha_solicitud')
     can_delete = False
     ordering = ('-fecha_solicitud',)
     show_change_link = True
-    
-    fields = ('tipo', 'estado', 'motivo', 'solicitado_por', 'autorizado_por', 'fecha_solicitud')
-    
+
+    fields = ('tipo', 'estado', 'motivo', 'solicitado_por', 'aprobado_por', 'fecha_solicitud')
+
     def has_add_permission(self, request, obj=None):
         return False
 
@@ -279,10 +277,13 @@ class ItemAdmin(admin.ModelAdmin):
     
     def estado_badge(self, obj):
         colores = {
-            'nuevo': '#22c55e',      # Verde
-            'instalado': '#3b82f6',  # Azul
-            'dañado': '#f59e0b',     # Naranja
-            'obsoleto': '#ef4444',   # Rojo
+            'backup': '#22c55e',       # Verde
+            'custodia': '#8b5cf6',     # Púrpura
+            'instalado': '#3b82f6',    # Azul
+            'garantia': '#f59e0b',     # Naranja
+            'mantenimiento': '#eab308', # Amarillo
+            'transito': '#06b6d4',     # Cyan
+            'baja': '#ef4444',         # Rojo
         }
         color = colores.get(obj.estado, '#6b7280')
         return format_html(
@@ -333,66 +334,63 @@ class ItemAdmin(admin.ModelAdmin):
 @admin.register(Movimiento)
 class MovimientoAdmin(admin.ModelAdmin):
     list_display = (
-        'item', 'tipo', 'estado_badge', 'es_emergencia_badge',
-        'solicitado_por', 'autorizado_por', 'fecha_solicitud'
+        'item', 'tipo', 'estado_badge', 'campus_info',
+        'solicitado_por', 'aprobado_por', 'fecha_solicitud'
     )
-    list_filter = ('estado', 'tipo', 'es_emergencia', 'escalado')
-    search_fields = ('item__codigo_utp', 'item__nombre', 'motivo')
+    list_filter = ('estado', 'tipo', 'ambiente_origen__pabellon__sede__campus')
+    search_fields = ('item__codigo_interno', 'item__codigo_utp', 'item__nombre', 'motivo')
     ordering = ('-fecha_solicitud',)
-    readonly_fields = ('fecha_solicitud', 'fecha_respuesta', 'fecha_ejecucion')
-    autocomplete_fields = ('item', 'ambiente_origen', 'ambiente_destino', 'usuario_anterior', 'usuario_nuevo')
+    readonly_fields = ('fecha_solicitud', 'fecha_aprobacion', 'fecha_en_ejecucion', 'fecha_en_transito', 'fecha_ejecucion')
+    autocomplete_fields = ('item', 'item_reemplazo', 'ambiente_origen', 'ambiente_destino')
     date_hierarchy = 'fecha_solicitud'
-    
+
     fieldsets = (
         ('Información del Movimiento', {
-            'fields': ('item', 'tipo', 'estado', 'es_emergencia')
+            'fields': ('item', 'tipo', 'estado')
         }),
-        ('Cambio de Ubicación', {
-            'fields': ('ambiente_origen', 'ambiente_destino'),
+        ('Ítem de Reemplazo', {
+            'fields': ('item_reemplazo', 'reemplazo_es_temporal'),
+            'classes': ('collapse',),
+            'description': 'Para mantenimiento, garantía, reemplazo o leasing'
+        }),
+        ('Ubicaciones', {
+            'fields': ('ambiente_origen', 'ambiente_destino', 'estado_item_destino')
+        }),
+        ('Asignación de Colaborador', {
+            'fields': ('colaborador_anterior', 'colaborador_nuevo'),
             'classes': ('collapse',)
         }),
-        ('Cambio de Estado', {
-            'fields': ('estado_item_anterior', 'estado_item_nuevo'),
-            'classes': ('collapse',)
-        }),
-        ('Cambio de Asignación', {
-            'fields': ('usuario_anterior', 'usuario_nuevo'),
+        ('Préstamo', {
+            'fields': ('fecha_devolucion_esperada', 'fecha_devolucion_real'),
             'classes': ('collapse',)
         }),
         ('Justificación', {
             'fields': ('motivo', 'observaciones')
         }),
-        ('Autorización', {
-            'fields': ('solicitado_por', 'autorizado_por')
-        }),
-        ('Respuesta', {
-            'fields': ('motivo_rechazo',),
-            'classes': ('collapse',)
+        ('Flujo de Trabajo', {
+            'fields': ('solicitado_por', 'aprobado_por', 'ejecutado_por', 'motivo_rechazo')
         }),
         ('Evidencia', {
             'fields': ('foto_evidencia', 'notas_evidencia'),
             'classes': ('collapse',)
         }),
-        ('Escalamiento', {
-            'fields': ('escalado', 'fecha_escalamiento', 'escalado_a'),
-            'classes': ('collapse',)
-        }),
-        ('Fechas', {
-            'fields': ('fecha_solicitud', 'fecha_respuesta', 'fecha_ejecucion'),
+        ('Timestamps', {
+            'fields': ('fecha_solicitud', 'fecha_aprobacion', 'fecha_en_ejecucion', 'fecha_en_transito', 'fecha_ejecucion'),
             'classes': ('collapse',)
         }),
     )
-    
+
     actions = ['aprobar_movimientos', 'rechazar_movimientos']
-    
+
     def estado_badge(self, obj):
         colores = {
             'pendiente': '#f59e0b',
             'aprobado': '#22c55e',
-            'rechazado': '#ef4444',
+            'en_ejecucion': '#06b6d4',
+            'en_transito': '#8b5cf6',
             'ejecutado': '#3b82f6',
-            'ejecutado_emergencia': '#8b5cf6',
-            'revertido': '#6b7280',
+            'rechazado': '#ef4444',
+            'cancelado': '#6b7280',
         }
         color = colores.get(obj.estado, '#6b7280')
         return format_html(
@@ -400,15 +398,18 @@ class MovimientoAdmin(admin.ModelAdmin):
             color, obj.get_estado_display()
         )
     estado_badge.short_description = 'Estado'
-    
-    def es_emergencia_badge(self, obj):
-        if obj.es_emergencia:
+
+    def campus_info(self, obj):
+        origen = obj.campus_origen.codigo if obj.campus_origen else '?'
+        destino = obj.campus_destino.codigo if obj.campus_destino else '?'
+        if obj.es_entre_campus:
             return format_html(
-                '<span style="background:#ef4444; color:white; padding:2px 6px; border-radius:4px; font-size:10px;">⚠️ Emergencia</span>'
+                '<span style="color:#8b5cf6; font-weight:bold;">{} → {}</span>',
+                origen, destino
             )
-        return '-'
-    es_emergencia_badge.short_description = 'Emergencia'
-    
+        return f"{origen}"
+    campus_info.short_description = 'Campus'
+
     @admin.action(description='Aprobar movimientos seleccionados')
     def aprobar_movimientos(self, request, queryset):
         count = 0
@@ -416,7 +417,7 @@ class MovimientoAdmin(admin.ModelAdmin):
             mov.aprobar(request.user)
             count += 1
         self.message_user(request, f'{count} movimiento(s) aprobado(s).')
-    
+
     @admin.action(description='Rechazar movimientos seleccionados')
     def rechazar_movimientos(self, request, queryset):
         count = 0
