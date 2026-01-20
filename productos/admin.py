@@ -22,11 +22,7 @@ class PerfilUsuarioInline(admin.StackedInline):
     filter_horizontal = ('campus_asignados',)
 
     def get_readonly_fields(self, request, obj=None):
-        # Si ya es externo, mostrar is_active como referencia
         return []
-
-    class Media:
-        js = ('admin/js/perfil_campus.js',)  # JS para mostrar/ocultar campos según rol
 
 
 class UserAdmin(BaseUserAdmin):
