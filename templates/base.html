@@ -516,7 +516,6 @@
                             </a></li>
                             {% endif %}
                             <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="{% url 'productos:lote-list' %}"><i class="fas fa-boxes me-2"></i>Lotes</a></li>
                             <li><a class="dropdown-item" href="{% url 'productos:tipoitem-list' %}"><i class="fas fa-tags me-2"></i>Tipos de Ítem</a></li>
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="{% url 'productos:item-create' %}"><i class="fas fa-plus me-2"></i>Agregar ítem</a></li>
@@ -575,10 +574,6 @@
                             <li><a class="dropdown-item" href="{% url 'productos:campus-list' %}"><i class="fas fa-university me-2"></i>Campus</a></li>
                             <li><a class="dropdown-item" href="{% url 'productos:sede-list' %}"><i class="fas fa-building me-2"></i>Sedes</a></li>
                             <li><a class="dropdown-item" href="{% url 'productos:pabellon-list' %}"><i class="fas fa-th-large me-2"></i>Pabellones</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li class="dropdown-header">Adquisiciones</li>
-                            <li><a class="dropdown-item" href="{% url 'productos:contrato-list' %}"><i class="fas fa-file-contract me-2"></i>Contratos</a></li>
-                            <li><a class="dropdown-item" href="{% url 'productos:proveedor-list' %}"><i class="fas fa-truck me-2"></i>Proveedores</a></li>
                         </ul>
                     </li>
                     {% else %}

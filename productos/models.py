@@ -570,13 +570,19 @@ class Item(models.Model):
     )
     observaciones = models.TextField(blank=True)
     
-    # Información económica
-    fecha_adquisicion = models.DateField()
+    # Información económica (opcional - campos de logística)
+    fecha_adquisicion = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Fecha de adquisición del ítem"
+    )
     precio = models.DecimalField(
-        max_digits=12, 
-        decimal_places=2, 
+        max_digits=12,
+        decimal_places=2,
         validators=[MinValueValidator(0)],
-        help_text="Precio de adquisición"
+        null=True,
+        blank=True,
+        help_text="Precio de adquisición (opcional)"
     )
     
     # Garantía

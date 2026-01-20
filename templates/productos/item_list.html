@@ -156,51 +156,13 @@
                             </select>
                         </div>
 
-                        <!-- Fila 3: Rangos -->
-                        <div class="col-md-3">
-                            <label class="form-label small fw-semibold">Precio Mínimo</label>
-                            <input type="number" name="precio_min" class="form-control form-control-sm"
-                                   placeholder="S/. 0.00" step="0.01" value="{{ filtros_activos.precio_min }}">
-                        </div>
-
-                        <div class="col-md-3">
-                            <label class="form-label small fw-semibold">Precio Máximo</label>
-                            <input type="number" name="precio_max" class="form-control form-control-sm"
-                                   placeholder="S/. 99999.99" step="0.01" value="{{ filtros_activos.precio_max }}">
-                        </div>
-
-                        <div class="col-md-3">
-                            <label class="form-label small fw-semibold">Adquisición Desde</label>
-                            <input type="date" name="fecha_adq_desde" class="form-control form-control-sm"
-                                   value="{{ filtros_activos.fecha_adq_desde }}">
-                        </div>
-
-                        <div class="col-md-3">
-                            <label class="form-label small fw-semibold">Adquisición Hasta</label>
-                            <input type="date" name="fecha_adq_hasta" class="form-control form-control-sm"
-                                   value="{{ filtros_activos.fecha_adq_hasta }}">
-                        </div>
-
-                        <!-- Fila 4: Otros -->
+                        <!-- Fila 3: Leasing y Ordenamiento -->
                         <div class="col-md-3">
                             <label class="form-label small fw-semibold">Leasing</label>
                             <select name="es_leasing" class="form-select form-select-sm">
                                 <option value="">Todos</option>
                                 <option value="1" {% if filtros_activos.es_leasing == '1' %}selected{% endif %}>Sí</option>
                                 <option value="0" {% if filtros_activos.es_leasing == '0' %}selected{% endif %}>No</option>
-                            </select>
-                        </div>
-
-                        <div class="col-md-3">
-                            <label class="form-label small fw-semibold">Lote</label>
-                            <select name="lote" class="form-select form-select-sm">
-                                <option value="">Todos</option>
-                                <option value="sin_lote" {% if filtros_activos.lote == 'sin_lote' %}selected{% endif %}>Sin Lote</option>
-                                {% for lote in lotes %}
-                                <option value="{{ lote.id }}" {% if filtros_activos.lote == lote.id|stringformat:"i" %}selected{% endif %}>
-                                    {{ lote.codigo_interno }}
-                                </option>
-                                {% endfor %}
                             </select>
                         </div>
 
@@ -213,10 +175,6 @@
                                 <option value="-codigo_interno" {% if filtros_activos.order_by == '-codigo_interno' %}selected{% endif %}>Código (Z-A)</option>
                                 <option value="nombre" {% if filtros_activos.order_by == 'nombre' %}selected{% endif %}>Nombre (A-Z)</option>
                                 <option value="-nombre" {% if filtros_activos.order_by == '-nombre' %}selected{% endif %}>Nombre (Z-A)</option>
-                                <option value="precio" {% if filtros_activos.order_by == 'precio' %}selected{% endif %}>Precio (Menor)</option>
-                                <option value="-precio" {% if filtros_activos.order_by == '-precio' %}selected{% endif %}>Precio (Mayor)</option>
-                                <option value="fecha_adquisicion" {% if filtros_activos.order_by == 'fecha_adquisicion' %}selected{% endif %}>Fecha Adq. (Antiguo)</option>
-                                <option value="-fecha_adquisicion" {% if filtros_activos.order_by == '-fecha_adquisicion' %}selected{% endif %}>Fecha Adq. (Reciente)</option>
                             </select>
                         </div>
                     </div>
@@ -253,11 +211,8 @@
             {% if filtros_activos.garantia %}
             <span class="badge bg-secondary">Garantía</span>
             {% endif %}
-            {% if filtros_activos.precio_min or filtros_activos.precio_max %}
-            <span class="badge bg-secondary">Rango Precio</span>
-            {% endif %}
-            {% if filtros_activos.fecha_adq_desde or filtros_activos.fecha_adq_hasta %}
-            <span class="badge bg-secondary">Rango Fecha</span>
+            {% if filtros_activos.es_leasing %}
+            <span class="badge bg-secondary">Leasing</span>
             {% endif %}
             <a href="{% url 'productos:item-list' %}" class="badge bg-danger text-decoration-none">
                 <i class="fas fa-times"></i> Limpiar todo
