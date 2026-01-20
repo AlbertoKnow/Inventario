@@ -34,11 +34,8 @@ class ItemForm(forms.ModelForm):
             # Campos principales
             'codigo_utp', 'serie', 'nombre', 'descripcion', 'area', 'tipo_item', 'ambiente',
             'estado', 'usuario_asignado', 'observaciones',
-            # Garantía y Leasing (se mantienen visibles)
-            'garantia_hasta', 'es_leasing', 'leasing_empresa',
-            'leasing_contrato', 'leasing_vencimiento',
-            # Campos de logística (ocultos pero disponibles)
-            # 'fecha_adquisicion', 'precio', 'lote'
+            # Garantía y Leasing
+            'garantia_hasta', 'es_leasing', 'leasing_vencimiento',
         ]
         widgets = {
             'codigo_utp': forms.TextInput(attrs={
@@ -56,13 +53,7 @@ class ItemForm(forms.ModelForm):
             'observaciones': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
             'garantia_hasta': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}, format='%Y-%m-%d'),
             'es_leasing': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'leasing_empresa': forms.TextInput(attrs={'class': 'form-control'}),
-            'leasing_contrato': forms.TextInput(attrs={'class': 'form-control'}),
             'leasing_vencimiento': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}, format='%Y-%m-%d'),
-            # Campos de logística (ocultos)
-            # 'fecha_adquisicion': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}, format='%Y-%m-%d'),
-            # 'precio': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
-            # 'lote': forms.Select(attrs={'class': 'form-select'}),
         }
     
     def __init__(self, *args, **kwargs):
@@ -101,8 +92,6 @@ class ItemForm(forms.ModelForm):
         self.fields['descripcion'].required = False
         self.fields['observaciones'].required = False
         self.fields['garantia_hasta'].required = False
-        self.fields['leasing_empresa'].required = False
-        self.fields['leasing_contrato'].required = False
         self.fields['leasing_vencimiento'].required = False
         self.fields['ambiente'].required = False
 

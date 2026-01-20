@@ -66,11 +66,6 @@
                                 <div class="text-danger small">{{ form.nombre.errors.0 }}</div>
                                 {% endif %}
                             </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Lote</label>
-                                {{ form.lote }}
-                                <small class="text-muted">Opcional: asociar a un lote de compra.</small>
-                            </div>
                             <div class="col-12">
                                 <label class="form-label">Descripción</label>
                                 {{ form.descripcion }}
@@ -146,29 +141,17 @@
                     </div>
                 </div>
                 
-                <!-- Información Económica -->
+                <!-- Garantía -->
                 <div class="card mb-4">
-                    <div class="card-header">Información Económica</div>
+                    <div class="card-header">Garantía</div>
                     <div class="card-body">
                         <div class="row g-3">
                             <div class="col-md-6">
-                                <label class="form-label">Fecha de Adquisición <span class="text-danger">*</span></label>
-                                {{ form.fecha_adquisicion }}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Precio (S/.) <span class="text-danger">*</span></label>
-                                {{ form.precio }}
-                            </div>
-                            <div class="col-md-6">
                                 <label class="form-label">Garantía hasta</label>
                                 {{ form.garantia_hasta }}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Lote</label>
-                                {{ form.lote }}
                                 <small class="text-muted d-block mt-1">
                                     <i class="fas fa-info-circle me-1"></i>
-                                    Agrupa ítems adquiridos en la misma compra
+                                    Fecha de vencimiento de la garantía del fabricante
                                 </small>
                             </div>
                         </div>
@@ -180,22 +163,14 @@
                     <div class="card-header">Leasing</div>
                     <div class="card-body">
                         <div class="row g-3">
-                            <div class="col-12">
+                            <div class="col-md-6">
                                 <div class="form-check">
                                     {{ form.es_leasing }}
                                     <label class="form-check-label" for="id_es_leasing">Es un ítem en leasing</label>
                                 </div>
                             </div>
-                            <div class="col-md-4" id="leasing-fields">
-                                <label class="form-label">Empresa de Leasing</label>
-                                {{ form.leasing_empresa }}
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label">Número de Contrato</label>
-                                {{ form.leasing_contrato }}
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label">Vencimiento</label>
+                            <div class="col-md-6" id="leasing-fields">
+                                <label class="form-label">Vencimiento del Leasing</label>
                                 {{ form.leasing_vencimiento }}
                             </div>
                         </div>
