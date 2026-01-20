@@ -425,26 +425,42 @@ class Lote(models.Model):
 # ============================================================================
 
 class PerfilUsuario(models.Model):
-    """Perfil extendido del usuario con rol y área asignada."""
-    
+    """Perfil extendido del usuario con rol, área y campus asignados."""
+
     ROLES = [
         ('admin', 'Administrador'),
         ('supervisor', 'Supervisor'),
         ('operador', 'Operador'),
         ('externo', 'Externo'),  # Solo para asignación de ítems, sin acceso al sistema
     ]
-    
+
     usuario = models.OneToOneField(User, on_delete=models.CASCADE, related_name='perfil')
     rol = models.CharField(max_length=20, choices=ROLES, default='operador')
     area = models.ForeignKey(
-        Area, 
-        on_delete=models.SET_NULL, 
-        null=True, 
+        Area,
+        on_delete=models.SET_NULL,
+        null=True,
         blank=True,
         help_text="Área asignada (NULL para administradores y externos)"
     )
+    # Campus para operadores (un solo campus)
+    campus = models.ForeignKey(
+        Campus,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='operadores',
+        help_text="Campus asignado para operadores"
+    )
+    # Campus para supervisores (pueden tener múltiples)
+    campus_asignados = models.ManyToManyField(
+        Campus,
+        blank=True,
+        related_name='supervisores',
+        help_text="Campus asignados para supervisores (pueden supervisar varios)"
+    )
     departamento = models.CharField(
-        max_length=100, 
+        max_length=100,
         blank=True,
         help_text="Departamento para usuarios externos (Marketing, Tópico, etc.)"
     )
@@ -467,7 +483,32 @@ class PerfilUsuario(models.Model):
             self.usuario.is_active = False
             self.usuario.save(update_fields=['is_active'])
         super().save(*args, **kwargs)
-    
+
+    def get_campus_permitidos(self):
+        """
+        Retorna los campus que el usuario puede ver según su rol.
+        - Admin: todos los campus
+        - Supervisor: sus campus_asignados
+        - Operador: solo su campus
+        """
+        if self.rol == 'admin':
+            return Campus.objects.filter(activo=True)
+        elif self.rol == 'supervisor':
+            return self.campus_asignados.filter(activo=True)
+        elif self.rol == 'operador' and self.campus:
+            return Campus.objects.filter(pk=self.campus.pk, activo=True)
+        return Campus.objects.none()
+
+    def puede_ver_campus(self, campus):
+        """Verifica si el usuario puede ver un campus específico."""
+        if self.rol == 'admin':
+            return True
+        elif self.rol == 'supervisor':
+            return self.campus_asignados.filter(pk=campus.pk).exists()
+        elif self.rol == 'operador':
+            return self.campus and self.campus.pk == campus.pk
+        return False
+
     @property
     def es_admin(self):
         return self.rol == 'admin'
