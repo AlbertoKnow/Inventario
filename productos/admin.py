@@ -210,6 +210,7 @@ class HistorialCambioInline(admin.TabularInline):
 
 class MovimientoInline(admin.TabularInline):
     model = Movimiento
+    fk_name = 'item'  # Especificar que usa el FK principal, no item_reemplazo
     extra = 0
     readonly_fields = ('tipo', 'estado', 'solicitado_por', 'aprobado_por', 'fecha_solicitud')
     can_delete = False
