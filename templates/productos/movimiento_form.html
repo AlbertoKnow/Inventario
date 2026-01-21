@@ -17,25 +17,25 @@
         position: relative;
         z-index: 1;
     }
-    
+
     .step-icon.step-active {
         background: linear-gradient(135deg, var(--accent) 0%, #e8354d 100%);
         color: white;
         box-shadow: 0 4px 12px rgba(200, 16, 46, 0.3);
     }
-    
+
     .step-icon.step-pending {
         background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
         color: white;
         box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
     }
-    
+
     .step-icon.step-success {
         background: linear-gradient(135deg, #10b981 0%, #059669 100%);
         color: white;
         box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
     }
-    
+
     .step-connector {
         position: absolute;
         left: 19px;
@@ -44,9 +44,23 @@
         height: 30px;
         background: linear-gradient(to bottom, var(--gray-300), var(--gray-200));
     }
-    
+
     .d-flex.align-items-center.mb-3 {
         position: relative;
+    }
+
+    .tipo-card {
+        cursor: pointer;
+        transition: all 0.2s;
+        border: 2px solid transparent;
+    }
+    .tipo-card:hover {
+        border-color: var(--accent);
+        background-color: rgba(200, 16, 46, 0.05);
+    }
+    .tipo-card.selected {
+        border-color: var(--accent);
+        background-color: rgba(200, 16, 46, 0.1);
     }
 </style>
 {% endblock %}
@@ -61,7 +75,7 @@
             <li class="breadcrumb-item active">Nuevo Movimiento</li>
         </ol>
     </nav>
-    
+
     <div class="page-header mb-4">
         <h1>Solicitar Movimiento</h1>
         <p class="text-muted">
@@ -72,10 +86,10 @@
             {% endif %}
         </p>
     </div>
-    
+
     <form method="post" enctype="multipart/form-data" id="movimientoForm">
         {% csrf_token %}
-        
+
         {% if form.errors %}
         <div class="alert alert-danger mb-4">
             <i class="fas fa-exclamation-circle me-2"></i>
@@ -92,7 +106,7 @@
             </ul>
         </div>
         {% endif %}
-        
+
         <div class="row">
             <div class="col-lg-8">
                 <!-- Buscar Ítem -->
@@ -106,9 +120,9 @@
                         <div class="mb-3">
                             <label class="form-label">Buscar por Código UTP, Serie o Nombre <span class="text-danger">*</span></label>
                             <div class="position-relative">
-                                <input type="text" 
-                                       class="form-control form-control-lg" 
-                                       id="buscarItem" 
+                                <input type="text"
+                                       class="form-control form-control-lg"
+                                       id="buscarItem"
                                        placeholder="Escribe para buscar..."
                                        autocomplete="off">
                                 <div id="sugerenciasItem" class="list-group position-absolute w-100 shadow" style="z-index: 1000; max-height: 300px; overflow-y: auto; display: none;"></div>
@@ -116,7 +130,7 @@
                             <!-- Campo oculto para el ID del ítem -->
                             <input type="hidden" name="item" id="id_item" value="">
                         </div>
-                        
+
                         <!-- Filtros opcionales (colapsables) -->
                         <div class="mt-3">
                             <a class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" href="#filtrosAvanzados" role="button">
@@ -172,7 +186,7 @@
                 {% else %}
                 <input type="hidden" name="item" value="{{ item.pk }}">
                 {% endif %}
-                
+
                 <!-- Panel de Información del Ítem -->
                 <div class="card mb-4 {% if not item %}d-none{% endif %}" id="panelInfoItem">
                     <div class="card-header bg-info bg-opacity-10">
@@ -215,29 +229,29 @@
                                         <td id="info_tipo">{% if item %}{{ item.tipo_item.nombre|default:"-" }}{% endif %}</td>
                                     </tr>
                                     <tr>
-                                        <td class="text-muted">Usuario:</td>
-                                        <td id="info_usuario">{% if item %}{{ item.usuario_asignado.get_full_name|default:"-" }}{% endif %}</td>
+                                        <td class="text-muted">Colaborador:</td>
+                                        <td id="info_colaborador">{% if item %}{{ item.colaborador_asignado.nombre_completo|default:"-" }}{% endif %}</td>
                                     </tr>
                                 </table>
                             </div>
                         </div>
-                        
+
                         <!-- Ubicación actual (origen) -->
                         <div class="alert alert-secondary mt-3 mb-0">
                             <i class="fas fa-map-marker-alt me-2"></i>
                             <strong>Ubicación actual (origen):</strong>
                             <span id="info_ubicacion">
                                 {% if item and item.ambiente %}
-                                {{ item.ambiente.pabellon.sede.campus.nombre }} &raquo; 
-                                {{ item.ambiente.pabellon.sede.nombre }} &raquo; 
-                                Pabellón {{ item.ambiente.pabellon.nombre }} &raquo; 
+                                {{ item.ambiente.pabellon.sede.campus.nombre }} &raquo;
+                                {{ item.ambiente.pabellon.sede.nombre }} &raquo;
+                                Pabellón {{ item.ambiente.pabellon.letra }} &raquo;
                                 {{ item.ambiente.nombre }}
                                 {% elif item %}
                                 Sin ubicación asignada
                                 {% endif %}
                             </span>
                         </div>
-                        
+
                         {% if not item %}
                         <div class="mt-3 text-end">
                             <button type="button" class="btn btn-sm btn-outline-secondary" id="btnCambiarItem">
@@ -247,32 +261,19 @@
                         {% endif %}
                     </div>
                 </div>
-                
+
                 <!-- Tipo de Movimiento -->
                 <div class="card mb-4">
                     <div class="card-header">
                         <i class="fas fa-exchange-alt me-2"></i>Tipo de Movimiento
                     </div>
                     <div class="card-body">
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label class="form-label">Tipo <span class="text-danger">*</span></label>
-                                {{ form.tipo }}
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-check mt-4 pt-2">
-                                    {{ form.es_emergencia }}
-                                    <label class="form-check-label text-danger" for="id_es_emergencia">
-                                        <i class="fas fa-bolt me-1"></i>
-                                        Es una emergencia (ejecutar sin aprobación)
-                                    </label>
-                                </div>
-                            </div>
-                        </div>
+                        <label class="form-label">Tipo <span class="text-danger">*</span></label>
+                        {{ form.tipo }}
                     </div>
                 </div>
-                
-                <!-- Ubicación Destino (solo para traslados/entrada) -->
+
+                <!-- Ubicación Destino (para traslados) -->
                 <div class="card mb-4" id="seccionDestino">
                     <div class="card-header">
                         <i class="fas fa-map-marker-alt me-2"></i>Ubicación Destino
@@ -298,28 +299,63 @@
                         </div>
                     </div>
                 </div>
-                
-                <!-- Cambio de Estado/Usuario (opcional) -->
-                <div class="card mb-4" id="seccionCambios">
+
+                <!-- Asignación a Colaborador (para asignación/préstamo) -->
+                <div class="card mb-4" id="seccionColaborador" style="display: none;">
                     <div class="card-header">
-                        <i class="fas fa-edit me-2"></i>Cambios Opcionales
+                        <i class="fas fa-user me-2"></i>Asignar a Colaborador
                     </div>
                     <div class="card-body">
                         <div class="row g-3">
-                            <div class="col-md-6">
-                                <label class="form-label">Nuevo Estado del Ítem</label>
-                                {{ form.estado_item_nuevo }}
-                                <small class="text-muted">Dejar vacío para mantener estado actual</small>
+                            <div class="col-md-8">
+                                <label class="form-label">Colaborador <span class="text-danger">*</span></label>
+                                {{ form.colaborador_nuevo }}
                             </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Nuevo Usuario Asignado</label>
-                                {{ form.usuario_nuevo }}
-                                <small class="text-muted">Dejar vacío para mantener usuario actual</small>
+                            <div class="col-md-4" id="campoFechaDevolucion" style="display: none;">
+                                <label class="form-label">Fecha de Devolución <span class="text-danger">*</span></label>
+                                {{ form.fecha_devolucion_esperada }}
                             </div>
                         </div>
                     </div>
                 </div>
-                
+
+                <!-- Ítem de Reemplazo (para mantenimiento/garantía/reemplazo) -->
+                <div class="card mb-4" id="seccionReemplazo" style="display: none;">
+                    <div class="card-header">
+                        <i class="fas fa-sync-alt me-2"></i>Ítem de Reemplazo
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-8">
+                                <label class="form-label">Ítem de Reemplazo</label>
+                                {{ form.item_reemplazo }}
+                                <small class="text-muted">Selecciona un ítem de backup o custodia para entregar como reemplazo</small>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check mt-4 pt-2">
+                                    {{ form.reemplazo_es_temporal }}
+                                    <label class="form-check-label" for="id_reemplazo_es_temporal">
+                                        Es reemplazo temporal
+                                    </label>
+                                </div>
+                                <small class="text-muted">Marcar si el equipo original regresará</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Estado Final del Ítem -->
+                <div class="card mb-4" id="seccionEstadoFinal" style="display: none;">
+                    <div class="card-header">
+                        <i class="fas fa-tag me-2"></i>Estado Final del Ítem
+                    </div>
+                    <div class="card-body">
+                        <label class="form-label">Nuevo Estado</label>
+                        {{ form.estado_item_destino }}
+                        <small class="text-muted">Estado en que quedará el ítem al ejecutarse el movimiento</small>
+                    </div>
+                </div>
+
                 <!-- Motivo y Detalles -->
                 <div class="card mb-4">
                     <div class="card-header">
@@ -336,31 +372,11 @@
                                 <label class="form-label">Observaciones</label>
                                 {{ form.observaciones }}
                             </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Foto de Evidencia</label>
-                                {{ form.foto_evidencia }}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Notas de Evidencia</label>
-                                {{ form.notas_evidencia }}
-                            </div>
                         </div>
                     </div>
                 </div>
-                
-                <!-- Autorización -->
-                <div class="card mb-4" id="seccionAutorizacion">
-                    <div class="card-header">
-                        <i class="fas fa-user-check me-2"></i>Autorización
-                    </div>
-                    <div class="card-body">
-                        <label class="form-label">Solicitar autorización a</label>
-                        {{ form.autorizado_por }}
-                        <small class="text-muted">Supervisor o administrador que aprobará el movimiento</small>
-                    </div>
-                </div>
             </div>
-            
+
             <div class="col-lg-4">
                 <!-- Info del Flujo -->
                 <div class="card mb-4">
@@ -368,7 +384,7 @@
                         <i class="fas fa-route me-2"></i>Flujo de Aprobación
                     </div>
                     <div class="card-body">
-                        <!-- Paso 1 -->
+                        <!-- Paso 1: Solicitud -->
                         <div class="d-flex align-items-center mb-3">
                             <div class="step-icon step-active">
                                 <i class="fas fa-paper-plane"></i>
@@ -379,53 +395,77 @@
                                 <span class="fw-medium">Enviar solicitud</span>
                             </div>
                         </div>
-                        
-                        <!-- Paso 2 -->
+
+                        <!-- Paso 2: Aprobación -->
                         <div class="d-flex align-items-center mb-3">
                             <div class="step-icon step-pending">
-                                <i class="fas fa-hourglass-half"></i>
+                                <i class="fas fa-check-circle"></i>
                             </div>
                             <div class="step-connector"></div>
                             <div class="ms-3">
                                 <small class="text-muted d-block">Paso 2</small>
-                                <span class="fw-medium">Esperar aprobación</span>
+                                <span class="fw-medium">Aprobación por Supervisor</span>
                             </div>
                         </div>
-                        
-                        <!-- Paso 3 -->
-                        <div class="d-flex align-items-center">
-                            <div class="step-icon step-success">
-                                <i class="fas fa-check"></i>
+
+                        <!-- Paso 3: En Ejecución -->
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="step-icon step-pending">
+                                <i class="fas fa-tools"></i>
                             </div>
+                            <div class="step-connector"></div>
                             <div class="ms-3">
                                 <small class="text-muted d-block">Paso 3</small>
-                                <span class="fw-medium">Ejecutar movimiento</span>
+                                <span class="fw-medium">Retirar equipo (En Ejecución)</span>
                             </div>
                         </div>
-                        
+
+                        <!-- Paso 4: En Tránsito (condicional) -->
+                        <div class="d-flex align-items-center mb-3" id="pasoTransito">
+                            <div class="step-icon step-pending">
+                                <i class="fas fa-truck"></i>
+                            </div>
+                            <div class="step-connector"></div>
+                            <div class="ms-3">
+                                <small class="text-muted d-block">Paso 4</small>
+                                <span class="fw-medium">En Tránsito (entre campus)</span>
+                            </div>
+                        </div>
+
+                        <!-- Paso 5: Ejecutado -->
+                        <div class="d-flex align-items-center">
+                            <div class="step-icon step-success">
+                                <i class="fas fa-flag-checkered"></i>
+                            </div>
+                            <div class="ms-3">
+                                <small class="text-muted d-block">Paso Final</small>
+                                <span class="fw-medium">Confirmar recepción (Ejecutado)</span>
+                            </div>
+                        </div>
+
                         <hr>
-                        
-                        <div class="alert alert-warning mb-0 small">
-                            <i class="fas fa-exclamation-triangle me-1"></i>
-                            <strong>Emergencia:</strong> Solo usar cuando el movimiento es urgente y no puede esperar aprobación. Quedará registrado para auditoría.
+
+                        <div class="alert alert-info mb-0 small">
+                            <i class="fas fa-info-circle me-1"></i>
+                            <strong>Nota:</strong> Todos los movimientos requieren aprobación del Supervisor o Gerente del área.
                         </div>
                     </div>
                 </div>
-                
+
                 <!-- Leyenda de tipos -->
                 <div class="card mb-4">
                     <div class="card-header">Tipos de Movimiento</div>
                     <div class="card-body small">
                         <p><strong>Traslado:</strong> Mover ítem a otra ubicación</p>
-                        <p><strong>Entrada:</strong> Ingreso de nuevo ítem al inventario</p>
-                        <p><strong>Salida:</strong> Retiro temporal del ítem</p>
-                        <p><strong>Préstamo:</strong> Préstamo temporal a usuario</p>
-                        <p><strong>Devolución:</strong> Retorno de préstamo</p>
-                        <p><strong>Mantenimiento:</strong> Envío a reparación</p>
-                        <p class="mb-0"><strong>Baja:</strong> Dar de baja definitiva</p>
+                        <p><strong>Asignación:</strong> Asignar ítem a un colaborador</p>
+                        <p><strong>Préstamo:</strong> Préstamo temporal con fecha de devolución</p>
+                        <p><strong>Mantenimiento:</strong> Envío a reparación (puede tener reemplazo)</p>
+                        <p><strong>Garantía:</strong> Envío a garantía del fabricante</p>
+                        <p><strong>Reemplazo:</strong> Cambio definitivo de equipo</p>
+                        <p class="mb-0"><strong>Devolución Leasing:</strong> Retorno por fin de contrato</p>
                     </div>
                 </div>
-                
+
                 <!-- Acciones -->
                 <div class="card">
                     <div class="card-body">
@@ -446,63 +486,65 @@
 document.addEventListener('DOMContentLoaded', function() {
     const tipoSelect = document.getElementById('id_tipo');
     const seccionDestino = document.getElementById('seccionDestino');
-    const seccionCambios = document.getElementById('seccionCambios');
-    const seccionAutorizacion = document.getElementById('seccionAutorizacion');
-    const esEmergencia = document.getElementById('id_es_emergencia');
-    
+    const seccionColaborador = document.getElementById('seccionColaborador');
+    const seccionReemplazo = document.getElementById('seccionReemplazo');
+    const seccionEstadoFinal = document.getElementById('seccionEstadoFinal');
+    const campoFechaDevolucion = document.getElementById('campoFechaDevolucion');
+    const pasoTransito = document.getElementById('pasoTransito');
+
     // Campos de búsqueda
     const buscarInput = document.getElementById('buscarItem');
     const sugerenciasDiv = document.getElementById('sugerenciasItem');
     const itemIdInput = document.getElementById('id_item');
     const panelInfoItem = document.getElementById('panelInfoItem');
     const btnEnviar = document.getElementById('btnEnviar');
-    
+
     // Campos en cascada destino
     const campusDestino = document.getElementById('id_campus_destino');
     const sedeDestino = document.getElementById('id_sede_destino');
     const pabellonDestino = document.getElementById('id_pabellon_destino');
     const ambienteDestino = document.getElementById('id_ambiente_destino');
-    
+
     // Filtros
     const filtroCampus = document.getElementById('filtro_campus');
     const filtroSede = document.getElementById('filtro_sede');
     const filtroArea = document.getElementById('filtro_area');
     const filtroTipo = document.getElementById('filtro_tipo');
-    
+
     let timeoutBusqueda = null;
-    
+
     // ===== AUTOCOMPLETADO DE ÍTEMS =====
     if (buscarInput) {
         buscarInput.addEventListener('input', function() {
             clearTimeout(timeoutBusqueda);
             const query = this.value.trim();
-            
+
             if (query.length < 2) {
                 sugerenciasDiv.style.display = 'none';
                 return;
             }
-            
+
             timeoutBusqueda = setTimeout(() => {
                 buscarItems(query);
             }, 300);
         });
-        
+
         buscarInput.addEventListener('blur', function() {
             setTimeout(() => {
                 sugerenciasDiv.style.display = 'none';
             }, 200);
         });
     }
-    
+
     function buscarItems(query) {
         let url = '{% url "productos:api-items-buscar" %}?q=' + encodeURIComponent(query);
-        
+
         // Añadir filtros si están activos
         if (filtroCampus && filtroCampus.value) url += '&campus=' + filtroCampus.value;
         if (filtroSede && filtroSede.value) url += '&sede=' + filtroSede.value;
         if (filtroArea && filtroArea.value) url += '&area=' + filtroArea.value;
         if (filtroTipo && filtroTipo.value) url += '&tipo=' + filtroTipo.value;
-        
+
         fetch(url)
             .then(response => response.json())
             .then(data => {
@@ -512,16 +554,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.error('Error buscando ítems:', error);
             });
     }
-    
+
     function mostrarSugerencias(items) {
         sugerenciasDiv.innerHTML = '';
-        
+
         if (items.length === 0) {
             sugerenciasDiv.innerHTML = '<div class="list-group-item text-muted">No se encontraron ítems</div>';
             sugerenciasDiv.style.display = 'block';
             return;
         }
-        
+
         items.forEach(item => {
             const div = document.createElement('a');
             div.href = '#';
@@ -542,17 +584,17 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             sugerenciasDiv.appendChild(div);
         });
-        
+
         sugerenciasDiv.style.display = 'block';
     }
-    
+
     function seleccionarItem(itemId) {
         fetch('{% url "productos:api-item-detalle" %}?id=' + itemId)
             .then(response => response.json())
             .then(item => {
                 // Guardar ID
                 itemIdInput.value = item.id;
-                
+
                 // Mostrar info
                 document.getElementById('info_codigo').textContent = item.codigo_utp;
                 document.getElementById('info_nombre').textContent = item.nombre;
@@ -560,16 +602,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('info_estado').textContent = item.estado_display;
                 document.getElementById('info_area').textContent = item.area;
                 document.getElementById('info_tipo').textContent = item.tipo || '-';
-                document.getElementById('info_usuario').textContent = item.usuario_asignado || '-';
+                document.getElementById('info_colaborador').textContent = item.colaborador_asignado || '-';
                 document.getElementById('info_ubicacion').textContent = item.ubicacion || 'Sin ubicación asignada';
-                
+
                 // Mostrar panel y ocultar búsqueda
                 panelInfoItem.classList.remove('d-none');
                 if (buscarInput) {
                     buscarInput.closest('.card').classList.add('d-none');
                 }
                 sugerenciasDiv.style.display = 'none';
-                
+
                 // Habilitar envío
                 btnEnviar.disabled = false;
             })
@@ -577,7 +619,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.error('Error obteniendo detalle:', error);
             });
     }
-    
+
     // Botón cambiar ítem
     const btnCambiarItem = document.getElementById('btnCambiarItem');
     if (btnCambiarItem) {
@@ -592,7 +634,7 @@ document.addEventListener('DOMContentLoaded', function() {
             btnEnviar.disabled = true;
         });
     }
-    
+
     // ===== CASCADA DE UBICACIÓN DESTINO =====
     if (campusDestino) {
         campusDestino.addEventListener('change', function() {
@@ -600,9 +642,9 @@ document.addEventListener('DOMContentLoaded', function() {
             sedeDestino.innerHTML = '<option value="">---------</option>';
             pabellonDestino.innerHTML = '<option value="">---------</option>';
             ambienteDestino.innerHTML = '<option value="">---------</option>';
-            
+
             if (!campusId) return;
-            
+
             fetch('{% url "productos:api-sedes" %}?campus_id=' + campusId)
                 .then(response => response.json())
                 .then(data => {
@@ -615,15 +657,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
         });
     }
-    
+
     if (sedeDestino) {
         sedeDestino.addEventListener('change', function() {
             const sedeId = this.value;
             pabellonDestino.innerHTML = '<option value="">---------</option>';
             ambienteDestino.innerHTML = '<option value="">---------</option>';
-            
+
             if (!sedeId) return;
-            
+
             fetch('{% url "productos:api-pabellones" %}?sede_id=' + sedeId)
                 .then(response => response.json())
                 .then(data => {
@@ -636,14 +678,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
         });
     }
-    
+
     if (pabellonDestino) {
         pabellonDestino.addEventListener('change', function() {
             const pabellonId = this.value;
             ambienteDestino.innerHTML = '<option value="">---------</option>';
-            
+
             if (!pabellonId) return;
-            
+
             fetch('{% url "productos:api-ambientes" %}?pabellon_id=' + pabellonId)
                 .then(response => response.json())
                 .then(data => {
@@ -656,16 +698,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
         });
     }
-    
+
     // ===== FILTROS AVANZADOS =====
     if (filtroCampus) {
         filtroCampus.addEventListener('change', function() {
             const campusId = this.value;
             filtroSede.innerHTML = '<option value="">Todas</option>';
             filtroSede.disabled = !campusId;
-            
+
             if (!campusId) return;
-            
+
             fetch('{% url "productos:api-sedes" %}?campus_id=' + campusId)
                 .then(response => response.json())
                 .then(data => {
@@ -678,14 +720,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
         });
     }
-    
+
     if (filtroArea) {
         filtroArea.addEventListener('change', function() {
             const areaId = this.value;
             filtroTipo.innerHTML = '<option value="">Todos</option>';
-            
+
             if (!areaId) return;
-            
+
             fetch('{% url "productos:api-tipos-item" %}?area=' + areaId)
                 .then(response => response.json())
                 .then(data => {
@@ -698,7 +740,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
         });
     }
-    
+
     const btnBuscarConFiltros = document.getElementById('btnBuscarConFiltros');
     if (btnBuscarConFiltros) {
         btnBuscarConFiltros.addEventListener('click', function() {
@@ -709,7 +751,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
-    
+
     const btnLimpiarFiltros = document.getElementById('btnLimpiarFiltros');
     if (btnLimpiarFiltros) {
         btnLimpiarFiltros.addEventListener('click', function() {
@@ -722,37 +764,71 @@ document.addEventListener('DOMContentLoaded', function() {
             if (filtroTipo) filtroTipo.innerHTML = '<option value="">Todos</option>';
         });
     }
-    
+
     // ===== VISIBILIDAD POR TIPO DE MOVIMIENTO =====
     function updateVisibilidad() {
         const tipo = tipoSelect ? tipoSelect.value : '';
-        
-        // Mostrar/ocultar sección destino
-        if (tipo === 'baja' || tipo === 'salida') {
-            seccionDestino.style.display = 'none';
-        } else {
-            seccionDestino.style.display = 'block';
-        }
-        
-        // Mostrar/ocultar autorización según emergencia
-        if (esEmergencia && esEmergencia.checked) {
-            seccionAutorizacion.style.display = 'none';
-        } else {
-            seccionAutorizacion.style.display = 'block';
+
+        // Ocultar todas las secciones primero
+        if (seccionDestino) seccionDestino.style.display = 'none';
+        if (seccionColaborador) seccionColaborador.style.display = 'none';
+        if (seccionReemplazo) seccionReemplazo.style.display = 'none';
+        if (seccionEstadoFinal) seccionEstadoFinal.style.display = 'none';
+        if (campoFechaDevolucion) campoFechaDevolucion.style.display = 'none';
+        if (pasoTransito) pasoTransito.style.display = 'flex';
+
+        // Mostrar secciones según tipo de movimiento
+        switch(tipo) {
+            case 'traslado':
+                seccionDestino.style.display = 'block';
+                break;
+
+            case 'asignacion':
+                seccionColaborador.style.display = 'block';
+                seccionDestino.style.display = 'block';
+                pasoTransito.style.display = 'none';
+                break;
+
+            case 'prestamo':
+                seccionColaborador.style.display = 'block';
+                campoFechaDevolucion.style.display = 'block';
+                seccionDestino.style.display = 'block';
+                pasoTransito.style.display = 'none';
+                break;
+
+            case 'mantenimiento':
+            case 'garantia':
+                seccionReemplazo.style.display = 'block';
+                seccionEstadoFinal.style.display = 'block';
+                pasoTransito.style.display = 'none';
+                break;
+
+            case 'reemplazo':
+                seccionReemplazo.style.display = 'block';
+                seccionEstadoFinal.style.display = 'block';
+                seccionColaborador.style.display = 'block';
+                pasoTransito.style.display = 'none';
+                break;
+
+            case 'leasing':
+                seccionEstadoFinal.style.display = 'block';
+                pasoTransito.style.display = 'none';
+                break;
+
+            default:
+                // Sin tipo seleccionado, mostrar destino por defecto
+                seccionDestino.style.display = 'block';
+                break;
         }
     }
-    
+
     if (tipoSelect) {
         tipoSelect.addEventListener('change', updateVisibilidad);
     }
-    
-    if (esEmergencia) {
-        esEmergencia.addEventListener('change', updateVisibilidad);
-    }
-    
+
     // Inicializar visibilidad
     updateVisibilidad();
-    
+
     // Deshabilitar envío si no hay ítem seleccionado (solo si no hay ítem preseleccionado)
     {% if not item %}
     btnEnviar.disabled = true;
