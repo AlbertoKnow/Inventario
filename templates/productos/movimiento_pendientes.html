@@ -64,7 +64,7 @@
                             </div>
                             <p class="text-muted mb-2">
                                 <a href="{% url 'productos:item-detail' movimiento.item.codigo_interno %}" class="text-decoration-none">
-                                    <strong>{{ movimiento.item.codigo_interno }}</strong>
+                                    <strong>{% if movimiento.item.codigo_utp_pendiente %}{{ movimiento.item.codigo_interno }}{% else %}{{ movimiento.item.codigo_utp }}{% endif %}</strong>
                                 </a>
                                 - {{ movimiento.item.nombre }}
                             </p>

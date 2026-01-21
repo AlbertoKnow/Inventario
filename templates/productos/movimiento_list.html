@@ -88,7 +88,11 @@
                         </td>
                         <td>
                             <a href="{% url 'productos:item-detail' movimiento.item.codigo_interno %}">
+                                {% if movimiento.item.codigo_utp_pendiente %}
                                 {{ movimiento.item.codigo_interno }}
+                                {% else %}
+                                {{ movimiento.item.codigo_utp }}
+                                {% endif %}
                             </a>
                             <br>
                             <small class="text-muted">{{ movimiento.item.nombre|truncatewords:5 }}</small>

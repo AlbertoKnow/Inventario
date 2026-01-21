@@ -231,7 +231,7 @@
                                 <tr>
                                     <td>
                                         <a href="{% url 'productos:item-detail' mov.item.codigo_interno %}">
-                                            {{ mov.item.codigo_interno }}
+                                            {% if mov.item.codigo_utp_pendiente %}{{ mov.item.codigo_interno }}{% else %}{{ mov.item.codigo_utp }}{% endif %}
                                         </a>
                                     </td>
                                     <td>{{ mov.get_tipo_display }}</td>
