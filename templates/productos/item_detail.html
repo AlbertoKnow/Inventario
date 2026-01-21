@@ -18,18 +18,22 @@
         <div>
             <h1>{{ item.nombre }}</h1>
             <div class="d-flex gap-2 align-items-center mt-2">
-                <code class="fs-6">{{ item.codigo_utp }}</code>
-                {% if item.estado == 'nuevo' %}
-                <span class="badge bg-success">Nuevo</span>
+                <code class="fs-6">{{ item.codigo_interno }}</code>
+                <code class="fs-6 text-muted">{{ item.codigo_utp }}</code>
+                {% if item.estado == 'backup' %}
+                <span class="badge bg-secondary">Backup</span>
+                {% elif item.estado == 'custodia' %}
+                <span class="badge bg-info">En Custodia</span>
                 {% elif item.estado == 'instalado' %}
-                <span class="badge bg-primary">Instalado</span>
-                {% elif item.estado == 'dañado' %}
-                <span class="badge bg-warning">Dañado</span>
-                {% elif item.estado == 'obsoleto' %}
-                <span class="badge bg-danger">Obsoleto</span>
-                {% endif %}
-                {% if item.en_garantia %}
-                <span class="badge bg-info">En Garantía</span>
+                <span class="badge bg-success">Instalado</span>
+                {% elif item.estado == 'garantia' %}
+                <span class="badge bg-warning text-dark">En Garantía</span>
+                {% elif item.estado == 'mantenimiento' %}
+                <span class="badge bg-warning text-dark">En Mantenimiento</span>
+                {% elif item.estado == 'transito' %}
+                <span class="badge bg-primary">En Tránsito</span>
+                {% elif item.estado == 'baja' %}
+                <span class="badge bg-danger">Baja</span>
                 {% endif %}
                 {% if item.es_leasing %}
                 <span class="badge bg-purple">Leasing</span>
@@ -40,7 +44,7 @@
             <a href="{% url 'productos:movimiento-create' %}?item={{ item.pk }}" class="btn btn-outline-primary">
                 <i class="fas fa-exchange-alt me-1"></i> Nuevo Movimiento
             </a>
-            <a href="{% url 'productos:item-update' item.codigo_utp %}" class="btn btn-primary">
+            <a href="{% url 'productos:item-update' item.codigo_interno %}" class="btn btn-primary">
                 <i class="fas fa-edit me-1"></i> Editar
             </a>
         </div>
