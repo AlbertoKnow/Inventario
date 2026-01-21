@@ -96,10 +96,6 @@
                             <div class="fw-semibold">{{ item.fecha_adquisicion|date:"d/m/Y" }}</div>
                         </div>
                         <div class="col-md-6">
-                            <label class="text-muted small">Precio</label>
-                            <div class="fw-semibold">S/. {{ item.precio|floatformat:2 }}</div>
-                        </div>
-                        <div class="col-md-6">
                             <label class="text-muted small">Garantía hasta</label>
                             <div class="fw-semibold">
                                 {% if item.garantia_hasta %}
@@ -206,15 +202,7 @@
                 </div>
                 <div class="card-body">
                     <div class="row g-3">
-                        <div class="col-md-4">
-                            <label class="text-muted small">Empresa</label>
-                            <div class="fw-semibold">{{ item.leasing_empresa|default:"-" }}</div>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="text-muted small">Contrato</label>
-                            <div class="fw-semibold">{{ item.leasing_contrato|default:"-" }}</div>
-                        </div>
-                        <div class="col-md-4">
+                        <div class="col-md-6">
                             <label class="text-muted small">Vencimiento</label>
                             <div class="fw-semibold">
                                 {{ item.leasing_vencimiento|date:"d/m/Y"|default:"-" }}
