@@ -175,7 +175,7 @@ class ItemSistemasForm(ItemForm):
 
 class MovimientoForm(forms.ModelForm):
     """Formulario para crear movimientos."""
-    
+
     # Campos adicionales para selección en cascada de ubicación destino
     campus_destino = forms.ModelChoiceField(
         queryset=Campus.objects.filter(activo=True),
@@ -195,51 +195,49 @@ class MovimientoForm(forms.ModelForm):
         label="Pabellón",
         widget=forms.Select(attrs={'class': 'form-select', 'id': 'id_pabellon_destino'})
     )
-    
+
     class Meta:
         model = Movimiento
         fields = [
-            'item', 'tipo', 'es_emergencia', 'ambiente_destino',
-            'estado_item_nuevo', 'usuario_nuevo', 'motivo', 'observaciones',
-            'autorizado_por', 'foto_evidencia', 'notas_evidencia'
+            'item', 'tipo', 'ambiente_destino', 'estado_item_destino',
+            'colaborador_nuevo', 'item_reemplazo', 'reemplazo_es_temporal',
+            'prestamo_fecha_devolucion', 'motivo', 'observaciones'
         ]
         widgets = {
             'item': forms.Select(attrs={'class': 'form-select'}),
             'tipo': forms.Select(attrs={'class': 'form-select', 'id': 'id_tipo'}),
-            'es_emergencia': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'ambiente_destino': forms.Select(attrs={'class': 'form-select', 'id': 'id_ambiente_destino'}),
-            'estado_item_nuevo': forms.Select(attrs={'class': 'form-select'}),
-            'usuario_nuevo': forms.Select(attrs={'class': 'form-select'}),
+            'estado_item_destino': forms.Select(attrs={'class': 'form-select'}),
+            'colaborador_nuevo': forms.Select(attrs={'class': 'form-select'}),
+            'item_reemplazo': forms.Select(attrs={'class': 'form-select'}),
+            'reemplazo_es_temporal': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'prestamo_fecha_devolucion': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}, format='%Y-%m-%d'),
             'motivo': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
             'observaciones': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
-            'autorizado_por': forms.Select(attrs={'class': 'form-select', 'id': 'id_autorizado_por'}),
-            'foto_evidencia': forms.FileInput(attrs={
-                'class': 'form-control',
-                'accept': 'image/jpeg,image/png,image/gif,image/webp'
-            }),
-            'notas_evidencia': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
         }
-    
+
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop('user', None)
         self.item_preseleccionado = kwargs.pop('item', None)
         super().__init__(*args, **kwargs)
-        
+
         # Configurar campos opcionales
         self.fields['ambiente_destino'].required = False
-        self.fields['estado_item_nuevo'].required = False
-        self.fields['usuario_nuevo'].required = False
+        self.fields['estado_item_destino'].required = False
+        self.fields['colaborador_nuevo'].required = False
+        self.fields['item_reemplazo'].required = False
+        self.fields['reemplazo_es_temporal'].required = False
+        self.fields['prestamo_fecha_devolucion'].required = False
         self.fields['observaciones'].required = False
-        self.fields['foto_evidencia'].required = False
-        self.fields['notas_evidencia'].required = False
-        
-        # Choices para estado del ítem
-        self.fields['estado_item_nuevo'] = forms.ChoiceField(
+
+        # Choices para estado del ítem destino
+        self.fields['estado_item_destino'] = forms.ChoiceField(
             choices=[('', '---------')] + list(Item.ESTADOS),
             required=False,
-            widget=forms.Select(attrs={'class': 'form-select'})
+            widget=forms.Select(attrs={'class': 'form-select'}),
+            label="Estado final del ítem"
         )
-        
+
         # Poblar querysets de campos en cascada si hay datos POST
         data = args[0] if args else self.data
         if data:
@@ -251,7 +249,7 @@ class MovimientoForm(forms.ModelForm):
                     )
             except (ValueError, TypeError):
                 pass
-            
+
             try:
                 sede_id = data.get('sede_destino')
                 if sede_id:
@@ -260,7 +258,7 @@ class MovimientoForm(forms.ModelForm):
                     )
             except (ValueError, TypeError):
                 pass
-            
+
             try:
                 pabellon_id = data.get('pabellon_destino')
                 if pabellon_id:
@@ -269,86 +267,62 @@ class MovimientoForm(forms.ModelForm):
                     )
             except (ValueError, TypeError):
                 pass
-        
+
         # Filtrar ítems por área del usuario
         if self.user and hasattr(self.user, 'perfil'):
             perfil = self.user.perfil
             if perfil.rol != 'admin' and perfil.area:
                 self.fields['item'].queryset = Item.objects.filter(area=perfil.area)
+                # También filtrar ítems de reemplazo por área
+                self.fields['item_reemplazo'].queryset = Item.objects.filter(
+                    area=perfil.area, estado__in=['backup', 'custodia']
+                )
             else:
                 self.fields['item'].queryset = Item.objects.all()
-        
+                self.fields['item_reemplazo'].queryset = Item.objects.filter(
+                    estado__in=['backup', 'custodia']
+                )
+        else:
+            self.fields['item_reemplazo'].queryset = Item.objects.filter(
+                estado__in=['backup', 'custodia']
+            )
+
         # Si hay ítem preseleccionado
         if self.item_preseleccionado:
             self.fields['item'].initial = self.item_preseleccionado
             self.fields['item'].widget = forms.HiddenInput()
-            
-            # Filtrar autorizadores por área del ítem
-            area = self.item_preseleccionado.area
-            supervisores = User.objects.filter(
-                perfil__area=area,
-                perfil__rol='supervisor',
-                perfil__activo=True,
-                is_active=True
-            ) | User.objects.filter(
-                perfil__rol='admin',
-                perfil__activo=True,
-                is_active=True
-            )
-            self.fields['autorizado_por'].queryset = supervisores.distinct()
-        else:
-            # Todos los supervisores y admins
-            self.fields['autorizado_por'].queryset = User.objects.filter(
-                perfil__rol__in=['supervisor', 'admin'],
-                perfil__activo=True,
-                is_active=True
-            )
-        
+
         # Si no hay datos POST, mantener todos los ambientes activos disponibles
         if not data:
             self.fields['ambiente_destino'].queryset = Ambiente.objects.filter(activo=True)
-        
-        # Usuarios activos
-        self.fields['usuario_nuevo'].queryset = User.objects.filter(is_active=True)
-    
+
+        # Colaboradores activos para asignación
+        self.fields['colaborador_nuevo'].queryset = Colaborador.objects.filter(activo=True)
+
     def clean(self):
         cleaned_data = super().clean()
         tipo = cleaned_data.get('tipo')
-        
+
         # Validaciones según el tipo de movimiento
         if tipo == 'traslado':
             if not cleaned_data.get('ambiente_destino'):
                 raise forms.ValidationError('Debe seleccionar una ubicación destino para el traslado.')
-        
-        if tipo == 'cambio_estado':
-            if not cleaned_data.get('estado_item_nuevo'):
-                raise forms.ValidationError('Debe seleccionar el nuevo estado del ítem.')
-        
+
         if tipo == 'asignacion':
-            if not cleaned_data.get('usuario_nuevo'):
-                raise forms.ValidationError('Debe seleccionar el usuario al que se asigna el ítem.')
-        
-        # Validar que no se auto-autorice
-        if cleaned_data.get('autorizado_por') == self.user:
-            # Solo permitir si es admin
-            if not (hasattr(self.user, 'perfil') and self.user.perfil.rol == 'admin'):
-                raise forms.ValidationError('No puedes seleccionarte a ti mismo como autorizador.')
-        
+            if not cleaned_data.get('colaborador_nuevo'):
+                raise forms.ValidationError('Debe seleccionar el colaborador al que se asigna el ítem.')
+
+        if tipo == 'prestamo':
+            if not cleaned_data.get('prestamo_fecha_devolucion'):
+                raise forms.ValidationError('Debe indicar la fecha de devolución del préstamo.')
+            if not cleaned_data.get('colaborador_nuevo'):
+                raise forms.ValidationError('Debe seleccionar el colaborador que recibe el préstamo.')
+
+        if tipo in ['mantenimiento', 'garantia', 'reemplazo', 'leasing']:
+            # Estos tipos pueden tener ítem de reemplazo opcional
+            pass
+
         return cleaned_data
-
-    def clean_foto_evidencia(self):
-        """Validación adicional del archivo de imagen."""
-        foto = self.cleaned_data.get('foto_evidencia')
-        if foto:
-            # Validar usando el validador personalizado
-            validate_image(foto)
-
-            # Mensaje informativo de tamaño
-            size_mb = foto.size / (1024 * 1024)
-            if size_mb > 2:
-                # Advertencia si la imagen es grande (pero menor al límite)
-                pass  # Se podría agregar un warning aquí si es necesario
-        return foto
 
 
 class RechazoForm(forms.Form):
