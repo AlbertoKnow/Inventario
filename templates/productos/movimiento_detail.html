@@ -89,7 +89,7 @@
                         <div class="flex-grow-1 ms-3">
                             <h5 class="mb-1">
                                 <a href="{% url 'productos:item-detail' movimiento.item.codigo_interno %}">
-                                    {{ movimiento.item.codigo_interno }}
+                                    {% if movimiento.item.codigo_utp_pendiente %}{{ movimiento.item.codigo_interno }}{% else %}{{ movimiento.item.codigo_utp }}{% endif %}
                                 </a>
                             </h5>
                             <p class="mb-0 text-muted">{{ movimiento.item.nombre }}</p>
