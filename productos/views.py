@@ -469,7 +469,7 @@ class ItemDetailView(PerfilRequeridoMixin, DetailView):
         
         # Historial de movimientos
         context['movimientos'] = item.movimientos.select_related(
-            'solicitado_por', 'autorizado_por'
+            'solicitado_por', 'aprobado_por'
         )[:10]
         
         # Historial de cambios
@@ -590,7 +590,7 @@ class MovimientoListView(PerfilRequeridoMixin, ListView):
     
     def get_queryset(self):
         queryset = Movimiento.objects.select_related(
-            'item', 'solicitado_por', 'autorizado_por'
+            'item', 'solicitado_por', 'aprobado_por'
         )
         
         perfil = getattr(self.request.user, 'perfil', None)
@@ -667,46 +667,20 @@ class MovimientoCreateView(PerfilRequeridoMixin, CreateView):
     def form_valid(self, form):
         movimiento = form.save(commit=False)
         movimiento.solicitado_por = self.request.user
-        
-        # Si es emergencia, ejecutar inmediatamente
-        if movimiento.es_emergencia:
-            movimiento.estado = 'ejecutado_emergencia'
-            movimiento.fecha_ejecucion = timezone.now()
-            
-            # Aplicar cambios al ítem
-            item = movimiento.item
-            if movimiento.tipo == 'traslado' and movimiento.ambiente_destino:
-                movimiento.ambiente_origen = item.ambiente
-                item.ambiente = movimiento.ambiente_destino
-            if movimiento.tipo == 'cambio_estado' and movimiento.estado_item_nuevo:
-                movimiento.estado_item_anterior = item.estado
-                item.estado = movimiento.estado_item_nuevo
-            if movimiento.tipo == 'asignacion':
-                movimiento.usuario_anterior = item.usuario_asignado
-                item.usuario_asignado = movimiento.usuario_nuevo
-            item.save()
-        else:
-            # Guardar estado actual como origen
-            if movimiento.tipo == 'traslado':
-                movimiento.ambiente_origen = movimiento.item.ambiente
-            if movimiento.tipo == 'cambio_estado':
-                movimiento.estado_item_anterior = movimiento.item.estado
-            if movimiento.tipo == 'asignacion':
-                movimiento.usuario_anterior = movimiento.item.usuario_asignado
-        
+        movimiento.estado = 'pendiente'
+
+        # Guardar ubicación y colaborador de origen
+        item = movimiento.item
+        movimiento.ambiente_origen = item.ambiente
+        movimiento.colaborador_anterior = item.colaborador_asignado
+
         movimiento.save()
-        
-        if movimiento.es_emergencia:
-            messages.warning(
-                self.request, 
-                f'Movimiento de EMERGENCIA ejecutado. Pendiente de validación por {movimiento.autorizado_por}.'
-            )
-        else:
-            messages.success(
-                self.request, 
-                f'Solicitud creada. Pendiente de aprobación por {movimiento.autorizado_por}.'
-            )
-        
+
+        messages.success(
+            self.request,
+            f'Solicitud de {movimiento.get_tipo_display()} creada. Pendiente de aprobación.'
+        )
+
         return redirect('productos:movimiento-list')
 
 

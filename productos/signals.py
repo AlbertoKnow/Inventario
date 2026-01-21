@@ -117,21 +117,26 @@ def registrar_cambios_item(sender, instance, created, **kwargs):
 @receiver(post_save, sender=Movimiento)
 def notificar_movimiento(sender, instance, created, **kwargs):
     """Crea notificaciones cuando se crea o actualiza un movimiento."""
-    
+
     if created:
-        # Notificar al supervisor seleccionado
-        if instance.autorizado_por:
-            tipo_notif = 'emergencia' if instance.es_emergencia else 'solicitud'
-            urgente = instance.es_emergencia
-            
+        # Notificar a supervisores del área del ítem
+        from django.contrib.auth.models import User
+        supervisores = User.objects.filter(
+            perfil__rol__in=['supervisor', 'gerente'],
+            perfil__area=instance.item.area,
+            perfil__activo=True,
+            is_active=True
+        )
+
+        for supervisor in supervisores:
             Notificacion.objects.create(
-                usuario=instance.autorizado_por,
-                tipo=tipo_notif,
-                titulo=f"{'⚠️ EMERGENCIA: ' if urgente else ''}Nueva solicitud de {instance.get_tipo_display()}",
-                mensaje=f"{instance.solicitado_por} solicita {instance.get_tipo_display().lower()} del ítem {instance.item.codigo_utp}. Motivo: {instance.motivo}",
+                usuario=supervisor,
+                tipo='solicitud',
+                titulo=f"Nueva solicitud de {instance.get_tipo_display()}",
+                mensaje=f"{instance.solicitado_por} solicita {instance.get_tipo_display().lower()} del ítem {instance.item.codigo_interno}. Motivo: {instance.motivo}",
                 url=f"/movimientos/{instance.pk}/",
                 movimiento=instance,
-                urgente=urgente
+                urgente=False
             )
     else:
         # Notificar cambios de estado
