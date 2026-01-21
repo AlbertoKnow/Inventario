@@ -244,8 +244,6 @@
                                         <span class="badge bg-danger">Rechazado</span>
                                         {% elif mov.estado == 'ejecutado' %}
                                         <span class="badge bg-primary">Ejecutado</span>
-                                        {% elif mov.estado == 'ejecutado_emergencia' %}
-                                        <span class="badge bg-purple">Emergencia</span>
                                         {% else %}
                                         <span class="badge bg-secondary">{{ mov.get_estado_display }}</span>
                                         {% endif %}

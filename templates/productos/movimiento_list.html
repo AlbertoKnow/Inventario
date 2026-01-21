@@ -47,7 +47,6 @@
                         <option value="aprobado" {% if request.GET.estado == 'aprobado' %}selected{% endif %}>Aprobado</option>
                         <option value="rechazado" {% if request.GET.estado == 'rechazado' %}selected{% endif %}>Rechazado</option>
                         <option value="ejecutado" {% if request.GET.estado == 'ejecutado' %}selected{% endif %}>Ejecutado</option>
-                        <option value="ejecutado_emergencia" {% if request.GET.estado == 'ejecutado_emergencia' %}selected{% endif %}>Emergencia</option>
                         <option value="revertido" {% if request.GET.estado == 'revertido' %}selected{% endif %}>Revertido</option>
                     </select>
                 </div>
@@ -117,10 +116,6 @@
                             <span class="badge bg-danger">Rechazado</span>
                             {% elif movimiento.estado == 'ejecutado' %}
                             <span class="badge bg-primary">Ejecutado</span>
-                            {% elif movimiento.estado == 'ejecutado_emergencia' %}
-                            <span class="badge bg-orange">
-                                <i class="fas fa-bolt me-1"></i>Emergencia
-                            </span>
                             {% elif movimiento.estado == 'revertido' %}
                             <span class="badge bg-secondary">Revertido</span>
                             {% endif %}

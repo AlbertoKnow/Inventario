@@ -264,7 +264,7 @@
                                         {% endif %}
                                     </td>
                                     <td>{% if mov.solicitado_por %}{{ mov.solicitado_por.get_short_name|default:mov.solicitado_por.username }}{% else %}-{% endif %}</td>
-                                    <td>{% if mov.autorizado_por %}{{ mov.autorizado_por.get_short_name|default:mov.autorizado_por.username }}{% else %}-{% endif %}</td>
+                                    <td>{% if mov.aprobado_por %}{{ mov.aprobado_por.get_short_name|default:mov.aprobado_por.username }}{% else %}-{% endif %}</td>
                                 </tr>
                                 {% empty %}
                                 <tr>

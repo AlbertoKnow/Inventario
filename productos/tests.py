@@ -267,7 +267,7 @@ class MovimientoTests(TestCase):
         )
         movimiento.aprobar(self.user)
         self.assertEqual(movimiento.estado, 'aprobado')
-        self.assertIsNotNone(movimiento.fecha_respuesta)
+        self.assertIsNotNone(movimiento.fecha_aprobacion)
 
 
 # ============================================================================
