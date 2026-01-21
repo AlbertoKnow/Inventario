@@ -201,7 +201,7 @@ class MovimientoForm(forms.ModelForm):
         fields = [
             'item', 'tipo', 'ambiente_destino', 'estado_item_destino',
             'colaborador_nuevo', 'item_reemplazo', 'reemplazo_es_temporal',
-            'prestamo_fecha_devolucion', 'motivo', 'observaciones'
+            'fecha_devolucion_esperada', 'motivo', 'observaciones'
         ]
         widgets = {
             'item': forms.Select(attrs={'class': 'form-select'}),
@@ -211,7 +211,7 @@ class MovimientoForm(forms.ModelForm):
             'colaborador_nuevo': forms.Select(attrs={'class': 'form-select'}),
             'item_reemplazo': forms.Select(attrs={'class': 'form-select'}),
             'reemplazo_es_temporal': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'prestamo_fecha_devolucion': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}, format='%Y-%m-%d'),
+            'fecha_devolucion_esperada': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}, format='%Y-%m-%d'),
             'motivo': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
             'observaciones': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
         }
@@ -227,7 +227,7 @@ class MovimientoForm(forms.ModelForm):
         self.fields['colaborador_nuevo'].required = False
         self.fields['item_reemplazo'].required = False
         self.fields['reemplazo_es_temporal'].required = False
-        self.fields['prestamo_fecha_devolucion'].required = False
+        self.fields['fecha_devolucion_esperada'].required = False
         self.fields['observaciones'].required = False
 
         # Choices para estado del ítem destino
@@ -313,7 +313,7 @@ class MovimientoForm(forms.ModelForm):
                 raise forms.ValidationError('Debe seleccionar el colaborador al que se asigna el ítem.')
 
         if tipo == 'prestamo':
-            if not cleaned_data.get('prestamo_fecha_devolucion'):
+            if not cleaned_data.get('fecha_devolucion_esperada'):
                 raise forms.ValidationError('Debe indicar la fecha de devolución del préstamo.')
             if not cleaned_data.get('colaborador_nuevo'):
                 raise forms.ValidationError('Debe seleccionar el colaborador que recibe el préstamo.')
