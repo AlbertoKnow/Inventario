@@ -150,7 +150,7 @@ class HomeView(TemplateView):
             context['items_nuevos'] = items.filter(estado='nuevo').count()
             context['items_instalados'] = items.filter(estado='instalado').count()
             context['items_dañados'] = items.filter(estado='dañado').count()
-            context['valor_total'] = items.aggregate(valor=Sum('precio'))['valor'] or 0
+            context['items_sin_asignar'] = items.filter(colaborador_asignado__isnull=True).count()
             
             # Notificaciones no leídas
             context['notificaciones_count'] = Notificacion.objects.filter(
@@ -199,7 +199,7 @@ class DashboardView(PerfilRequeridoMixin, CampusFilterMixin, TemplateView):
             'dañado': items.filter(estado='dañado').count(),
             'obsoleto': items.filter(estado='obsoleto').count(),
         }
-        context['valor_total'] = items.aggregate(valor=Sum('precio'))['valor'] or 0
+        context['items_sin_asignar'] = items.filter(colaborador_asignado__isnull=True).count()
 
         # Items por área (filtrado por campus)
         campus_ids = list(self.get_campus_permitidos().values_list('id', flat=True))
@@ -2376,8 +2376,8 @@ class ReportesView(LoginRequiredMixin, TemplateView):
             items = Item.objects.all()
 
         context['total_items'] = items.count()
-        context['valor_total'] = items.aggregate(Sum('precio'))['precio__sum'] or 0
-        context['items_operativos'] = items.filter(estado='operativo').count()
+        context['items_sin_asignar'] = items.filter(colaborador_asignado__isnull=True).count()
+        context['items_en_custodia'] = items.filter(estado='custodia').count()
         context['items_mantenimiento'] = items.filter(estado='en_mantenimiento').count()
 
         if perfil.area:
