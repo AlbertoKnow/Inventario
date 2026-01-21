@@ -712,17 +712,14 @@ class MovimientoAprobarView(SupervisorRequeridoMixin, View):
                 messages.error(request, 'No puedes aprobar movimientos de otra área.')
                 return redirect('productos:movimiento-detail', pk=pk)
         
-        if movimiento.estado not in ['pendiente', 'ejecutado_emergencia']:
+        if movimiento.estado != 'pendiente':
             messages.error(request, 'Este movimiento no puede ser aprobado.')
             return redirect('productos:movimiento-detail', pk=pk)
-        
-        # Aprobar
+
+        # Aprobar y ejecutar
         movimiento.aprobar(request.user)
-        
-        # Si no era emergencia, ejecutar
-        if movimiento.estado != 'ejecutado_emergencia':
-            movimiento.ejecutar()
-        
+        movimiento.ejecutar()
+
         messages.success(request, 'Movimiento aprobado y ejecutado.')
         return redirect('productos:movimiento-pendientes')
 
@@ -741,22 +738,10 @@ class MovimientoRechazarView(SupervisorRequeridoMixin, View):
                 messages.error(request, 'No puedes rechazar movimientos de otra área.')
                 return redirect('productos:movimiento-detail', pk=pk)
         
-        if movimiento.estado not in ['pendiente', 'ejecutado_emergencia']:
+        if movimiento.estado != 'pendiente':
             messages.error(request, 'Este movimiento no puede ser rechazado.')
             return redirect('productos:movimiento-detail', pk=pk)
-        
-        # Si era emergencia, revertir cambios
-        if movimiento.estado == 'ejecutado_emergencia':
-            item = movimiento.item
-            if movimiento.ambiente_origen:
-                item.ambiente = movimiento.ambiente_origen
-            if movimiento.estado_item_anterior:
-                item.estado = movimiento.estado_item_anterior
-            if movimiento.usuario_anterior:
-                item.usuario_asignado = movimiento.usuario_anterior
-            item.save()
-            movimiento.estado = 'revertido'
-        
+
         movimiento.rechazar(request.user, motivo)
         
         messages.success(request, 'Movimiento rechazado.')

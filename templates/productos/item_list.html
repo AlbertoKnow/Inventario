@@ -268,12 +268,14 @@
                             </td>
                             <td>
                                 <a href="{% url 'productos:item-detail' item.codigo_interno %}" class="fw-semibold text-decoration-none">
+                                    {% if item.codigo_utp_pendiente %}
                                     {{ item.codigo_interno }}
+                                    {% else %}
+                                    {{ item.codigo_utp }}
+                                    {% endif %}
                                 </a>
                                 {% if item.codigo_utp_pendiente %}
                                 <br><span class="badge bg-warning text-dark" style="font-size: 0.7em;"><i class="fas fa-clock me-1"></i>UTP Pendiente</span>
-                                {% else %}
-                                <br><small class="text-muted">UTP: {{ item.codigo_utp }}</small>
                                 {% endif %}
                             </td>
                             <td>{{ item.nombre }}</td>
