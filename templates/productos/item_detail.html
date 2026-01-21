@@ -18,8 +18,12 @@
         <div>
             <h1>{{ item.nombre }}</h1>
             <div class="d-flex gap-2 align-items-center mt-2">
+                {% if item.codigo_utp_pendiente %}
                 <code class="fs-6">{{ item.codigo_interno }}</code>
-                <code class="fs-6 text-muted">{{ item.codigo_utp }}</code>
+                <span class="badge bg-warning text-dark"><i class="fas fa-clock me-1"></i>UTP Pendiente</span>
+                {% else %}
+                <code class="fs-6">{{ item.codigo_utp }}</code>
+                {% endif %}
                 {% if item.estado == 'backup' %}
                 <span class="badge bg-secondary">Backup</span>
                 {% elif item.estado == 'custodia' %}
