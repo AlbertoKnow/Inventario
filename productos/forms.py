@@ -140,17 +140,132 @@ class ItemForm(forms.ModelForm):
 class ItemSistemasForm(ItemForm):
     """Formulario extendido para ítems de Sistemas con especificaciones técnicas."""
 
-    # Campos adicionales de especificaciones
-    marca = forms.CharField(max_length=100, required=False, widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: HP, Dell, Lenovo'}))
-    modelo = forms.CharField(max_length=100, required=False, widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: ProBook 450 G8'}))
-    procesador = forms.CharField(max_length=200, required=False, widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: Intel Core i7-1165G7'}))
-    generacion_procesador = forms.CharField(max_length=50, required=False, widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: 11va Gen'}))
-    ram_total_gb = forms.IntegerField(required=False, min_value=1, widget=forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Ej: 16'}))
-    ram_configuracion = forms.CharField(max_length=50, required=False, widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: 2x8GB'}))
-    ram_tipo = forms.ChoiceField(choices=[('', '---------')] + list(EspecificacionesSistemas.TIPOS_RAM), required=False, widget=forms.Select(attrs={'class': 'form-select'}))
-    almacenamiento_gb = forms.IntegerField(required=False, min_value=1, widget=forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Ej: 512'}))
-    almacenamiento_tipo = forms.ChoiceField(choices=[('', '---------')] + list(EspecificacionesSistemas.TIPOS_ALMACENAMIENTO), required=False, widget=forms.Select(attrs={'class': 'form-select'}))
-    sistema_operativo = forms.CharField(max_length=100, required=False, widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: Windows 11 Pro'}))
+    # Opciones predefinidas para dropdowns
+    GENERACIONES_PROCESADOR = [
+        ('', '---------'),
+        ('8va Gen', '8va Gen'),
+        ('9na Gen', '9na Gen'),
+        ('10ma Gen', '10ma Gen'),
+        ('11va Gen', '11va Gen'),
+        ('12va Gen', '12va Gen'),
+        ('13va Gen', '13va Gen'),
+        ('14va Gen', '14va Gen'),
+    ]
+
+    RAM_GB_CHOICES = [
+        ('', '---------'),
+        (4, '4 GB'),
+        (8, '8 GB'),
+        (16, '16 GB'),
+        (32, '32 GB'),
+        (64, '64 GB'),
+    ]
+
+    RAM_CONFIG_CHOICES = [
+        ('', '---------'),
+        ('1x4GB', '1x4GB'),
+        ('1x8GB', '1x8GB'),
+        ('2x4GB', '2x4GB'),
+        ('1x16GB', '1x16GB'),
+        ('2x8GB', '2x8GB'),
+        ('2x16GB', '2x16GB'),
+        ('4x8GB', '4x8GB'),
+        ('2x32GB', '2x32GB'),
+        ('4x16GB', '4x16GB'),
+    ]
+
+    ALMACENAMIENTO_GB_CHOICES = [
+        ('', '---------'),
+        (128, '128 GB'),
+        (256, '256 GB'),
+        (512, '512 GB'),
+        (1024, '1 TB'),
+        (2048, '2 TB'),
+    ]
+
+    SISTEMAS_OPERATIVOS = [
+        ('', '---------'),
+        ('Windows 10 Pro', 'Windows 10 Pro'),
+        ('Windows 11 Pro', 'Windows 11 Pro'),
+        ('Windows 10 Home', 'Windows 10 Home'),
+        ('Windows 11 Home', 'Windows 11 Home'),
+        ('Linux Ubuntu', 'Linux Ubuntu'),
+        ('macOS', 'macOS'),
+        ('Sin SO', 'Sin SO'),
+    ]
+
+    # Campos con autocompletado (datalist) - Marca, Modelo, Procesador
+    marca = forms.CharField(
+        max_length=100,
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'list': 'marcas-list',
+            'autocomplete': 'off',
+            'placeholder': 'Escriba o seleccione...'
+        })
+    )
+    modelo = forms.CharField(
+        max_length=100,
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'list': 'modelos-list',
+            'autocomplete': 'off',
+            'placeholder': 'Escriba o seleccione...'
+        })
+    )
+    procesador = forms.CharField(
+        max_length=200,
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'list': 'procesadores-list',
+            'autocomplete': 'off',
+            'placeholder': 'Escriba o seleccione...'
+        })
+    )
+
+    # Campos con dropdown fijo
+    generacion_procesador = forms.ChoiceField(
+        choices=GENERACIONES_PROCESADOR,
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    ram_total_gb = forms.TypedChoiceField(
+        choices=RAM_GB_CHOICES,
+        required=False,
+        coerce=lambda x: int(x) if x else None,
+        empty_value=None,
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    ram_configuracion = forms.ChoiceField(
+        choices=RAM_CONFIG_CHOICES,
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    ram_tipo = forms.ChoiceField(
+        choices=[('', '---------')] + list(EspecificacionesSistemas.TIPOS_RAM),
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    almacenamiento_gb = forms.TypedChoiceField(
+        choices=ALMACENAMIENTO_GB_CHOICES,
+        required=False,
+        coerce=lambda x: int(x) if x else None,
+        empty_value=None,
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    almacenamiento_tipo = forms.ChoiceField(
+        choices=[('', '---------')] + list(EspecificacionesSistemas.TIPOS_ALMACENAMIENTO),
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    sistema_operativo = forms.ChoiceField(
+        choices=SISTEMAS_OPERATIVOS,
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
