@@ -3409,6 +3409,54 @@ class BuscarColaboradorView(PerfilRequeridoMixin, View):
             return JsonResponse({'error': 'Colaborador no encontrado'}, status=404)
 
 
+class EspecificacionesValoresView(LoginRequiredMixin, View):
+    """API para obtener valores únicos de especificaciones técnicas (para autocompletado)."""
+
+    def get(self, request):
+        from django.db.models import Count
+
+        # Obtener valores únicos de cada campo, ordenados por frecuencia de uso
+        marcas = list(
+            EspecificacionesSistemas.objects.exclude(marca='').exclude(marca__isnull=True)
+            .values_list('marca', flat=True).annotate(count=Count('marca'))
+            .order_by('-count').distinct()[:50]
+        )
+
+        modelos = list(
+            EspecificacionesSistemas.objects.exclude(modelo='').exclude(modelo__isnull=True)
+            .values_list('modelo', flat=True).annotate(count=Count('modelo'))
+            .order_by('-count').distinct()[:100]
+        )
+
+        procesadores = list(
+            EspecificacionesSistemas.objects.exclude(procesador='').exclude(procesador__isnull=True)
+            .values_list('procesador', flat=True).annotate(count=Count('procesador'))
+            .order_by('-count').distinct()[:100]
+        )
+
+        sistemas_operativos = list(
+            EspecificacionesSistemas.objects.exclude(sistema_operativo='').exclude(sistema_operativo__isnull=True)
+            .values_list('sistema_operativo', flat=True).annotate(count=Count('sistema_operativo'))
+            .order_by('-count').distinct()[:30]
+        )
+
+        # Modelos filtrados por marca (si se especifica)
+        marca_filter = request.GET.get('marca', '')
+        if marca_filter:
+            modelos = list(
+                EspecificacionesSistemas.objects.filter(marca__iexact=marca_filter)
+                .exclude(modelo='').exclude(modelo__isnull=True)
+                .values_list('modelo', flat=True).distinct()[:50]
+            )
+
+        return JsonResponse({
+            'marcas': marcas,
+            'modelos': modelos,
+            'procesadores': procesadores,
+            'sistemas_operativos': sistemas_operativos,
+        })
+
+
 class ActaListView(PerfilRequeridoMixin, CampusFilterMixin, ListView):
     """Lista de actas de entrega/devolución según permisos de campus."""
     model = ActaEntrega
