@@ -2401,6 +2401,25 @@ class ReportesView(LoginRequiredMixin, TemplateView):
             context['areas'] = Area.objects.filter(activo=True)
 
         context['tipos_item'] = TipoItem.objects.filter(activo=True)
+
+        # Datos para filtro de Leasing
+        from datetime import datetime
+        anio_actual = datetime.now().year
+        context['anio_actual'] = anio_actual
+        context['anios_leasing'] = list(range(anio_actual - 2, anio_actual + 5))
+
+        # Datos para filtro de Especificaciones Técnicas (solo Sistemas)
+        from .models import EspecificacionesSistemas
+        specs = EspecificacionesSistemas.objects.all()
+
+        # Obtener valores únicos para cada filtro
+        context['procesadores'] = list(specs.exclude(procesador__isnull=True).exclude(procesador='').values_list('procesador', flat=True).distinct().order_by('procesador'))
+        context['rams'] = list(specs.exclude(ram_total_gb__isnull=True).values_list('ram_total_gb', flat=True).distinct().order_by('ram_total_gb'))
+        context['almacenamientos'] = list(specs.exclude(almacenamiento_gb__isnull=True).values_list('almacenamiento_gb', flat=True).distinct().order_by('almacenamiento_gb'))
+        context['tipos_disco'] = list(specs.exclude(almacenamiento_tipo__isnull=True).exclude(almacenamiento_tipo='').values_list('almacenamiento_tipo', flat=True).distinct().order_by('almacenamiento_tipo'))
+        context['marcas'] = list(specs.exclude(marca__isnull=True).exclude(marca='').values_list('marca', flat=True).distinct().order_by('marca'))
+        context['modelos'] = list(specs.exclude(modelo__isnull=True).exclude(modelo='').values_list('modelo', flat=True).distinct().order_by('modelo'))
+
         return context
 
 
@@ -2619,6 +2638,300 @@ class ExportarReportePorAreaPDFView(RateLimitMixin, LoginRequiredMixin, View):
 
         fecha = timezone.now().strftime('%Y%m%d_%H%M%S')
         return exporter.get_response(f"reporte_por_area_{fecha}.pdf")
+
+
+class ExportarLeasingExcelView(RateLimitMixin, LoginRequiredMixin, View):
+    """Exporta reporte de leasing por vencimiento a Excel"""
+    ratelimit_key = 'export'
+
+    def get(self, request):
+        from .models import EspecificacionesSistemas
+
+        # Obtener parámetros
+        anio = request.GET.get('anio')
+        meses_str = request.GET.get('meses', '')
+        meses = [int(m) for m in meses_str.split(',') if m.isdigit()]
+
+        # Filtrar items de Sistemas con leasing
+        area_sistemas = Area.objects.filter(codigo='sistemas').first()
+        items = Item.objects.filter(
+            area=area_sistemas,
+            es_leasing=True,
+            leasing_vencimiento__isnull=False
+        ).select_related('colaborador_asignado', 'ambiente', 'tipo_item')
+
+        # Filtrar por año y meses
+        if anio:
+            items = items.filter(leasing_vencimiento__year=int(anio))
+        if meses:
+            items = items.filter(leasing_vencimiento__month__in=meses)
+
+        items = items.order_by('leasing_vencimiento')
+
+        # Crear Excel
+        exporter = ExcelExporter(title="Reporte de Leasing por Vencimiento")
+
+        meses_nombres = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+                         'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+        filtros = f"Año: {anio or 'Todos'}"
+        if meses:
+            filtros += f" | Meses: {', '.join([meses_nombres[m] for m in meses])}"
+        exporter.add_title("Reporte de Leasing por Vencimiento", filtros)
+
+        headers = ['Código UTP', 'Nombre', 'Tipo', 'Marca', 'Modelo', 'Procesador', 'RAM', 'Disco', 'Vencimiento Leasing', 'Colaborador', 'Ubicación']
+        exporter.add_headers(headers)
+
+        for i, item in enumerate(items):
+            specs = getattr(item, 'especificaciones_sistemas', None)
+            exporter.add_row([
+                item.codigo_utp if not item.codigo_utp_pendiente else item.codigo_interno,
+                item.nombre,
+                item.tipo_item.nombre if item.tipo_item else '-',
+                specs.marca if specs and specs.marca else '-',
+                specs.modelo if specs and specs.modelo else '-',
+                specs.procesador if specs and specs.procesador else '-',
+                specs.ram_display if specs else '-',
+                specs.almacenamiento_display if specs else '-',
+                format_date(item.leasing_vencimiento),
+                item.colaborador_asignado.nombre_completo if item.colaborador_asignado else '-',
+                item.ambiente.nombre if item.ambiente else '-'
+            ], alternate=(i % 2 == 1))
+
+        exporter.auto_adjust_columns()
+        exporter.add_summary({'Total de equipos en leasing': items.count()})
+
+        fecha = timezone.now().strftime('%Y%m%d_%H%M%S')
+        return exporter.get_response(f"leasing_vencimiento_{fecha}.xlsx")
+
+
+class ExportarLeasingPDFView(RateLimitMixin, LoginRequiredMixin, View):
+    """Exporta reporte de leasing por vencimiento a PDF"""
+    ratelimit_key = 'export'
+
+    def get(self, request):
+        from .models import EspecificacionesSistemas
+
+        # Obtener parámetros
+        anio = request.GET.get('anio')
+        meses_str = request.GET.get('meses', '')
+        meses = [int(m) for m in meses_str.split(',') if m.isdigit()]
+
+        # Filtrar items de Sistemas con leasing
+        area_sistemas = Area.objects.filter(codigo='sistemas').first()
+        items = Item.objects.filter(
+            area=area_sistemas,
+            es_leasing=True,
+            leasing_vencimiento__isnull=False
+        ).select_related('colaborador_asignado', 'ambiente', 'tipo_item')
+
+        # Filtrar por año y meses
+        if anio:
+            items = items.filter(leasing_vencimiento__year=int(anio))
+        if meses:
+            items = items.filter(leasing_vencimiento__month__in=meses)
+
+        items = items.order_by('leasing_vencimiento')
+
+        # Crear PDF
+        exporter = PDFExporter(title="Reporte de Leasing", orientation='landscape')
+
+        meses_nombres = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+                         'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+        filtros = f"Año: {anio or 'Todos'}"
+        if meses:
+            filtros += f" | Meses: {', '.join([meses_nombres[m] for m in meses])}"
+        exporter.add_title("Reporte de Leasing por Vencimiento", filtros)
+
+        headers = ['Código UTP', 'Nombre', 'Marca/Modelo', 'Procesador', 'RAM', 'Disco', 'Vencimiento', 'Colaborador']
+        data = []
+
+        for item in items[:100]:  # Limitar a 100 para PDF
+            specs = getattr(item, 'especificaciones_sistemas', None)
+            data.append([
+                item.codigo_utp if not item.codigo_utp_pendiente else item.codigo_interno,
+                item.nombre[:25] + '...' if len(item.nombre) > 25 else item.nombre,
+                f"{specs.marca or '-'} / {specs.modelo or '-'}" if specs else '-',
+                (specs.procesador[:20] + '...' if specs and specs.procesador and len(specs.procesador) > 20 else specs.procesador) if specs else '-',
+                specs.ram_display if specs else '-',
+                specs.almacenamiento_display if specs else '-',
+                format_date(item.leasing_vencimiento),
+                item.colaborador_asignado.nombre_completo[:20] if item.colaborador_asignado else '-'
+            ])
+
+        exporter.add_table(headers, data)
+        exporter.add_summary_section({'Total de equipos': items.count()})
+
+        fecha = timezone.now().strftime('%Y%m%d_%H%M%S')
+        return exporter.get_response(f"leasing_vencimiento_{fecha}.pdf")
+
+
+class ExportarEspecificacionesExcelView(RateLimitMixin, LoginRequiredMixin, View):
+    """Exporta reporte por especificaciones técnicas a Excel"""
+    ratelimit_key = 'export'
+
+    def get(self, request):
+        from .models import EspecificacionesSistemas
+
+        # Obtener parámetros de filtro
+        procesador = request.GET.get('procesador', '')
+        ram = request.GET.get('ram', '')
+        almacenamiento = request.GET.get('almacenamiento', '')
+        tipo_disco = request.GET.get('tipo_disco', '')
+        marca = request.GET.get('marca', '')
+        modelo = request.GET.get('modelo', '')
+
+        # Filtrar items de Sistemas con especificaciones
+        area_sistemas = Area.objects.filter(codigo='sistemas').first()
+        items = Item.objects.filter(
+            area=area_sistemas,
+            especificaciones_sistemas__isnull=False
+        ).select_related('especificaciones_sistemas', 'colaborador_asignado', 'ambiente', 'tipo_item')
+
+        # Aplicar filtros
+        if procesador:
+            items = items.filter(especificaciones_sistemas__procesador=procesador)
+        if ram:
+            items = items.filter(especificaciones_sistemas__ram_total_gb=int(ram))
+        if almacenamiento:
+            items = items.filter(especificaciones_sistemas__almacenamiento_gb=int(almacenamiento))
+        if tipo_disco:
+            items = items.filter(especificaciones_sistemas__almacenamiento_tipo=tipo_disco)
+        if marca:
+            items = items.filter(especificaciones_sistemas__marca=marca)
+        if modelo:
+            items = items.filter(especificaciones_sistemas__modelo=modelo)
+
+        items = items.order_by('codigo_interno')
+
+        # Crear Excel
+        exporter = ExcelExporter(title="Reporte por Especificaciones Técnicas")
+
+        # Construir descripción de filtros
+        filtros_list = []
+        if procesador:
+            filtros_list.append(f"Procesador: {procesador}")
+        if ram:
+            filtros_list.append(f"RAM: {ram}GB")
+        if almacenamiento:
+            filtros_list.append(f"Disco: {almacenamiento}GB")
+        if tipo_disco:
+            filtros_list.append(f"Tipo: {tipo_disco}")
+        if marca:
+            filtros_list.append(f"Marca: {marca}")
+        if modelo:
+            filtros_list.append(f"Modelo: {modelo}")
+
+        filtros_str = ' | '.join(filtros_list) if filtros_list else 'Sin filtros'
+        exporter.add_title("Reporte por Especificaciones Técnicas", filtros_str)
+
+        headers = ['Código UTP', 'Nombre', 'Tipo', 'Marca', 'Modelo', 'Procesador', 'Gen.', 'RAM', 'Disco', 'S.O.', 'Estado', 'Colaborador', 'Ubicación']
+        exporter.add_headers(headers)
+
+        for i, item in enumerate(items):
+            specs = item.especificaciones_sistemas
+            exporter.add_row([
+                item.codigo_utp if not item.codigo_utp_pendiente else item.codigo_interno,
+                item.nombre,
+                item.tipo_item.nombre if item.tipo_item else '-',
+                specs.marca or '-',
+                specs.modelo or '-',
+                specs.procesador or '-',
+                specs.generacion_procesador or '-',
+                specs.ram_display,
+                specs.almacenamiento_display,
+                specs.sistema_operativo or '-',
+                item.get_estado_display(),
+                item.colaborador_asignado.nombre_completo if item.colaborador_asignado else '-',
+                item.ambiente.nombre if item.ambiente else '-'
+            ], alternate=(i % 2 == 1))
+
+        exporter.auto_adjust_columns()
+        exporter.add_summary({'Total de equipos': items.count()})
+
+        fecha = timezone.now().strftime('%Y%m%d_%H%M%S')
+        return exporter.get_response(f"especificaciones_tecnicas_{fecha}.xlsx")
+
+
+class ExportarEspecificacionesPDFView(RateLimitMixin, LoginRequiredMixin, View):
+    """Exporta reporte por especificaciones técnicas a PDF"""
+    ratelimit_key = 'export'
+
+    def get(self, request):
+        from .models import EspecificacionesSistemas
+
+        # Obtener parámetros de filtro
+        procesador = request.GET.get('procesador', '')
+        ram = request.GET.get('ram', '')
+        almacenamiento = request.GET.get('almacenamiento', '')
+        tipo_disco = request.GET.get('tipo_disco', '')
+        marca = request.GET.get('marca', '')
+        modelo = request.GET.get('modelo', '')
+
+        # Filtrar items de Sistemas con especificaciones
+        area_sistemas = Area.objects.filter(codigo='sistemas').first()
+        items = Item.objects.filter(
+            area=area_sistemas,
+            especificaciones_sistemas__isnull=False
+        ).select_related('especificaciones_sistemas', 'colaborador_asignado', 'ambiente', 'tipo_item')
+
+        # Aplicar filtros
+        if procesador:
+            items = items.filter(especificaciones_sistemas__procesador=procesador)
+        if ram:
+            items = items.filter(especificaciones_sistemas__ram_total_gb=int(ram))
+        if almacenamiento:
+            items = items.filter(especificaciones_sistemas__almacenamiento_gb=int(almacenamiento))
+        if tipo_disco:
+            items = items.filter(especificaciones_sistemas__almacenamiento_tipo=tipo_disco)
+        if marca:
+            items = items.filter(especificaciones_sistemas__marca=marca)
+        if modelo:
+            items = items.filter(especificaciones_sistemas__modelo=modelo)
+
+        items = items.order_by('codigo_interno')
+
+        # Crear PDF
+        exporter = PDFExporter(title="Reporte Especificaciones", orientation='landscape')
+
+        # Construir descripción de filtros
+        filtros_list = []
+        if procesador:
+            filtros_list.append(f"Procesador: {procesador}")
+        if ram:
+            filtros_list.append(f"RAM: {ram}GB")
+        if almacenamiento:
+            filtros_list.append(f"Disco: {almacenamiento}GB")
+        if tipo_disco:
+            filtros_list.append(f"Tipo: {tipo_disco}")
+        if marca:
+            filtros_list.append(f"Marca: {marca}")
+        if modelo:
+            filtros_list.append(f"Modelo: {modelo}")
+
+        filtros_str = ' | '.join(filtros_list) if filtros_list else 'Sin filtros'
+        exporter.add_title("Reporte por Especificaciones Técnicas", filtros_str)
+
+        headers = ['Código UTP', 'Nombre', 'Marca/Modelo', 'Procesador', 'RAM', 'Disco', 'Estado', 'Colaborador']
+        data = []
+
+        for item in items[:100]:  # Limitar a 100 para PDF
+            specs = item.especificaciones_sistemas
+            data.append([
+                item.codigo_utp if not item.codigo_utp_pendiente else item.codigo_interno,
+                item.nombre[:20] + '...' if len(item.nombre) > 20 else item.nombre,
+                f"{specs.marca or '-'} / {specs.modelo or '-'}"[:25],
+                (specs.procesador[:18] + '...' if specs.procesador and len(specs.procesador) > 18 else specs.procesador) or '-',
+                specs.ram_display,
+                specs.almacenamiento_display,
+                item.get_estado_display(),
+                (item.colaborador_asignado.nombre_completo[:18] + '...' if item.colaborador_asignado and len(item.colaborador_asignado.nombre_completo) > 18 else item.colaborador_asignado.nombre_completo) if item.colaborador_asignado else '-'
+            ])
+
+        exporter.add_table(headers, data)
+        exporter.add_summary_section({'Total de equipos': items.count()})
+
+        fecha = timezone.now().strftime('%Y%m%d_%H%M%S')
+        return exporter.get_response(f"especificaciones_tecnicas_{fecha}.pdf")
 
 
 # ==============================================================================
