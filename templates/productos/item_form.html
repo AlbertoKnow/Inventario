@@ -390,6 +390,67 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // ========================================
+    // Filtrar configuración RAM según cantidad
+    // ========================================
+    const ramGbSelect = document.getElementById('id_ram_total_gb');
+    const ramConfigSelect = document.getElementById('id_ram_configuracion');
+
+    // Configuraciones válidas por cantidad de RAM
+    const ramConfigPorGb = {
+        '4': ['1x4GB', '2x2GB'],
+        '8': ['1x8GB', '2x4GB'],
+        '16': ['1x16GB', '2x8GB'],
+        '32': ['2x16GB', '4x8GB'],
+        '64': ['2x32GB', '4x16GB']
+    };
+
+    function filtrarConfiguracionRam() {
+        if (!ramGbSelect || !ramConfigSelect) return;
+
+        const ramGb = ramGbSelect.value;
+        const currentValue = ramConfigSelect.value;
+
+        // Guardar todas las opciones originales si no existen
+        if (!ramConfigSelect.allOptions) {
+            ramConfigSelect.allOptions = Array.from(ramConfigSelect.options).map(opt => ({
+                value: opt.value,
+                text: opt.text
+            }));
+        }
+
+        // Limpiar opciones
+        ramConfigSelect.innerHTML = '<option value="">---------</option>';
+
+        if (ramGb && ramConfigPorGb[ramGb]) {
+            // Agregar solo las configuraciones válidas para esa RAM
+            ramConfigPorGb[ramGb].forEach(config => {
+                const option = document.createElement('option');
+                option.value = config;
+                option.text = config;
+                if (config === currentValue) option.selected = true;
+                ramConfigSelect.appendChild(option);
+            });
+        } else {
+            // Si no hay RAM seleccionada, mostrar todas las opciones
+            ramConfigSelect.allOptions.forEach(opt => {
+                if (opt.value) {
+                    const option = document.createElement('option');
+                    option.value = opt.value;
+                    option.text = opt.text;
+                    if (opt.value === currentValue) option.selected = true;
+                    ramConfigSelect.appendChild(option);
+                }
+            });
+        }
+    }
+
+    // Ejecutar al cargar y cuando cambie RAM
+    if (ramGbSelect) {
+        filtrarConfiguracionRam();
+        ramGbSelect.addEventListener('change', filtrarConfiguracionRam);
+    }
+
+    // ========================================
     // Autocompletado para especificaciones
     // ========================================
     const marcaInput = document.getElementById('id_marca');
