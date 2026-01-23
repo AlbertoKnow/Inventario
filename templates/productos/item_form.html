@@ -177,6 +177,61 @@
                     </div>
                 </div>
 
+                <!-- Especificaciones Técnicas (Solo Sistemas) -->
+                <div class="card mb-4" id="card-especificaciones" style="display: none;">
+                    <div class="card-header bg-dark text-white">
+                        <i class="fas fa-microchip me-2"></i>Especificaciones Técnicas
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Marca</label>
+                                {{ form.marca }}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Modelo</label>
+                                {{ form.modelo }}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Procesador</label>
+                                {{ form.procesador }}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Generación</label>
+                                {{ form.generacion_procesador }}
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">RAM (GB)</label>
+                                {{ form.ram_total_gb }}
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Configuración RAM</label>
+                                {{ form.ram_configuracion }}
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Tipo RAM</label>
+                                {{ form.ram_tipo }}
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Almacenamiento (GB)</label>
+                                {{ form.almacenamiento_gb }}
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Tipo Disco</label>
+                                {{ form.almacenamiento_tipo }}
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Sistema Operativo</label>
+                                {{ form.sistema_operativo }}
+                            </div>
+                        </div>
+                        <small class="text-muted mt-2 d-block">
+                            <i class="fas fa-info-circle me-1"></i>
+                            Estos campos son opcionales y solo aplican para equipos del área de Sistemas.
+                        </small>
+                    </div>
+                </div>
+
             </div>
             
             <div class="col-lg-4">
@@ -220,10 +275,32 @@ document.addEventListener('DOMContentLoaded', function() {
     // Actualizar tipos de ítem según el área seleccionada
     const areaSelect = document.getElementById('id_area');
     const tipoSelect = document.getElementById('id_tipo_item');
-    
+    const cardEspecificaciones = document.getElementById('card-especificaciones');
+
+    // Función para mostrar/ocultar especificaciones según el área
+    function toggleEspecificaciones() {
+        if (!areaSelect || !cardEspecificaciones) return;
+
+        const selectedOption = areaSelect.options[areaSelect.selectedIndex];
+        const areaText = selectedOption ? selectedOption.text.toLowerCase() : '';
+
+        if (areaText.includes('sistema')) {
+            cardEspecificaciones.style.display = 'block';
+        } else {
+            cardEspecificaciones.style.display = 'none';
+        }
+    }
+
+    // Ejecutar al cargar la página
+    toggleEspecificaciones();
+
     if (areaSelect && tipoSelect) {
         areaSelect.addEventListener('change', function() {
             const areaId = this.value;
+
+            // Mostrar/ocultar especificaciones
+            toggleEspecificaciones();
+
             if (areaId) {
                 fetch(`/productos/api/tipos-item/?area=${areaId}`)
                     .then(response => response.json())

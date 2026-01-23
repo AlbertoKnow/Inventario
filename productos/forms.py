@@ -139,19 +139,39 @@ class ItemForm(forms.ModelForm):
 
 class ItemSistemasForm(ItemForm):
     """Formulario extendido para ítems de Sistemas con especificaciones técnicas."""
-    
+
     # Campos adicionales de especificaciones
-    marca = forms.CharField(max_length=100, required=False, widget=forms.TextInput(attrs={'class': 'form-control'}))
-    modelo = forms.CharField(max_length=100, required=False, widget=forms.TextInput(attrs={'class': 'form-control'}))
-    procesador = forms.CharField(max_length=200, required=False, widget=forms.TextInput(attrs={'class': 'form-control'}))
-    generacion_procesador = forms.CharField(max_length=50, required=False, widget=forms.TextInput(attrs={'class': 'form-control'}))
-    ram_total_gb = forms.IntegerField(required=False, widget=forms.NumberInput(attrs={'class': 'form-control'}))
+    marca = forms.CharField(max_length=100, required=False, widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: HP, Dell, Lenovo'}))
+    modelo = forms.CharField(max_length=100, required=False, widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: ProBook 450 G8'}))
+    procesador = forms.CharField(max_length=200, required=False, widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: Intel Core i7-1165G7'}))
+    generacion_procesador = forms.CharField(max_length=50, required=False, widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: 11va Gen'}))
+    ram_total_gb = forms.IntegerField(required=False, min_value=1, widget=forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Ej: 16'}))
     ram_configuracion = forms.CharField(max_length=50, required=False, widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: 2x8GB'}))
     ram_tipo = forms.ChoiceField(choices=[('', '---------')] + list(EspecificacionesSistemas.TIPOS_RAM), required=False, widget=forms.Select(attrs={'class': 'form-select'}))
-    almacenamiento_gb = forms.IntegerField(required=False, widget=forms.NumberInput(attrs={'class': 'form-control'}))
+    almacenamiento_gb = forms.IntegerField(required=False, min_value=1, widget=forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Ej: 512'}))
     almacenamiento_tipo = forms.ChoiceField(choices=[('', '---------')] + list(EspecificacionesSistemas.TIPOS_ALMACENAMIENTO), required=False, widget=forms.Select(attrs={'class': 'form-select'}))
-    sistema_operativo = forms.CharField(max_length=100, required=False, widget=forms.TextInput(attrs={'class': 'form-control'}))
-    
+    sistema_operativo = forms.CharField(max_length=100, required=False, widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: Windows 11 Pro'}))
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # Si estamos editando y el item tiene especificaciones, cargarlas
+        if self.instance and self.instance.pk:
+            try:
+                specs = self.instance.especificaciones_sistemas
+                self.fields['marca'].initial = specs.marca
+                self.fields['modelo'].initial = specs.modelo
+                self.fields['procesador'].initial = specs.procesador
+                self.fields['generacion_procesador'].initial = specs.generacion_procesador
+                self.fields['ram_total_gb'].initial = specs.ram_total_gb
+                self.fields['ram_configuracion'].initial = specs.ram_configuracion
+                self.fields['ram_tipo'].initial = specs.ram_tipo
+                self.fields['almacenamiento_gb'].initial = specs.almacenamiento_gb
+                self.fields['almacenamiento_tipo'].initial = specs.almacenamiento_tipo
+                self.fields['sistema_operativo'].initial = specs.sistema_operativo
+            except EspecificacionesSistemas.DoesNotExist:
+                pass
+
     def save(self, commit=True):
         item = super().save(commit=commit)
         

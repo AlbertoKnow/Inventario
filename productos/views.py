@@ -481,45 +481,49 @@ class ItemDetailView(PerfilRequeridoMixin, DetailView):
 class ItemCreateView(PerfilRequeridoMixin, CreateView):
     """Crear un nuevo ítem."""
     model = Item
-    form_class = ItemForm
+    form_class = ItemSistemasForm  # Usar formulario con especificaciones
     template_name = 'productos/item_form.html'
-    
+
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
         kwargs['user'] = self.request.user
         return kwargs
-    
+
     def get_initial(self):
         """Pre-seleccionar el área del usuario si no es admin."""
         initial = super().get_initial()
         perfil = getattr(self.request.user, 'perfil', None)
-        
+
         if perfil and perfil.rol != 'admin' and perfil.area:
             initial['area'] = perfil.area
-        
+
         return initial
-    
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['titulo'] = 'Nuevo Ítem'
         context['es_sistemas'] = self.request.GET.get('area') == 'sistemas'
         return context
-    
+
     def form_valid(self, form):
         item = form.save(commit=False)
         item.creado_por = self.request.user
         item.modificado_por = self.request.user
-        
+
         # Si no es admin, forzar el área del usuario
         perfil = getattr(self.request.user, 'perfil', None)
         if perfil and perfil.rol != 'admin' and perfil.area:
             item.area = perfil.area
-        
+
         # Auto-generar código UTP
         if not item.codigo_utp:
             item.codigo_utp = Item.generar_codigo_utp(item.area.codigo)
-        
+
         item.save()
+
+        # Guardar especificaciones si es área de Sistemas
+        if item.area.codigo == 'sistemas':
+            form.save()  # Esto guarda las especificaciones
 
         messages.success(self.request, f'Ítem {item.codigo_interno} creado correctamente.')
         return redirect('productos:item-detail', codigo=item.codigo_interno)
@@ -528,36 +532,40 @@ class ItemCreateView(PerfilRequeridoMixin, CreateView):
 class ItemUpdateView(PerfilRequeridoMixin, UpdateView):
     """Editar un ítem existente."""
     model = Item
-    form_class = ItemForm
+    form_class = ItemSistemasForm  # Usar formulario con especificaciones
     template_name = 'productos/item_form.html'
     slug_field = 'codigo_interno'
     slug_url_kwarg = 'codigo'
-    
+
     def get_queryset(self):
         """Restringir acceso por área si no es admin."""
         queryset = super().get_queryset()
         perfil = getattr(self.request.user, 'perfil', None)
-        
+
         if perfil and perfil.rol != 'admin' and perfil.area:
             queryset = queryset.filter(area=perfil.area)
-        
+
         return queryset
-    
+
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
         kwargs['user'] = self.request.user
         return kwargs
-    
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['titulo'] = f'Editar {self.object.codigo_utp}'
         context['es_sistemas'] = self.object.area.codigo == 'sistemas'
         return context
-    
+
     def form_valid(self, form):
         item = form.save(commit=False)
         item.modificado_por = self.request.user
         item.save()
+
+        # Guardar especificaciones si es área de Sistemas
+        if item.area.codigo == 'sistemas':
+            form.save()  # Esto guarda las especificaciones
 
         messages.success(self.request, f'Ítem {item.codigo_interno} actualizado correctamente.')
         return redirect('productos:item-detail', codigo=item.codigo_interno)
