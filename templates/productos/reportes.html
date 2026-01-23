@@ -175,24 +175,132 @@
             </div>
         </div>
 
-        <!-- Reporte: Por Estado -->
+        <!-- Reporte: Leasing por Vencimiento -->
         <div class="col-md-6 mb-4">
             <div class="card h-100">
-                <div class="card-header bg-secondary text-white">
-                    <i class="fas fa-tag me-2"></i>Reporte por Estado
+                <div class="card-header bg-purple text-white" style="background-color: #6f42c1 !important;">
+                    <i class="fas fa-file-contract me-2"></i>Leasing por Vencimiento
                 </div>
                 <div class="card-body">
-                    <p class="card-text">Próximamente: Resumen de ítems agrupados por estado operativo.</p>
+                    <p class="card-text">Filtra equipos en leasing por mes de vencimiento. Solo área de Sistemas.</p>
 
-                    <div class="alert alert-secondary">
-                        <i class="fas fa-tools me-2"></i>
-                        <strong>En desarrollo</strong><br>
-                        Este reporte estará disponible próximamente.
-                    </div>
+                    <form id="formLeasing" class="mb-3">
+                        <div class="row g-2">
+                            <div class="col-md-6">
+                                <label class="form-label small">Año</label>
+                                <select name="anio_leasing" id="anioLeasing" class="form-select form-select-sm">
+                                    {% for anio in anios_leasing %}
+                                    <option value="{{ anio }}" {% if anio == anio_actual %}selected{% endif %}>{{ anio }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small">Mes(es)</label>
+                                <select name="meses_leasing" id="mesesLeasing" class="form-select form-select-sm" multiple size="4">
+                                    <option value="1">Enero</option>
+                                    <option value="2">Febrero</option>
+                                    <option value="3">Marzo</option>
+                                    <option value="4">Abril</option>
+                                    <option value="5">Mayo</option>
+                                    <option value="6">Junio</option>
+                                    <option value="7">Julio</option>
+                                    <option value="8">Agosto</option>
+                                    <option value="9">Septiembre</option>
+                                    <option value="10">Octubre</option>
+                                    <option value="11">Noviembre</option>
+                                    <option value="12">Diciembre</option>
+                                </select>
+                                <small class="text-muted">Ctrl+Click para seleccionar varios</small>
+                            </div>
+                        </div>
+                    </form>
 
                     <div class="d-grid gap-2">
-                        <button class="btn btn-secondary" disabled>
-                            <i class="fas fa-file-excel me-2"></i>Próximamente
+                        <button type="button" class="btn btn-success" onclick="exportarLeasingExcel()">
+                            <i class="fas fa-file-excel me-2"></i>Exportar a Excel
+                        </button>
+                        <button type="button" class="btn btn-danger" onclick="exportarLeasingPDF()">
+                            <i class="fas fa-file-pdf me-2"></i>Exportar a PDF
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Reporte: Por Especificaciones Técnicas -->
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-dark text-white">
+                    <i class="fas fa-microchip me-2"></i>Especificaciones Técnicas
+                </div>
+                <div class="card-body">
+                    <p class="card-text">Filtra equipos por procesador, RAM, disco y más. Solo área de Sistemas.</p>
+
+                    <form id="formEspecificaciones" class="mb-3">
+                        <div class="row g-2">
+                            <div class="col-md-6">
+                                <label class="form-label small">Procesador</label>
+                                <select name="procesador" id="filtroProcesador" class="form-select form-select-sm">
+                                    <option value="">Todos</option>
+                                    {% for proc in procesadores %}
+                                    <option value="{{ proc }}">{{ proc }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small">RAM (GB)</label>
+                                <select name="ram" id="filtroRam" class="form-select form-select-sm">
+                                    <option value="">Todas</option>
+                                    {% for ram in rams %}
+                                    <option value="{{ ram }}">{{ ram }} GB</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small">Almacenamiento (GB)</label>
+                                <select name="almacenamiento" id="filtroAlmacenamiento" class="form-select form-select-sm">
+                                    <option value="">Todos</option>
+                                    {% for alm in almacenamientos %}
+                                    <option value="{{ alm }}">{{ alm }} GB</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small">Tipo Disco</label>
+                                <select name="tipo_disco" id="filtroTipoDisco" class="form-select form-select-sm">
+                                    <option value="">Todos</option>
+                                    {% for tipo in tipos_disco %}
+                                    <option value="{{ tipo }}">{{ tipo }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small">Marca</label>
+                                <select name="marca" id="filtroMarca" class="form-select form-select-sm">
+                                    <option value="">Todas</option>
+                                    {% for marca in marcas %}
+                                    <option value="{{ marca }}">{{ marca }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small">Modelo</label>
+                                <select name="modelo" id="filtroModelo" class="form-select form-select-sm">
+                                    <option value="">Todos</option>
+                                    {% for modelo in modelos %}
+                                    <option value="{{ modelo }}">{{ modelo }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </form>
+
+                    <div class="d-grid gap-2">
+                        <button type="button" class="btn btn-success" onclick="exportarEspecificacionesExcel()">
+                            <i class="fas fa-file-excel me-2"></i>Exportar a Excel
+                        </button>
+                        <button type="button" class="btn btn-danger" onclick="exportarEspecificacionesPDF()">
+                            <i class="fas fa-file-pdf me-2"></i>Exportar a PDF
                         </button>
                     </div>
                 </div>
@@ -263,6 +371,72 @@ function exportarInventarioPDF() {
 function exportarGarantiasExcel() {
     const dias = document.getElementById('diasGarantia').value;
     window.location.href = "{% url 'productos:exportar-garantias-excel' %}?dias=" + dias;
+}
+
+// Exportar leasing a Excel
+function exportarLeasingExcel() {
+    const params = new URLSearchParams();
+    const anio = document.getElementById('anioLeasing').value;
+    const mesesSelect = document.getElementById('mesesLeasing');
+    const meses = Array.from(mesesSelect.selectedOptions).map(opt => opt.value);
+
+    if (anio) params.append('anio', anio);
+    if (meses.length > 0) params.append('meses', meses.join(','));
+
+    window.location.href = "{% url 'productos:exportar-leasing-excel' %}?" + params.toString();
+}
+
+// Exportar leasing a PDF
+function exportarLeasingPDF() {
+    const params = new URLSearchParams();
+    const anio = document.getElementById('anioLeasing').value;
+    const mesesSelect = document.getElementById('mesesLeasing');
+    const meses = Array.from(mesesSelect.selectedOptions).map(opt => opt.value);
+
+    if (anio) params.append('anio', anio);
+    if (meses.length > 0) params.append('meses', meses.join(','));
+
+    window.location.href = "{% url 'productos:exportar-leasing-pdf' %}?" + params.toString();
+}
+
+// Exportar especificaciones a Excel
+function exportarEspecificacionesExcel() {
+    const params = new URLSearchParams();
+    const procesador = document.getElementById('filtroProcesador').value;
+    const ram = document.getElementById('filtroRam').value;
+    const almacenamiento = document.getElementById('filtroAlmacenamiento').value;
+    const tipoDisco = document.getElementById('filtroTipoDisco').value;
+    const marca = document.getElementById('filtroMarca').value;
+    const modelo = document.getElementById('filtroModelo').value;
+
+    if (procesador) params.append('procesador', procesador);
+    if (ram) params.append('ram', ram);
+    if (almacenamiento) params.append('almacenamiento', almacenamiento);
+    if (tipoDisco) params.append('tipo_disco', tipoDisco);
+    if (marca) params.append('marca', marca);
+    if (modelo) params.append('modelo', modelo);
+
+    window.location.href = "{% url 'productos:exportar-especificaciones-excel' %}?" + params.toString();
+}
+
+// Exportar especificaciones a PDF
+function exportarEspecificacionesPDF() {
+    const params = new URLSearchParams();
+    const procesador = document.getElementById('filtroProcesador').value;
+    const ram = document.getElementById('filtroRam').value;
+    const almacenamiento = document.getElementById('filtroAlmacenamiento').value;
+    const tipoDisco = document.getElementById('filtroTipoDisco').value;
+    const marca = document.getElementById('filtroMarca').value;
+    const modelo = document.getElementById('filtroModelo').value;
+
+    if (procesador) params.append('procesador', procesador);
+    if (ram) params.append('ram', ram);
+    if (almacenamiento) params.append('almacenamiento', almacenamiento);
+    if (tipoDisco) params.append('tipo_disco', tipoDisco);
+    if (marca) params.append('marca', marca);
+    if (modelo) params.append('modelo', modelo);
+
+    window.location.href = "{% url 'productos:exportar-especificaciones-pdf' %}?" + params.toString();
 }
 </script>
 {% endblock %}

@@ -85,6 +85,10 @@ urlpatterns = [
     path('reportes/exportar/por-area-excel/', views.ExportarReportePorAreaExcelView.as_view(), name='exportar-por-area-excel'),
     path('reportes/exportar/por-area-pdf/', views.ExportarReportePorAreaPDFView.as_view(), name='exportar-por-area-pdf'),
     path('reportes/exportar/garantias-excel/', views.ExportarGarantiasVencenExcelView.as_view(), name='exportar-garantias-excel'),
+    path('reportes/exportar/leasing-excel/', views.ExportarLeasingExcelView.as_view(), name='exportar-leasing-excel'),
+    path('reportes/exportar/leasing-pdf/', views.ExportarLeasingPDFView.as_view(), name='exportar-leasing-pdf'),
+    path('reportes/exportar/especificaciones-excel/', views.ExportarEspecificacionesExcelView.as_view(), name='exportar-especificaciones-excel'),
+    path('reportes/exportar/especificaciones-pdf/', views.ExportarEspecificacionesPDFView.as_view(), name='exportar-especificaciones-pdf'),
 
     # Mantenimiento
     path('mantenimientos/', views.MantenimientoListView.as_view(), name='mantenimiento-list'),
