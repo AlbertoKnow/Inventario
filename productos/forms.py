@@ -287,15 +287,54 @@ class ItemSistemasForm(ItemForm):
             except EspecificacionesSistemas.DoesNotExist:
                 pass
 
+    def _normalizar_marca(self, valor):
+        """Normaliza marca: HP, Dell, Lenovo, etc."""
+        if not valor:
+            return ''
+        valor = valor.strip()
+        # Marcas conocidas con formato correcto
+        marcas_conocidas = {
+            'hp': 'HP',
+            'dell': 'Dell',
+            'lenovo': 'Lenovo',
+            'asus': 'ASUS',
+            'acer': 'Acer',
+            'apple': 'Apple',
+            'msi': 'MSI',
+            'toshiba': 'Toshiba',
+            'samsung': 'Samsung',
+            'lg': 'LG',
+            'sony': 'Sony',
+            'microsoft': 'Microsoft',
+            'huawei': 'Huawei',
+        }
+        valor_lower = valor.lower()
+        return marcas_conocidas.get(valor_lower, valor.title())
+
+    def _normalizar_procesador(self, valor):
+        """Normaliza procesador: Intel Core i7-1165G7, AMD Ryzen 5, etc."""
+        if not valor:
+            return ''
+        valor = valor.strip()
+        # Normalizar prefijos comunes
+        valor = valor.replace('intel', 'Intel').replace('INTEL', 'Intel')
+        valor = valor.replace('amd', 'AMD').replace('Amd', 'AMD')
+        valor = valor.replace('core', 'Core').replace('CORE', 'Core')
+        valor = valor.replace('ryzen', 'Ryzen').replace('RYZEN', 'Ryzen')
+        valor = valor.replace('celeron', 'Celeron').replace('CELERON', 'Celeron')
+        valor = valor.replace('pentium', 'Pentium').replace('PENTIUM', 'Pentium')
+        return valor
+
     def save(self, commit=True):
         item = super().save(commit=commit)
-        
+
         if commit and item.area.codigo == 'sistemas':
             # Crear o actualizar especificaciones
             specs, created = EspecificacionesSistemas.objects.get_or_create(item=item)
-            specs.marca = self.cleaned_data.get('marca', '')
-            specs.modelo = self.cleaned_data.get('modelo', '')
-            specs.procesador = self.cleaned_data.get('procesador', '')
+            # Normalizar marca y procesador para consistencia
+            specs.marca = self._normalizar_marca(self.cleaned_data.get('marca', ''))
+            specs.modelo = self.cleaned_data.get('modelo', '').strip()
+            specs.procesador = self._normalizar_procesador(self.cleaned_data.get('procesador', ''))
             specs.generacion_procesador = self.cleaned_data.get('generacion_procesador', '')
             specs.ram_total_gb = self.cleaned_data.get('ram_total_gb')
             specs.ram_configuracion = self.cleaned_data.get('ram_configuracion', '')
@@ -304,7 +343,7 @@ class ItemSistemasForm(ItemForm):
             specs.almacenamiento_tipo = self.cleaned_data.get('almacenamiento_tipo', '')
             specs.sistema_operativo = self.cleaned_data.get('sistema_operativo', '')
             specs.save()
-        
+
         return item
 
 
