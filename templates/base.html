@@ -89,9 +89,14 @@
             color: var(--gray-300) !important;
             font-weight: 500;
             font-size: 0.875rem;
-            padding: 0.5rem 1rem !important;
+            padding: 0.5rem 0.75rem !important;
             border-radius: 6px;
             transition: all 0.15s ease;
+            white-space: nowrap;
+        }
+
+        .navbar-nav .nav-item {
+            margin: 0 0.125rem;
         }
         
         .nav-link:hover {
@@ -491,7 +496,7 @@
             
             <div class="collapse navbar-collapse" id="navbarNav">
                 {% if user.is_authenticated %}
-                <ul class="navbar-nav me-auto ms-4">
+                <ul class="navbar-nav me-auto ms-3">
                     <li class="nav-item">
                         <a class="nav-link" href="{% url 'productos:dashboard' %}">
                             <i class="fas fa-th-large me-1"></i> Dashboard
