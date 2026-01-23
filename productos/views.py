@@ -1185,31 +1185,38 @@ class ObtenerItemDetalleView(LoginRequiredMixin, View):
 # VISTAS CRUD PARA CAMPUS
 # ============================================================================
 
-class CampusListView(AdminRequeridoMixin, ListView):
-    """Listar todos los campus (solo admins)."""
+class CampusListView(SupervisorRequeridoMixin, CampusFilterMixin, ListView):
+    """Listar campus según permisos del usuario."""
     model = Campus
     template_name = 'productos/campus_list.html'
     context_object_name = 'campus_list'
-    
+
+    def test_func(self):
+        # Admin, supervisor y gerente pueden acceder
+        return self.get_user_rol() in ['admin', 'supervisor', 'gerente']
+
     def get_queryset(self):
         queryset = Campus.objects.annotate(
             total_sedes=Count('sedes')
         ).order_by('nombre')
-        
+
+        # Filtrar por campus permitidos según rol
+        queryset = self.filtrar_por_campus(queryset, 'pk')
+
         # Búsqueda
         q = self.request.GET.get('q')
         if q:
             queryset = queryset.filter(
                 Q(nombre__icontains=q) | Q(codigo__icontains=q)
             )
-        
+
         # Filtro por estado
         activo = self.request.GET.get('activo')
         if activo == '1':
             queryset = queryset.filter(activo=True)
         elif activo == '0':
             queryset = queryset.filter(activo=False)
-        
+
         return queryset
     
     def get_context_data(self, **kwargs):
@@ -1268,11 +1275,15 @@ class CampusDeleteView(AdminRequeridoMixin, DeleteView):
 # VISTAS CRUD PARA SEDES
 # ============================================================================
 
-class SedeListView(PerfilRequeridoMixin, CampusFilterMixin, ListView):
+class SedeListView(SupervisorRequeridoMixin, CampusFilterMixin, ListView):
     """Listar sedes según permisos de campus del usuario."""
     model = Sede
     template_name = 'productos/sede_list.html'
     context_object_name = 'sedes'
+
+    def test_func(self):
+        # Admin, supervisor y gerente pueden acceder
+        return self.get_user_rol() in ['admin', 'supervisor', 'gerente']
 
     def get_queryset(self):
         queryset = Sede.objects.select_related('campus').annotate(
@@ -1361,11 +1372,15 @@ class SedeDeleteView(AdminRequeridoMixin, DeleteView):
 # VISTAS CRUD PARA PABELLONES
 # ============================================================================
 
-class PabellonListView(PerfilRequeridoMixin, CampusFilterMixin, ListView):
+class PabellonListView(SupervisorRequeridoMixin, CampusFilterMixin, ListView):
     """Listar pabellones según permisos de campus del usuario."""
     model = Pabellon
     template_name = 'productos/pabellon_list.html'
     context_object_name = 'pabellones'
+
+    def test_func(self):
+        # Admin, supervisor y gerente pueden acceder
+        return self.get_user_rol() in ['admin', 'supervisor', 'gerente']
 
     def get_queryset(self):
         queryset = Pabellon.objects.select_related('sede', 'sede__campus').annotate(
