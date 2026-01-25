@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+
+{% block title %}Catálogos de Equipos{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Page Header -->
+    <div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div>
+            <h1>Catálogos de Equipos</h1>
+            <p class="text-muted mb-0">Gestión de marcas, modelos y procesadores para especificaciones técnicas</p>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Marcas y Modelos -->
+        <div class="col-lg-8">
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-building me-2"></i>Marcas y Modelos</span>
+                    <a href="{% url 'productos:marca-create' %}" class="btn btn-sm btn-primary">
+                        <i class="fas fa-plus me-1"></i> Nueva Marca
+                    </a>
+                </div>
+                <div class="card-body p-0">
+                    <div class="accordion accordion-flush" id="acordeonMarcas">
+                        {% for marca in marcas %}
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button"
+                                        data-bs-toggle="collapse" data-bs-target="#marca{{ marca.pk }}">
+                                    <span class="d-flex align-items-center gap-2 flex-grow-1">
+                                        <strong>{{ marca.nombre }}</strong>
+                                        <span class="badge bg-secondary">{{ marca.total_modelos }} modelos</span>
+                                        {% if not marca.activo %}
+                                        <span class="badge bg-warning text-dark">Inactiva</span>
+                                        {% endif %}
+                                    </span>
+                                </button>
+                            </h2>
+                            <div id="marca{{ marca.pk }}" class="accordion-collapse collapse" data-bs-parent="#acordeonMarcas">
+                                <div class="accordion-body">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <a href="{% url 'productos:marca-update' marca.pk %}" class="btn btn-sm btn-outline-secondary">
+                                            <i class="fas fa-edit me-1"></i> Editar Marca
+                                        </a>
+                                        <a href="{% url 'productos:modelo-create' %}?marca={{ marca.pk }}" class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-plus me-1"></i> Agregar Modelo
+                                        </a>
+                                    </div>
+
+                                    {% if marca.modelos.exists %}
+                                    <table class="table table-sm table-hover mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th>Modelo</th>
+                                                <th>Estado</th>
+                                                <th class="text-end">Acciones</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for modelo in marca.modelos.all %}
+                                            <tr>
+                                                <td>{{ modelo.nombre }}</td>
+                                                <td>
+                                                    {% if modelo.activo %}
+                                                    <span class="badge bg-success">Activo</span>
+                                                    {% else %}
+                                                    <span class="badge bg-secondary">Inactivo</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td class="text-end">
+                                                    <a href="{% url 'productos:modelo-update' modelo.pk %}" class="btn btn-sm btn-outline-secondary">
+                                                        <i class="fas fa-edit"></i>
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                    {% else %}
+                                    <p class="text-muted mb-0 text-center py-3">
+                                        <i class="fas fa-info-circle me-1"></i> No hay modelos registrados para esta marca
+                                    </p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <div class="p-4 text-center text-muted">
+                            <i class="fas fa-building fa-3x mb-3 d-block"></i>
+                            No hay marcas registradas
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Procesadores -->
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-microchip me-2"></i>Procesadores</span>
+                    <a href="{% url 'productos:procesador-create' %}" class="btn btn-sm btn-primary">
+                        <i class="fas fa-plus me-1"></i> Nuevo
+                    </a>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Nombre</th>
+                                    <th>Estado</th>
+                                    <th class="text-end">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for proc in procesadores %}
+                                <tr>
+                                    <td>{{ proc.nombre }}</td>
+                                    <td>
+                                        {% if proc.activo %}
+                                        <span class="badge bg-success">Activo</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">Inactivo</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end">
+                                        <a href="{% url 'productos:procesador-update' proc.pk %}" class="btn btn-sm btn-outline-secondary">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="3" class="text-center text-muted py-4">
+                                        <i class="fas fa-microchip fa-2x mb-2 d-block"></i>
+                                        No hay procesadores
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Info -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <i class="fas fa-info-circle me-2"></i>Información
+                </div>
+                <div class="card-body">
+                    <p class="small text-muted mb-2">
+                        Estos catálogos se utilizan en el formulario de items de Sistemas para las especificaciones técnicas.
+                    </p>
+                    <p class="small text-muted mb-0">
+                        <strong>Nota:</strong> Al desactivar una marca, modelo o procesador, este dejará de aparecer en los formularios pero se mantendrá en los registros existentes.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

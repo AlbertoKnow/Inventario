@@ -14,7 +14,8 @@ from datetime import timedelta, date
 from .models import (
     Area, Campus, Sede, Pabellon, Ambiente, TipoItem, Item, EspecificacionesSistemas,
     Movimiento, HistorialCambio, Notificacion, PerfilUsuario,
-    Proveedor, Contrato, AnexoContrato, Lote, Mantenimiento
+    Proveedor, Contrato, AnexoContrato, Lote, Mantenimiento,
+    MarcaEquipo, ModeloEquipo, ProcesadorEquipo
 )
 from .forms import (
     ItemForm, ItemSistemasForm, MovimientoForm, TipoItemForm, AmbienteForm,
@@ -3845,4 +3846,134 @@ class SoftwareEstandarUpdateView(PerfilRequeridoMixin, UpdateView):
 
     def form_valid(self, form):
         messages.success(self.request, 'Software actualizado correctamente.')
+        return super().form_valid(form)
+
+
+# ============================================================================
+# CATÁLOGOS DE EQUIPOS (Marca, Modelo, Procesador)
+# ============================================================================
+
+class CatalogoEquiposView(SupervisorRequeridoMixin, TemplateView):
+    """Vista principal de catálogos de equipos."""
+    template_name = 'productos/catalogo_equipos.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['marcas'] = MarcaEquipo.objects.annotate(
+            total_modelos=Count('modelos')
+        ).order_by('nombre')
+        context['procesadores'] = ProcesadorEquipo.objects.order_by('nombre')
+        return context
+
+
+# --- Marcas ---
+class MarcaEquipoCreateView(SupervisorRequeridoMixin, CreateView):
+    """Crear nueva marca de equipo."""
+    model = MarcaEquipo
+    fields = ['nombre', 'activo']
+    template_name = 'productos/marca_form.html'
+    success_url = reverse_lazy('productos:catalogo-equipos')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['titulo'] = 'Nueva Marca'
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, 'Marca creada correctamente.')
+        return super().form_valid(form)
+
+
+class MarcaEquipoUpdateView(SupervisorRequeridoMixin, UpdateView):
+    """Editar marca de equipo."""
+    model = MarcaEquipo
+    fields = ['nombre', 'activo']
+    template_name = 'productos/marca_form.html'
+    success_url = reverse_lazy('productos:catalogo-equipos')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['titulo'] = 'Editar Marca'
+        context['modelos'] = self.object.modelos.order_by('nombre')
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, 'Marca actualizada correctamente.')
+        return super().form_valid(form)
+
+
+# --- Modelos ---
+class ModeloEquipoCreateView(SupervisorRequeridoMixin, CreateView):
+    """Crear nuevo modelo de equipo."""
+    model = ModeloEquipo
+    fields = ['marca', 'nombre', 'activo']
+    template_name = 'productos/modelo_form.html'
+    success_url = reverse_lazy('productos:catalogo-equipos')
+
+    def get_initial(self):
+        initial = super().get_initial()
+        marca_id = self.request.GET.get('marca')
+        if marca_id:
+            initial['marca'] = marca_id
+        return initial
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['titulo'] = 'Nuevo Modelo'
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, 'Modelo creado correctamente.')
+        return super().form_valid(form)
+
+
+class ModeloEquipoUpdateView(SupervisorRequeridoMixin, UpdateView):
+    """Editar modelo de equipo."""
+    model = ModeloEquipo
+    fields = ['marca', 'nombre', 'activo']
+    template_name = 'productos/modelo_form.html'
+    success_url = reverse_lazy('productos:catalogo-equipos')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['titulo'] = 'Editar Modelo'
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, 'Modelo actualizado correctamente.')
+        return super().form_valid(form)
+
+
+# --- Procesadores ---
+class ProcesadorEquipoCreateView(SupervisorRequeridoMixin, CreateView):
+    """Crear nuevo procesador."""
+    model = ProcesadorEquipo
+    fields = ['nombre', 'activo']
+    template_name = 'productos/procesador_form.html'
+    success_url = reverse_lazy('productos:catalogo-equipos')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['titulo'] = 'Nuevo Procesador'
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, 'Procesador creado correctamente.')
+        return super().form_valid(form)
+
+
+class ProcesadorEquipoUpdateView(SupervisorRequeridoMixin, UpdateView):
+    """Editar procesador."""
+    model = ProcesadorEquipo
+    fields = ['nombre', 'activo']
+    template_name = 'productos/procesador_form.html'
+    success_url = reverse_lazy('productos:catalogo-equipos')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['titulo'] = 'Editar Procesador'
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, 'Procesador actualizado correctamente.')
         return super().form_valid(form)

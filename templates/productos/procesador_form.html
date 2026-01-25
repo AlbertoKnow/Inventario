@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'productos:dashboard' %}">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'productos:catalogo-equipos' %}">Catálogos de Equipos</a></li>
+            <li class="breadcrumb-item active">{{ titulo }}</li>
+        </ol>
+    </nav>
+
+    <div class="page-header mb-4">
+        <h1>{{ titulo }}</h1>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+
+                        {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {{ form.non_field_errors }}
+                        </div>
+                        {% endif %}
+
+                        <div class="mb-3">
+                            <label class="form-label">Nombre del Procesador *</label>
+                            <input type="text" name="nombre" class="form-control {% if form.nombre.errors %}is-invalid{% endif %}"
+                                   value="{{ form.nombre.value|default:'' }}" required
+                                   placeholder="Ej: Intel Core i5, Intel Core i7, AMD Ryzen 5">
+                            {% if form.nombre.errors %}
+                            <div class="invalid-feedback">{{ form.nombre.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="activo" id="activo"
+                                       {% if form.activo.value or not object %}checked{% endif %}>
+                                <label class="form-check-label" for="activo">
+                                    Procesador Activo
+                                </label>
+                                <small class="text-muted d-block">Los procesadores inactivos no aparecen en los formularios</small>
+                            </div>
+                        </div>
+
+                        <hr class="my-4">
+
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'productos:catalogo-equipos' %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-times me-1"></i> Cancelar
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-1"></i> Guardar
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-info-circle me-2"></i>Información
+                </div>
+                <div class="card-body">
+                    <p class="small text-muted mb-2">
+                        Los procesadores aparecen en el formulario de especificaciones técnicas para items del área de Sistemas.
+                    </p>
+                    <p class="small text-muted mb-0">
+                        <strong>Procesadores comunes:</strong>
+                    </p>
+                    <ul class="small text-muted">
+                        <li>Intel Core i3</li>
+                        <li>Intel Core i5</li>
+                        <li>Intel Core i7</li>
+                        <li>Intel Core i9</li>
+                        <li>Intel Celeron</li>
+                        <li>Intel Pentium</li>
+                        <li>AMD Ryzen 3</li>
+                        <li>AMD Ryzen 5</li>
+                        <li>AMD Ryzen 7</li>
+                        <li>Apple M1 / M2 / M3</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
