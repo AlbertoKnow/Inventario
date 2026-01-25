@@ -80,6 +80,13 @@ class AdminRequeridoMixin(PerfilRequeridoMixin, UserPassesTestMixin):
         return self.get_user_rol() == 'admin'
 
 
+class AlmacenRequeridoMixin(PerfilRequeridoMixin, UserPassesTestMixin):
+    """Solo admin, gerente y almacén pueden crear/editar/eliminar items."""
+
+    def test_func(self):
+        return self.get_user_rol() in ['admin', 'gerente', 'almacen']
+
+
 class CampusFilterMixin:
     """
     Mixin para filtrar querysets según los campus permitidos del usuario.
@@ -479,8 +486,8 @@ class ItemDetailView(PerfilRequeridoMixin, DetailView):
         return context
 
 
-class ItemCreateView(PerfilRequeridoMixin, CreateView):
-    """Crear un nuevo ítem."""
+class ItemCreateView(AlmacenRequeridoMixin, CreateView):
+    """Crear un nuevo ítem. Solo admin, gerente y almacén."""
     model = Item
     form_class = ItemSistemasForm  # Usar formulario con especificaciones
     template_name = 'productos/item_form.html'
@@ -530,8 +537,8 @@ class ItemCreateView(PerfilRequeridoMixin, CreateView):
         return redirect('productos:item-detail', codigo=item.codigo_interno)
 
 
-class ItemUpdateView(PerfilRequeridoMixin, UpdateView):
-    """Editar un ítem existente."""
+class ItemUpdateView(AlmacenRequeridoMixin, UpdateView):
+    """Editar un ítem existente. Solo admin, gerente y almacén."""
     model = Item
     form_class = ItemSistemasForm  # Usar formulario con especificaciones
     template_name = 'productos/item_form.html'
@@ -572,8 +579,8 @@ class ItemUpdateView(PerfilRequeridoMixin, UpdateView):
         return redirect('productos:item-detail', codigo=item.codigo_interno)
 
 
-class ItemDeleteView(AdminRequeridoMixin, DeleteView):
-    """Eliminar un ítem (solo admin)."""
+class ItemDeleteView(AlmacenRequeridoMixin, DeleteView):
+    """Eliminar un ítem. Solo admin, gerente y almacén."""
     model = Item
     template_name = 'productos/item_confirm_delete.html'
     success_url = reverse_lazy('productos:item-list')

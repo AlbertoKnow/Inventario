@@ -28,11 +28,13 @@
             <h1>Dashboard</h1>
             <p class="text-muted mb-0">Resumen del inventario institucional</p>
         </div>
+        {% if perfil.rol == 'admin' or perfil.rol == 'gerente' or perfil.rol == 'almacen' %}
         <div class="d-flex gap-2">
             <a href="{% url 'productos:item-create' %}" class="btn btn-primary">
                 <i class="fas fa-plus me-1"></i> Nuevo Ítem
             </a>
         </div>
+        {% endif %}
     </div>
     
     <!-- Stats Cards -->
