@@ -331,9 +331,9 @@ class ItemSistemasForm(ItemForm):
         if commit and item.area.codigo == 'sistemas':
             # Crear o actualizar especificaciones
             specs, created = EspecificacionesSistemas.objects.get_or_create(item=item)
-            # Normalizar marca y procesador para consistencia
+            # Normalizar marca, modelo y procesador para consistencia
             specs.marca = self._normalizar_marca(self.cleaned_data.get('marca', ''))
-            specs.modelo = self.cleaned_data.get('modelo', '').strip()
+            specs.modelo = self.cleaned_data.get('modelo', '').strip().upper()
             specs.procesador = self._normalizar_procesador(self.cleaned_data.get('procesador', ''))
             specs.generacion_procesador = self.cleaned_data.get('generacion_procesador', '')
             specs.ram_total_gb = self.cleaned_data.get('ram_total_gb')
