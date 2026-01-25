@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'productos:dashboard' %}">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'productos:catalogo-equipos' %}">Catálogos de Equipos</a></li>
+            <li class="breadcrumb-item active">{{ titulo }}</li>
+        </ol>
+    </nav>
+
+    <div class="page-header mb-4">
+        <h1>{{ titulo }}</h1>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+
+                        {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {{ form.non_field_errors }}
+                        </div>
+                        {% endif %}
+
+                        <div class="mb-3">
+                            <label class="form-label">Marca *</label>
+                            <select name="marca" class="form-select {% if form.marca.errors %}is-invalid{% endif %}" required>
+                                <option value="">Seleccione una marca</option>
+                                {% for marca in form.fields.marca.queryset %}
+                                <option value="{{ marca.pk }}" {% if form.marca.value|stringformat:"s" == marca.pk|stringformat:"s" %}selected{% endif %}>
+                                    {{ marca.nombre }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            {% if form.marca.errors %}
+                            <div class="invalid-feedback">{{ form.marca.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Nombre del Modelo *</label>
+                            <input type="text" name="nombre" class="form-control {% if form.nombre.errors %}is-invalid{% endif %}"
+                                   value="{{ form.nombre.value|default:'' }}" required
+                                   placeholder="Ej: ProBook 440 G9, Latitude 5520, ThinkPad T14">
+                            {% if form.nombre.errors %}
+                            <div class="invalid-feedback">{{ form.nombre.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="activo" id="activo"
+                                       {% if form.activo.value or not object %}checked{% endif %}>
+                                <label class="form-check-label" for="activo">
+                                    Modelo Activo
+                                </label>
+                                <small class="text-muted d-block">Los modelos inactivos no aparecen en los formularios</small>
+                            </div>
+                        </div>
+
+                        <hr class="my-4">
+
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'productos:catalogo-equipos' %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-times me-1"></i> Cancelar
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-1"></i> Guardar
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-info-circle me-2"></i>Información
+                </div>
+                <div class="card-body">
+                    <p class="small text-muted mb-2">
+                        Los modelos de equipo se asocian a una marca específica y aparecen en el formulario de items cuando se selecciona esa marca.
+                    </p>
+                    <p class="small text-muted mb-0">
+                        <strong>Ejemplos de modelos:</strong>
+                    </p>
+                    <ul class="small text-muted">
+                        <li><strong>HP:</strong> ProBook 440 G9, EliteBook 840, ProDesk 400</li>
+                        <li><strong>Dell:</strong> Latitude 5520, OptiPlex 7090, Precision 3560</li>
+                        <li><strong>Lenovo:</strong> ThinkPad T14, ThinkCentre M720, IdeaPad 5</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

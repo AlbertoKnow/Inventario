@@ -579,6 +579,9 @@
                             <li><a class="dropdown-item" href="{% url 'productos:campus-list' %}"><i class="fas fa-university me-2"></i>Campus</a></li>
                             <li><a class="dropdown-item" href="{% url 'productos:sede-list' %}"><i class="fas fa-building me-2"></i>Sedes</a></li>
                             <li><a class="dropdown-item" href="{% url 'productos:pabellon-list' %}"><i class="fas fa-th-large me-2"></i>Pabellones</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li class="dropdown-header">Catálogos Técnicos</li>
+                            <li><a class="dropdown-item" href="{% url 'productos:catalogo-equipos' %}"><i class="fas fa-laptop me-2"></i>Marcas y Procesadores</a></li>
                         </ul>
                     </li>
                     {% else %}

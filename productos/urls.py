@@ -124,6 +124,15 @@ urlpatterns = [
     path('software-estandar/crear/', views.SoftwareEstandarCreateView.as_view(), name='software-create'),
     path('software-estandar/<int:pk>/editar/', views.SoftwareEstandarUpdateView.as_view(), name='software-update'),
 
+    # Catálogos de Equipos (Marca, Modelo, Procesador)
+    path('catalogos-equipos/', views.CatalogoEquiposView.as_view(), name='catalogo-equipos'),
+    path('catalogos-equipos/marcas/crear/', views.MarcaEquipoCreateView.as_view(), name='marca-create'),
+    path('catalogos-equipos/marcas/<int:pk>/editar/', views.MarcaEquipoUpdateView.as_view(), name='marca-update'),
+    path('catalogos-equipos/modelos/crear/', views.ModeloEquipoCreateView.as_view(), name='modelo-create'),
+    path('catalogos-equipos/modelos/<int:pk>/editar/', views.ModeloEquipoUpdateView.as_view(), name='modelo-update'),
+    path('catalogos-equipos/procesadores/crear/', views.ProcesadorEquipoCreateView.as_view(), name='procesador-create'),
+    path('catalogos-equipos/procesadores/<int:pk>/editar/', views.ProcesadorEquipoUpdateView.as_view(), name='procesador-update'),
+
     # API endpoints (JSON)
     path('api/tipos-item/', views.TiposItemPorAreaView.as_view(), name='api-tipos-item'),
     path('api/supervisores/', views.SupervisoresPorAreaView.as_view(), name='api-supervisores'),
