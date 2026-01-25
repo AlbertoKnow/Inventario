@@ -48,9 +48,11 @@
             <a href="{% url 'productos:movimiento-create' %}?item={{ item.pk }}" class="btn btn-outline-primary">
                 <i class="fas fa-exchange-alt me-1"></i> Nuevo Movimiento
             </a>
+            {% if perfil.rol == 'admin' or perfil.rol == 'gerente' or perfil.rol == 'almacen' %}
             <a href="{% url 'productos:item-update' item.codigo_interno %}" class="btn btn-primary">
                 <i class="fas fa-edit me-1"></i> Editar
             </a>
+            {% endif %}
         </div>
     </div>
     
