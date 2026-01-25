@@ -4,8 +4,9 @@ from django.contrib.auth.models import User
 from django.utils.html import format_html
 from django.urls import reverse
 from .models import (
-    Area, Campus, Sede, Pabellon, Ambiente, TipoItem, PerfilUsuario, Item, 
-    EspecificacionesSistemas, Movimiento, HistorialCambio, Notificacion
+    Area, Campus, Sede, Pabellon, Ambiente, TipoItem, PerfilUsuario, Item,
+    EspecificacionesSistemas, Movimiento, HistorialCambio, Notificacion,
+    MarcaEquipo, ModeloEquipo, ProcesadorEquipo
 )
 
 
@@ -162,10 +163,49 @@ class TipoItemAdmin(admin.ModelAdmin):
     list_filter = ('area', 'activo')
     search_fields = ('nombre',)
     ordering = ('area', 'nombre')
-    
+
     def total_items(self, obj):
         return obj.items.count()
     total_items.short_description = 'Total'
+
+
+# ============================================================================
+# CATÁLOGOS DE EQUIPOS (Marca, Modelo, Procesador)
+# ============================================================================
+
+class ModeloEquipoInline(admin.TabularInline):
+    model = ModeloEquipo
+    extra = 1
+    fields = ('nombre', 'activo')
+
+
+@admin.register(MarcaEquipo)
+class MarcaEquipoAdmin(admin.ModelAdmin):
+    list_display = ('nombre', 'activo', 'total_modelos')
+    list_filter = ('activo',)
+    search_fields = ('nombre',)
+    ordering = ('nombre',)
+    inlines = [ModeloEquipoInline]
+
+    def total_modelos(self, obj):
+        return obj.modelos.count()
+    total_modelos.short_description = 'Modelos'
+
+
+@admin.register(ModeloEquipo)
+class ModeloEquipoAdmin(admin.ModelAdmin):
+    list_display = ('nombre', 'marca', 'activo')
+    list_filter = ('marca', 'activo')
+    search_fields = ('nombre', 'marca__nombre')
+    ordering = ('marca__nombre', 'nombre')
+
+
+@admin.register(ProcesadorEquipo)
+class ProcesadorEquipoAdmin(admin.ModelAdmin):
+    list_display = ('nombre', 'activo')
+    list_filter = ('activo',)
+    search_fields = ('nombre',)
+    ordering = ('nombre',)
 
 
 # ============================================================================
@@ -177,13 +217,13 @@ class EspecificacionesSistemasInline(admin.StackedInline):
     can_delete = False
     verbose_name = 'Especificaciones Técnicas (Sistemas)'
     verbose_name_plural = 'Especificaciones Técnicas (Sistemas)'
-    
+
     fieldsets = (
         ('Identificación', {
-            'fields': ('marca', 'modelo')
+            'fields': ('marca_equipo', 'modelo_equipo')
         }),
         ('Procesador', {
-            'fields': ('procesador', 'generacion_procesador')
+            'fields': ('procesador_equipo', 'generacion_procesador')
         }),
         ('Memoria RAM', {
             'fields': ('ram_total_gb', 'ram_configuracion', 'ram_tipo')
