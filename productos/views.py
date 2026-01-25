@@ -3457,6 +3457,20 @@ class EspecificacionesValoresView(LoginRequiredMixin, View):
         })
 
 
+class ModelosEquipoPorMarcaView(LoginRequiredMixin, View):
+    """API para obtener modelos de equipo filtrados por marca."""
+
+    def get(self, request):
+        from .models import ModeloEquipo
+        marca_id = request.GET.get('marca_id')
+        if marca_id:
+            modelos = ModeloEquipo.objects.filter(
+                marca_id=marca_id, activo=True
+            ).values('id', 'nombre').order_by('nombre')
+            return JsonResponse(list(modelos), safe=False)
+        return JsonResponse([], safe=False)
+
+
 class ActaListView(PerfilRequeridoMixin, CampusFilterMixin, ListView):
     """Lista de actas de entrega/devolución según permisos de campus."""
     model = ActaEntrega

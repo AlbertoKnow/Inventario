@@ -3,7 +3,8 @@ from django.contrib.auth.models import User
 from .models import (
     Area, Campus, Sede, Pabellon, Ambiente, TipoItem, Item,
     EspecificacionesSistemas, Movimiento, PerfilUsuario, Mantenimiento,
-    Gerencia, Colaborador, SoftwareEstandar, ActaEntrega, ActaItem, ActaFoto
+    Gerencia, Colaborador, SoftwareEstandar, ActaEntrega, ActaItem, ActaFoto,
+    MarcaEquipo, ModeloEquipo, ProcesadorEquipo
 )
 from .validators import validate_image
 
@@ -194,36 +195,24 @@ class ItemSistemasForm(ItemForm):
         ('Sin SO', 'Sin SO'),
     ]
 
-    # Campos con autocompletado (datalist) - Marca, Modelo, Procesador
-    marca = forms.CharField(
-        max_length=100,
+    # Campos con catálogos controlados - Marca, Modelo, Procesador
+    marca_equipo = forms.ModelChoiceField(
+        queryset=MarcaEquipo.objects.filter(activo=True),
         required=False,
-        widget=forms.TextInput(attrs={
-            'class': 'form-control',
-            'list': 'marcas-list',
-            'autocomplete': 'off',
-            'placeholder': 'Escriba o seleccione...'
-        })
+        empty_label="---------",
+        widget=forms.Select(attrs={'class': 'form-select', 'id': 'id_marca_equipo'})
     )
-    modelo = forms.CharField(
-        max_length=100,
+    modelo_equipo = forms.ModelChoiceField(
+        queryset=ModeloEquipo.objects.none(),  # Se carga dinámicamente según marca
         required=False,
-        widget=forms.TextInput(attrs={
-            'class': 'form-control',
-            'list': 'modelos-list',
-            'autocomplete': 'off',
-            'placeholder': 'Escriba o seleccione...'
-        })
+        empty_label="---------",
+        widget=forms.Select(attrs={'class': 'form-select', 'id': 'id_modelo_equipo'})
     )
-    procesador = forms.CharField(
-        max_length=200,
+    procesador_equipo = forms.ModelChoiceField(
+        queryset=ProcesadorEquipo.objects.filter(activo=True),
         required=False,
-        widget=forms.TextInput(attrs={
-            'class': 'form-control',
-            'list': 'procesadores-list',
-            'autocomplete': 'off',
-            'placeholder': 'Escriba o seleccione...'
-        })
+        empty_label="---------",
+        widget=forms.Select(attrs={'class': 'form-select'})
     )
 
     # Campos con dropdown fijo
@@ -274,9 +263,9 @@ class ItemSistemasForm(ItemForm):
         if self.instance and self.instance.pk:
             try:
                 specs = self.instance.especificaciones_sistemas
-                self.fields['marca'].initial = specs.marca
-                self.fields['modelo'].initial = specs.modelo
-                self.fields['procesador'].initial = specs.procesador
+                # Cargar valores de catálogo
+                self.fields['marca_equipo'].initial = specs.marca_equipo
+                self.fields['procesador_equipo'].initial = specs.procesador_equipo
                 self.fields['generacion_procesador'].initial = specs.generacion_procesador
                 self.fields['ram_total_gb'].initial = specs.ram_total_gb
                 self.fields['ram_configuracion'].initial = specs.ram_configuracion
@@ -284,57 +273,36 @@ class ItemSistemasForm(ItemForm):
                 self.fields['almacenamiento_gb'].initial = specs.almacenamiento_gb
                 self.fields['almacenamiento_tipo'].initial = specs.almacenamiento_tipo
                 self.fields['sistema_operativo'].initial = specs.sistema_operativo
+
+                # Cargar modelos de la marca seleccionada
+                if specs.marca_equipo:
+                    self.fields['modelo_equipo'].queryset = ModeloEquipo.objects.filter(
+                        marca=specs.marca_equipo, activo=True
+                    )
+                    self.fields['modelo_equipo'].initial = specs.modelo_equipo
             except EspecificacionesSistemas.DoesNotExist:
                 pass
 
-    def _normalizar_marca(self, valor):
-        """Normaliza marca: HP, Dell, Lenovo, etc."""
-        if not valor:
-            return ''
-        valor = valor.strip()
-        # Marcas conocidas con formato correcto
-        marcas_conocidas = {
-            'hp': 'HP',
-            'dell': 'Dell',
-            'lenovo': 'Lenovo',
-            'asus': 'ASUS',
-            'acer': 'Acer',
-            'apple': 'Apple',
-            'msi': 'MSI',
-            'toshiba': 'Toshiba',
-            'samsung': 'Samsung',
-            'lg': 'LG',
-            'sony': 'Sony',
-            'microsoft': 'Microsoft',
-            'huawei': 'Huawei',
-        }
-        valor_lower = valor.lower()
-        return marcas_conocidas.get(valor_lower, valor.title())
-
-    def _normalizar_procesador(self, valor):
-        """Normaliza procesador: Intel Core i7-1165G7, AMD Ryzen 5, etc."""
-        if not valor:
-            return ''
-        valor = valor.strip()
-        # Normalizar prefijos comunes
-        valor = valor.replace('intel', 'Intel').replace('INTEL', 'Intel')
-        valor = valor.replace('amd', 'AMD').replace('Amd', 'AMD')
-        valor = valor.replace('core', 'Core').replace('CORE', 'Core')
-        valor = valor.replace('ryzen', 'Ryzen').replace('RYZEN', 'Ryzen')
-        valor = valor.replace('celeron', 'Celeron').replace('CELERON', 'Celeron')
-        valor = valor.replace('pentium', 'Pentium').replace('PENTIUM', 'Pentium')
-        return valor
+        # Si hay datos POST, cargar modelos de la marca seleccionada
+        if 'marca_equipo' in self.data:
+            try:
+                marca_id = int(self.data.get('marca_equipo'))
+                self.fields['modelo_equipo'].queryset = ModeloEquipo.objects.filter(
+                    marca_id=marca_id, activo=True
+                )
+            except (ValueError, TypeError):
+                pass
 
     def save(self, commit=True):
         item = super().save(commit=commit)
 
         if commit and item.area.codigo == 'sistemas':
             # Crear o actualizar especificaciones
-            specs, created = EspecificacionesSistemas.objects.get_or_create(item=item)
-            # Normalizar marca, modelo y procesador para consistencia
-            specs.marca = self._normalizar_marca(self.cleaned_data.get('marca', ''))
-            specs.modelo = self.cleaned_data.get('modelo', '').strip().upper()
-            specs.procesador = self._normalizar_procesador(self.cleaned_data.get('procesador', ''))
+            specs, _ = EspecificacionesSistemas.objects.get_or_create(item=item)
+            # Guardar referencias a catálogos
+            specs.marca_equipo = self.cleaned_data.get('marca_equipo')
+            specs.modelo_equipo = self.cleaned_data.get('modelo_equipo')
+            specs.procesador_equipo = self.cleaned_data.get('procesador_equipo')
             specs.generacion_procesador = self.cleaned_data.get('generacion_procesador', '')
             specs.ram_total_gb = self.cleaned_data.get('ram_total_gb')
             specs.ram_configuracion = self.cleaned_data.get('ram_configuracion', '')

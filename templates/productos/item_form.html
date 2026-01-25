@@ -186,18 +186,16 @@
                         <div class="row g-3">
                             <div class="col-md-6">
                                 <label class="form-label">Marca</label>
-                                {{ form.marca }}
-                                <small class="text-muted">Escriba para ver sugerencias</small>
+                                {{ form.marca_equipo }}
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Modelo</label>
-                                {{ form.modelo }}
-                                <small class="text-muted">Sugerencias basadas en marca</small>
+                                {{ form.modelo_equipo }}
+                                <small class="text-muted">Seleccione marca primero</small>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Procesador</label>
-                                {{ form.procesador }}
-                                <small class="text-muted">Escriba para ver sugerencias</small>
+                                {{ form.procesador_equipo }}
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Generación</label>
@@ -230,15 +228,10 @@
                         </div>
                         <small class="text-muted mt-2 d-block">
                             <i class="fas fa-info-circle me-1"></i>
-                            Estos campos son opcionales. Los valores con autocompletado sugieren opciones basadas en registros anteriores.
+                            Estos campos son opcionales. Si necesita agregar una marca/modelo/procesador nuevo, contacte al administrador.
                         </small>
                     </div>
                 </div>
-
-                <!-- Datalists para autocompletado -->
-                <datalist id="marcas-list"></datalist>
-                <datalist id="modelos-list"></datalist>
-                <datalist id="procesadores-list"></datalist>
 
             </div>
             
@@ -451,106 +444,28 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // ========================================
-    // Autocompletado para especificaciones
+    // Cargar modelos según marca seleccionada
     // ========================================
-    const marcaInput = document.getElementById('id_marca');
-    const modeloInput = document.getElementById('id_modelo');
-    const procesadorInput = document.getElementById('id_procesador');
+    const marcaSelect = document.getElementById('id_marca_equipo');
+    const modeloSelect = document.getElementById('id_modelo_equipo');
 
-    const marcasList = document.getElementById('marcas-list');
-    const modelosList = document.getElementById('modelos-list');
-    const procesadoresList = document.getElementById('procesadores-list');
+    if (marcaSelect && modeloSelect) {
+        marcaSelect.addEventListener('change', function() {
+            const marcaId = this.value;
+            modeloSelect.innerHTML = '<option value="">---------</option>';
 
-    // Cargar opciones de autocompletado desde el API
-    function cargarOpcionesAutocompletado() {
-        fetch('/productos/api/especificaciones-valores/')
-            .then(response => response.json())
-            .then(data => {
-                // Poblar datalist de marcas
-                if (marcasList && data.marcas) {
-                    marcasList.innerHTML = '';
-                    data.marcas.forEach(marca => {
-                        const option = document.createElement('option');
-                        option.value = marca;
-                        marcasList.appendChild(option);
-                    });
-                }
-
-                // Poblar datalist de modelos
-                if (modelosList && data.modelos) {
-                    modelosList.innerHTML = '';
-                    data.modelos.forEach(modelo => {
-                        const option = document.createElement('option');
-                        option.value = modelo;
-                        modelosList.appendChild(option);
-                    });
-                }
-
-                // Poblar datalist de procesadores
-                if (procesadoresList && data.procesadores) {
-                    procesadoresList.innerHTML = '';
-                    data.procesadores.forEach(proc => {
-                        const option = document.createElement('option');
-                        option.value = proc;
-                        procesadoresList.appendChild(option);
-                    });
-                }
-            })
-            .catch(error => console.error('Error cargando opciones de autocompletado:', error));
-    }
-
-    // Actualizar modelos cuando cambie la marca
-    function actualizarModelosPorMarca(marca) {
-        if (!marca || !modelosList) return;
-
-        fetch(`/productos/api/especificaciones-valores/?marca=${encodeURIComponent(marca)}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.modelos) {
-                    modelosList.innerHTML = '';
-                    data.modelos.forEach(modelo => {
-                        const option = document.createElement('option');
-                        option.value = modelo;
-                        modelosList.appendChild(option);
-                    });
-                }
-            })
-            .catch(error => console.error('Error actualizando modelos:', error));
-    }
-
-    // Evento cuando cambia la marca
-    if (marcaInput) {
-        marcaInput.addEventListener('change', function() {
-            actualizarModelosPorMarca(this.value);
-        });
-
-        // También actualizar al escribir (con debounce)
-        let marcaTimeout;
-        marcaInput.addEventListener('input', function() {
-            clearTimeout(marcaTimeout);
-            marcaTimeout = setTimeout(() => {
-                if (this.value.length >= 2) {
-                    actualizarModelosPorMarca(this.value);
-                }
-            }, 300);
-        });
-    }
-
-    // Cargar opciones al inicio si el área es Sistemas
-    const selectedAreaText = areaSelect ?
-        (areaSelect.options[areaSelect.selectedIndex] ? areaSelect.options[areaSelect.selectedIndex].text.toLowerCase() : '')
-        : '';
-
-    if (selectedAreaText.includes('sistema')) {
-        cargarOpcionesAutocompletado();
-    }
-
-    // También cargar cuando se selecciona Sistemas
-    if (areaSelect) {
-        areaSelect.addEventListener('change', function() {
-            const areaText = this.options[this.selectedIndex] ? this.options[this.selectedIndex].text.toLowerCase() : '';
-            if (areaText.includes('sistema')) {
-                cargarOpcionesAutocompletado();
+            if (marcaId) {
+                fetch(`/productos/api/modelos-equipo/?marca_id=${marcaId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        data.forEach(modelo => {
+                            const option = document.createElement('option');
+                            option.value = modelo.id;
+                            option.textContent = modelo.nombre;
+                            modeloSelect.appendChild(option);
+                        });
+                    })
+                    .catch(error => console.error('Error cargando modelos:', error));
             }
         });
     }
