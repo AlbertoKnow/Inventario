@@ -134,4 +134,5 @@ urlpatterns = [
     path('api/item-detalle/', views.ObtenerItemDetalleView.as_view(), name='api-item-detalle'),
     path('api/colaboradores-buscar/', views.BuscarColaboradorView.as_view(), name='api-colaboradores-buscar'),
     path('api/especificaciones-valores/', views.EspecificacionesValoresView.as_view(), name='api-especificaciones-valores'),
+    path('api/modelos-equipo/', views.ModelosEquipoPorMarcaView.as_view(), name='api-modelos-equipo'),
 ]

@@ -773,6 +773,54 @@ class Item(models.Model):
 
 
 # ============================================================================
+# CATÁLOGOS PARA ESPECIFICACIONES TÉCNICAS
+# ============================================================================
+
+class MarcaEquipo(models.Model):
+    """Catálogo de marcas de equipos."""
+    nombre = models.CharField(max_length=100, unique=True)
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = "Marca de Equipo"
+        verbose_name_plural = "Marcas de Equipos"
+        ordering = ['nombre']
+
+    def __str__(self):
+        return self.nombre
+
+
+class ModeloEquipo(models.Model):
+    """Catálogo de modelos de equipos (relacionado con marca)."""
+    marca = models.ForeignKey(MarcaEquipo, on_delete=models.CASCADE, related_name='modelos')
+    nombre = models.CharField(max_length=100)
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = "Modelo de Equipo"
+        verbose_name_plural = "Modelos de Equipos"
+        ordering = ['marca__nombre', 'nombre']
+        unique_together = ['marca', 'nombre']
+
+    def __str__(self):
+        return f"{self.marca.nombre} {self.nombre}"
+
+
+class ProcesadorEquipo(models.Model):
+    """Catálogo de procesadores."""
+    nombre = models.CharField(max_length=200, unique=True)
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = "Procesador"
+        verbose_name_plural = "Procesadores"
+        ordering = ['nombre']
+
+    def __str__(self):
+        return self.nombre
+
+
+# ============================================================================
 # ESPECIFICACIONES TÉCNICAS (Solo para Sistemas)
 # ============================================================================
 
@@ -798,13 +846,27 @@ class EspecificacionesSistemas(models.Model):
         related_name='especificaciones_sistemas'
     )
     
-    # Identificación
+    # Identificación (usando catálogos)
+    marca_equipo = models.ForeignKey(
+        MarcaEquipo, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='especificaciones', verbose_name="Marca"
+    )
+    modelo_equipo = models.ForeignKey(
+        ModeloEquipo, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='especificaciones', verbose_name="Modelo"
+    )
+
+    # Procesador (usando catálogo)
+    procesador_equipo = models.ForeignKey(
+        ProcesadorEquipo, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='especificaciones', verbose_name="Procesador"
+    )
+    generacion_procesador = models.CharField(max_length=50, blank=True, help_text="Ej: 13va Generación")
+
+    # Campos legacy (se eliminarán después de migrar datos)
     marca = models.CharField(max_length=100, blank=True)
     modelo = models.CharField(max_length=100, blank=True)
-    
-    # Procesador
-    procesador = models.CharField(max_length=200, blank=True, help_text="Ej: Intel Core i7-1365U")
-    generacion_procesador = models.CharField(max_length=50, blank=True, help_text="Ej: 13va Generación")
+    procesador = models.CharField(max_length=200, blank=True, help_text="Legacy - usar procesador_equipo")
     
     # RAM
     ram_total_gb = models.IntegerField(null=True, blank=True, help_text="Total en GB")
