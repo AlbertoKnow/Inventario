@@ -289,3 +289,311 @@ def format_date(date):
 def format_boolean(value):
     """Formatea booleano"""
     return "Sí" if value else "No"
+
+
+def generar_formato_traslado(items_data, origen_data, destino_data, fecha=None):
+    """
+    Genera el formato de traslado en Excel.
+
+    Args:
+        items_data: Lista de diccionarios con {codigo_utp, descripcion, marca, modelo}
+        origen_data: Dict con {sede, piso, ubicacion, usuario}
+        destino_data: Dict con {sede, piso, ubicacion, usuario}
+        fecha: Fecha del traslado (opcional, usa hoy si no se especifica)
+
+    Returns:
+        BytesIO con el archivo Excel
+    """
+    from openpyxl.styles import Border, Side, Alignment, Font, PatternFill
+    from openpyxl.utils import get_column_letter
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Formato Traslado"
+
+    # Configurar anchos de columna
+    ws.column_dimensions['A'].width = 3
+    ws.column_dimensions['B'].width = 3
+    ws.column_dimensions['C'].width = 5
+    ws.column_dimensions['D'].width = 3
+    ws.column_dimensions['E'].width = 15
+    for col in range(6, 12):
+        ws.column_dimensions[get_column_letter(col)].width = 5
+    ws.column_dimensions['L'].width = 20
+    for col in range(13, 22):
+        ws.column_dimensions[get_column_letter(col)].width = 4
+    ws.column_dimensions['V'].width = 12
+    for col in range(23, 29):
+        ws.column_dimensions[get_column_letter(col)].width = 4
+    ws.column_dimensions['AC'].width = 15
+    for col in range(30, 50):
+        ws.column_dimensions[get_column_letter(col)].width = 4
+
+    # Estilos
+    titulo_font = Font(size=14, bold=True)
+    header_font = Font(size=10, bold=True)
+    normal_font = Font(size=9)
+    small_font = Font(size=8)
+
+    thin_border = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+
+    header_fill = PatternFill(start_color='D9D9D9', end_color='D9D9D9', fill_type='solid')
+
+    # === ENCABEZADO ===
+    ws.merge_cells('A1:AO1')
+    ws['A1'] = 'FORMATO DE CONTROL DE ACTIVOS'
+    ws['A1'].font = titulo_font
+    ws['A1'].alignment = Alignment(horizontal='center')
+
+    ws.merge_cells('A2:AO2')
+    ws['A2'] = 'USUARIO - PERSONA QUE SOLICITA'
+    ws['A2'].alignment = Alignment(horizontal='center')
+
+    # Fecha
+    ws.merge_cells('C3:E3')
+    ws['C3'] = 'FECHA :'
+    ws['C3'].font = header_font
+    ws.merge_cells('F3:K3')
+    if fecha:
+        ws['F3'] = fecha.strftime('%d/%m/%Y') if hasattr(fecha, 'strftime') else str(fecha)
+    else:
+        ws['F3'] = datetime.now().strftime('%d/%m/%Y')
+
+    # Campos para llenar manualmente (columna derecha)
+    ws.merge_cells('AI3:AO3')
+    ws['AI3'] = 'Para ser completado por el responsable'
+    ws['AI3'].font = small_font
+
+    # Campos del encabezado izquierdo
+    campos_izq = [
+        (5, 'NÚMERO DE TRANSFERENCIA:'),
+        (6, 'ADM. LOGÍSTICO DE LA SEDE :'),
+        (7, 'RESPONSABLE DE TRASLADO:'),
+        (8, 'SOLICITANTE DE TRASLADO:'),
+        (9, 'ÁREA SOLICITANTE DE TRASLADO:'),
+    ]
+
+    for row, texto in campos_izq:
+        ws.merge_cells(f'C{row}:M{row}')
+        ws[f'C{row}'] = texto
+        ws[f'C{row}'].font = header_font
+        # Campo para llenar
+        ws.merge_cells(f'N{row}:Z{row}')
+        for col in range(14, 27):
+            ws.cell(row=row, column=col).border = Border(bottom=Side(style='thin'))
+
+    # Opciones de tipo (columna derecha)
+    tipos = [
+        (5, 'ALTA'),
+        (6, 'BAJA'),
+        (7, 'TRANSFERENCIA'),
+        (8, 'OTROS MOTIVOS'),
+    ]
+
+    for row, texto in tipos:
+        ws.merge_cells(f'AI{row}:AO{row}')
+        ws[f'AI{row}'] = f'(    ) {texto}'
+        ws[f'AI{row}'].font = normal_font
+
+    # Breve explicación
+    ws.merge_cells('C11:W11')
+    ws['C11'] = 'BREVE EXPLICACIÓN (según sea el motivo):'
+    ws['C11'].font = header_font
+
+    # Definitivo / Retorno
+    ws['X11'] = '( X ) DEFINITIVO'
+    ws['X11'].font = normal_font
+    ws.merge_cells('AG11:AL11')
+    ws['AG11'] = '(    ) RETORNO'
+    ws['AG11'].font = normal_font
+    ws.merge_cells('AM11:AO11')
+    ws['AM11'] = 'FECHA DE RETORNO:'
+    ws['AM11'].font = small_font
+
+    # Título de la sección
+    ws.merge_cells('C12:Z12')
+    ws['C12'] = 'TRASLADO DE ACTIVOS'
+    ws['C12'].font = header_font
+
+    # === TABLA DE ITEMS ===
+    # Encabezados de la tabla
+    ws.merge_cells('C16:D16')
+    ws['C16'] = 'ITEM'
+    ws['C16'].font = header_font
+    ws['C16'].fill = header_fill
+    ws['C16'].alignment = Alignment(horizontal='center')
+    ws['C16'].border = thin_border
+    ws['D16'].border = thin_border
+
+    ws.merge_cells('E16:K16')
+    ws['E16'] = 'CÓDIGO DE BARRA'
+    ws['E16'].font = header_font
+    ws['E16'].fill = header_fill
+    ws['E16'].alignment = Alignment(horizontal='center')
+    for col in range(5, 12):
+        ws.cell(row=16, column=col).border = thin_border
+
+    ws.merge_cells('L16:U16')
+    ws['L16'] = 'DESCRIPCIÓN GENERAL'
+    ws['L16'].font = header_font
+    ws['L16'].fill = header_fill
+    ws['L16'].alignment = Alignment(horizontal='center')
+    for col in range(12, 22):
+        ws.cell(row=16, column=col).border = thin_border
+
+    ws.merge_cells('V16:AB16')
+    ws['V16'] = 'MARCA'
+    ws['V16'].font = header_font
+    ws['V16'].fill = header_fill
+    ws['V16'].alignment = Alignment(horizontal='center')
+    for col in range(22, 29):
+        ws.cell(row=16, column=col).border = thin_border
+
+    ws.merge_cells('AC16:AO16')
+    ws['AC16'] = 'MODELO'
+    ws['AC16'].font = header_font
+    ws['AC16'].fill = header_fill
+    ws['AC16'].alignment = Alignment(horizontal='center')
+    for col in range(29, 42):
+        ws.cell(row=16, column=col).border = thin_border
+
+    # Filas de items (hasta 20)
+    for i in range(20):
+        row = 17 + i
+        item_num = i + 1
+
+        # Número de item
+        ws.merge_cells(f'C{row}:D{row}')
+        ws[f'C{row}'] = item_num
+        ws[f'C{row}'].alignment = Alignment(horizontal='center')
+        ws[f'C{row}'].border = thin_border
+        ws[f'D{row}'].border = thin_border
+
+        # Datos del item si existe
+        if i < len(items_data):
+            item = items_data[i]
+
+            ws.merge_cells(f'E{row}:K{row}')
+            ws[f'E{row}'] = item.get('codigo_utp', '')
+            ws[f'E{row}'].font = normal_font
+
+            ws.merge_cells(f'L{row}:U{row}')
+            ws[f'L{row}'] = item.get('descripcion', '')
+            ws[f'L{row}'].font = normal_font
+
+            ws.merge_cells(f'V{row}:AB{row}')
+            ws[f'V{row}'] = item.get('marca', '')
+            ws[f'V{row}'].font = normal_font
+
+            ws.merge_cells(f'AC{row}:AO{row}')
+            ws[f'AC{row}'] = item.get('modelo', '')
+            ws[f'AC{row}'].font = normal_font
+        else:
+            ws.merge_cells(f'E{row}:K{row}')
+            ws.merge_cells(f'L{row}:U{row}')
+            ws.merge_cells(f'V{row}:AB{row}')
+            ws.merge_cells(f'AC{row}:AO{row}')
+
+        # Bordes para todas las celdas
+        for col in range(5, 42):
+            ws.cell(row=row, column=col).border = thin_border
+
+    # === SECCIÓN ORIGEN Y DESTINO ===
+    row_base = 40
+
+    # Títulos
+    ws.merge_cells(f'B{row_base}:L{row_base}')
+    ws[f'B{row_base}'] = 'DATOS DE ORIGEN'
+    ws[f'B{row_base}'].font = header_font
+    ws[f'B{row_base}'].fill = header_fill
+
+    ws.merge_cells(f'AB{row_base}:AO{row_base}')
+    ws[f'AB{row_base}'] = 'DATOS DE DESTINO'
+    ws[f'AB{row_base}'].font = header_font
+    ws[f'AB{row_base}'].fill = header_fill
+
+    # Campos de origen
+    campos_origen = [
+        (row_base + 2, 'SEDE DE ORIGEN:', origen_data.get('sede', '')),
+        (row_base + 3, 'PISO DE ORIGEN:', origen_data.get('piso', '')),
+        (row_base + 4, 'UBICACIÓN DE ORIGEN:', origen_data.get('ubicacion', '')),
+        (row_base + 5, 'USUARIO DE ORIGEN:', origen_data.get('usuario', '')),
+    ]
+
+    for row, label, value in campos_origen:
+        ws.merge_cells(f'D{row}:L{row}')
+        ws[f'D{row}'] = label
+        ws[f'D{row}'].font = header_font
+        ws.merge_cells(f'M{row}:Z{row}')
+        ws[f'M{row}'] = value
+        ws[f'M{row}'].font = normal_font
+        ws[f'M{row}'].border = Border(bottom=Side(style='thin'))
+
+    # Campos de destino
+    campos_destino = [
+        (row_base + 2, 'SEDE DE DESTINO:', destino_data.get('sede', '')),
+        (row_base + 3, 'PISO DE DESTINO:', destino_data.get('piso', '')),
+        (row_base + 4, 'UBICACIÓN DE DESTINO:', destino_data.get('ubicacion', '')),
+        (row_base + 5, 'USUARIO DE DESTINO:', destino_data.get('usuario', '')),
+    ]
+
+    for row, label, value in campos_destino:
+        ws.merge_cells(f'AD{row}:AK{row}')
+        ws[f'AD{row}'] = label
+        ws[f'AD{row}'].font = header_font
+        ws.merge_cells(f'AL{row}:AO{row}')
+        ws[f'AL{row}'] = value
+        ws[f'AL{row}'].font = normal_font
+        ws[f'AL{row}'].border = Border(bottom=Side(style='thin'))
+
+    # === SECCIÓN DE FIRMAS ===
+    row_firmas = row_base + 7
+
+    ws.merge_cells(f'B{row_firmas}:L{row_firmas}')
+    ws[f'B{row_firmas}'] = 'ORIGEN'
+    ws[f'B{row_firmas}'].font = header_font
+    ws[f'B{row_firmas}'].alignment = Alignment(horizontal='center')
+
+    ws.merge_cells(f'AG{row_firmas}:AO{row_firmas}')
+    ws[f'AG{row_firmas}'] = 'DESTINO'
+    ws[f'AG{row_firmas}'].font = header_font
+    ws[f'AG{row_firmas}'].alignment = Alignment(horizontal='center')
+
+    # Líneas de firma
+    row_lineas = row_firmas + 5
+
+    firmas = [
+        ('C', 'I', 'USUARIO'),
+        ('K', 'R', 'JEFE DE ÁREA'),
+        ('S', 'Y', 'SEGURIDAD'),
+        ('Z', 'AF', 'RESPONSABLE DEL TRASLADO'),
+        ('AH', 'AO', 'USUARIO'),
+    ]
+
+    for col_start, col_end, texto in firmas:
+        ws.merge_cells(f'{col_start}{row_lineas}:{col_end}{row_lineas}')
+        ws[f'{col_start}{row_lineas}'] = texto
+        ws[f'{col_start}{row_lineas}'].font = small_font
+        ws[f'{col_start}{row_lineas}'].alignment = Alignment(horizontal='center')
+        # Línea para firma arriba
+        ws.merge_cells(f'{col_start}{row_lineas-1}:{col_end}{row_lineas-1}')
+        ws[f'{col_start}{row_lineas-1}'].border = Border(bottom=Side(style='thin'))
+
+    # Configurar área de impresión
+    ws.print_area = 'A1:AO55'
+    ws.page_setup.orientation = 'landscape'
+    ws.page_setup.fitToPage = True
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = 1
+
+    # Guardar en BytesIO
+    buffer = BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+
+    return buffer

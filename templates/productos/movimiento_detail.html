@@ -231,6 +231,25 @@
                 </div>
             </div>
             {% endif %}
+
+            <!-- Formato de Traslado (para movimientos entre sedes/campus) -->
+            {% if movimiento.ambiente_origen and movimiento.ambiente_destino %}
+            {% if movimiento.ambiente_origen.pabellon.sede != movimiento.ambiente_destino.pabellon.sede %}
+            <div class="card mb-4 border-success">
+                <div class="card-header bg-success text-white">
+                    <i class="fas fa-file-excel me-2"></i>Formato de Traslado
+                </div>
+                <div class="card-body">
+                    <p class="small text-muted mb-3">
+                        Este movimiento es entre diferentes sedes. Puede generar el formato de traslado para imprimirlo.
+                    </p>
+                    <a href="{% url 'productos:movimiento-formato-traslado' movimiento.pk %}" class="btn btn-success w-100">
+                        <i class="fas fa-download me-1"></i> Descargar Excel
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+            {% endif %}
             
             <!-- Información -->
             <div class="card mb-4">
