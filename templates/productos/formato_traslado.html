@@ -290,7 +290,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const ambiente = document.getElementById(`ambiente_${tipo}`);
 
         campus.addEventListener('change', function() {
-            sede.innerHTML = '<option value="">Seleccione sede...</option>';
+            let html = '<option value="">Seleccione sede...</option>';
+            sede.innerHTML = html;
             pabellon.innerHTML = '<option value="">Seleccione pabellón...</option>';
             ambiente.innerHTML = '<option value="">Seleccione ambiente...</option>';
             sede.disabled = true;
@@ -301,9 +302,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 fetch(`/productos/api/sedes/?campus_id=${this.value}`)
                     .then(r => r.json())
                     .then(data => {
+                        let options = '<option value="">Seleccione sede...</option>';
                         data.forEach(s => {
-                            sede.innerHTML += `<option value="${s.id}">${s.nombre}</option>`;
+                            options += `<option value="${s.id}">${s.nombre}</option>`;
                         });
+                        sede.innerHTML = options;
                         sede.disabled = false;
                     });
             }
@@ -319,9 +322,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 fetch(`/productos/api/pabellones/?sede_id=${this.value}`)
                     .then(r => r.json())
                     .then(data => {
+                        let options = '<option value="">Seleccione pabellón...</option>';
                         data.forEach(p => {
-                            pabellon.innerHTML += `<option value="${p.id}">${p.nombre}</option>`;
+                            options += `<option value="${p.id}">${p.nombre}</option>`;
                         });
+                        pabellon.innerHTML = options;
                         pabellon.disabled = false;
                     });
             }
@@ -335,9 +340,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 fetch(`/productos/api/ambientes/?pabellon_id=${this.value}`)
                     .then(r => r.json())
                     .then(data => {
+                        let options = '<option value="">Seleccione ambiente...</option>';
                         data.forEach(a => {
-                            ambiente.innerHTML += `<option value="${a.id}">${a.nombre}</option>`;
+                            options += `<option value="${a.id}">${a.nombre}</option>`;
                         });
+                        ambiente.innerHTML = options;
                         ambiente.disabled = false;
                     });
             }

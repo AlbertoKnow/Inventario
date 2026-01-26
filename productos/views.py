@@ -1097,6 +1097,7 @@ class BuscarItemsView(RateLimitMixin, LoginRequiredMixin, View):
         # Búsqueda por texto
         if query:
             items = items.filter(
+                Q(codigo_interno__icontains=query) |
                 Q(codigo_utp__icontains=query) |
                 Q(serie__icontains=query) |
                 Q(nombre__icontains=query)
@@ -1127,8 +1128,22 @@ class BuscarItemsView(RateLimitMixin, LoginRequiredMixin, View):
                 amb = item.ambiente
                 ubicacion = f"{amb.pabellon.sede.campus.codigo} > {amb.pabellon.sede.nombre} > Pab. {amb.pabellon.nombre} > {amb.nombre}"
             
+            # Obtener marca y modelo si tiene especificaciones
+            marca = ''
+            modelo = ''
+            if hasattr(item, 'especificaciones_sistemas'):
+                try:
+                    specs = item.especificaciones_sistemas
+                    if specs.marca_equipo:
+                        marca = specs.marca_equipo.nombre
+                    if specs.modelo_equipo:
+                        modelo = specs.modelo_equipo.nombre
+                except:
+                    pass
+
             resultados.append({
                 'id': item.id,
+                'codigo_interno': item.codigo_interno,
                 'codigo_utp': item.codigo_utp,
                 'serie': item.serie,
                 'nombre': item.nombre,
@@ -1139,7 +1154,9 @@ class BuscarItemsView(RateLimitMixin, LoginRequiredMixin, View):
                 'ubicacion': ubicacion,
                 'ambiente_id': item.ambiente_id,
                 'usuario_asignado': item.usuario_asignado.get_full_name() if item.usuario_asignado else None,
-                'texto': f"{item.codigo_utp} - {item.nombre}"
+                'marca': marca,
+                'modelo': modelo,
+                'texto': f"{item.codigo_utp or item.codigo_interno} - {item.nombre}"
             })
         
         return JsonResponse({'items': resultados})
