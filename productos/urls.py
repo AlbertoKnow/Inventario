@@ -124,6 +124,11 @@ urlpatterns = [
     path('software-estandar/crear/', views.SoftwareEstandarCreateView.as_view(), name='software-create'),
     path('software-estandar/<int:pk>/editar/', views.SoftwareEstandarUpdateView.as_view(), name='software-update'),
 
+    # Formato de Traslado
+    path('formato-traslado/', views.FormatoTrasladoManualView.as_view(), name='formato-traslado'),
+    path('formato-traslado/generar/', views.FormatoTrasladoGenerarView.as_view(), name='formato-traslado-generar'),
+    path('movimientos/<int:pk>/formato-traslado/', views.FormatoTrasladoMovimientoView.as_view(), name='movimiento-formato-traslado'),
+
     # Catálogos de Equipos (Marca, Modelo, Procesador)
     path('catalogos-equipos/', views.CatalogoEquiposView.as_view(), name='catalogo-equipos'),
     path('catalogos-equipos/marcas/crear/', views.MarcaEquipoCreateView.as_view(), name='marca-create'),

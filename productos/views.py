@@ -3984,3 +3984,175 @@ class ProcesadorEquipoUpdateView(SupervisorRequeridoMixin, UpdateView):
     def form_valid(self, form):
         messages.success(self.request, 'Procesador actualizado correctamente.')
         return super().form_valid(form)
+
+
+# ============================================================================
+# FORMATO DE TRASLADO
+# ============================================================================
+
+class FormatoTrasladoMovimientoView(PerfilRequeridoMixin, View):
+    """Genera formato de traslado Excel desde un movimiento existente."""
+
+    def get(self, request, pk):
+        from .utils.export_utils import generar_formato_traslado
+
+        movimiento = get_object_or_404(Movimiento, pk=pk)
+
+        # Preparar datos del item
+        item = movimiento.item
+        items_data = [{
+            'codigo_utp': item.codigo_utp or item.codigo_interno,
+            'descripcion': item.nombre or item.tipo_item.nombre if item.tipo_item else '',
+            'marca': '',
+            'modelo': '',
+        }]
+
+        # Si tiene especificaciones de sistemas, obtener marca y modelo
+        if hasattr(item, 'especificaciones_sistemas'):
+            specs = item.especificaciones_sistemas
+            if specs.marca_equipo:
+                items_data[0]['marca'] = specs.marca_equipo.nombre
+            if specs.modelo_equipo:
+                items_data[0]['modelo'] = specs.modelo_equipo.nombre
+
+        # Preparar datos de origen
+        origen_data = {
+            'sede': '',
+            'piso': '',
+            'ubicacion': '',
+            'usuario': '',
+        }
+        if movimiento.ambiente_origen:
+            amb = movimiento.ambiente_origen
+            origen_data['sede'] = f"{amb.pabellon.sede.campus.nombre} - {amb.pabellon.sede.nombre}" if amb.pabellon and amb.pabellon.sede else ''
+            origen_data['piso'] = amb.pabellon.nombre if amb.pabellon else ''
+            origen_data['ubicacion'] = amb.nombre
+            if item.colaborador_asignado:
+                origen_data['usuario'] = item.colaborador_asignado.nombre_completo
+            elif item.usuario_asignado:
+                origen_data['usuario'] = item.usuario_asignado.get_full_name()
+
+        # Preparar datos de destino
+        destino_data = {
+            'sede': '',
+            'piso': '',
+            'ubicacion': '',
+            'usuario': '',
+        }
+        if movimiento.ambiente_destino:
+            amb = movimiento.ambiente_destino
+            destino_data['sede'] = f"{amb.pabellon.sede.campus.nombre} - {amb.pabellon.sede.nombre}" if amb.pabellon and amb.pabellon.sede else ''
+            destino_data['piso'] = amb.pabellon.nombre if amb.pabellon else ''
+            destino_data['ubicacion'] = amb.nombre
+            if movimiento.colaborador_destino:
+                destino_data['usuario'] = movimiento.colaborador_destino.nombre_completo
+            elif movimiento.usuario_destino:
+                destino_data['usuario'] = movimiento.usuario_destino.get_full_name()
+
+        # Generar Excel
+        buffer = generar_formato_traslado(
+            items_data=items_data,
+            origen_data=origen_data,
+            destino_data=destino_data,
+            fecha=movimiento.fecha_creacion
+        )
+
+        # Preparar respuesta
+        fecha_str = timezone.now().strftime('%Y%m%d')
+        filename = f"formato_traslado_{item.codigo_interno}_{fecha_str}.xlsx"
+
+        response = HttpResponse(
+            buffer.read(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+
+
+class FormatoTrasladoManualView(PerfilRequeridoMixin, TemplateView):
+    """Vista para crear formato de traslado manualmente."""
+    template_name = 'productos/formato_traslado.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['campus_list'] = Campus.objects.filter(activo=True)
+        return context
+
+
+class FormatoTrasladoGenerarView(PerfilRequeridoMixin, View):
+    """Genera formato de traslado Excel desde selección manual."""
+
+    def post(self, request):
+        from .utils.export_utils import generar_formato_traslado
+
+        # Obtener items seleccionados
+        item_ids = request.POST.getlist('items')
+        items = Item.objects.filter(pk__in=item_ids).select_related(
+            'tipo_item', 'ambiente', 'colaborador_asignado', 'usuario_asignado'
+        )
+
+        items_data = []
+        for item in items:
+            item_dict = {
+                'codigo_utp': item.codigo_utp or item.codigo_interno,
+                'descripcion': item.nombre or (item.tipo_item.nombre if item.tipo_item else ''),
+                'marca': '',
+                'modelo': '',
+            }
+            # Si tiene especificaciones de sistemas
+            if hasattr(item, 'especificaciones_sistemas'):
+                specs = item.especificaciones_sistemas
+                if specs.marca_equipo:
+                    item_dict['marca'] = specs.marca_equipo.nombre
+                if specs.modelo_equipo:
+                    item_dict['modelo'] = specs.modelo_equipo.nombre
+            items_data.append(item_dict)
+
+        # Datos de origen
+        ambiente_origen_id = request.POST.get('ambiente_origen')
+        origen_data = {'sede': '', 'piso': '', 'ubicacion': '', 'usuario': ''}
+
+        if ambiente_origen_id:
+            try:
+                amb = Ambiente.objects.select_related('pabellon__sede__campus').get(pk=ambiente_origen_id)
+                origen_data['sede'] = f"{amb.pabellon.sede.campus.nombre} - {amb.pabellon.sede.nombre}"
+                origen_data['piso'] = amb.pabellon.nombre
+                origen_data['ubicacion'] = amb.nombre
+            except Ambiente.DoesNotExist:
+                pass
+
+        origen_data['usuario'] = request.POST.get('usuario_origen', '')
+
+        # Datos de destino
+        ambiente_destino_id = request.POST.get('ambiente_destino')
+        destino_data = {'sede': '', 'piso': '', 'ubicacion': '', 'usuario': ''}
+
+        if ambiente_destino_id:
+            try:
+                amb = Ambiente.objects.select_related('pabellon__sede__campus').get(pk=ambiente_destino_id)
+                destino_data['sede'] = f"{amb.pabellon.sede.campus.nombre} - {amb.pabellon.sede.nombre}"
+                destino_data['piso'] = amb.pabellon.nombre
+                destino_data['ubicacion'] = amb.nombre
+            except Ambiente.DoesNotExist:
+                pass
+
+        destino_data['usuario'] = request.POST.get('usuario_destino', '')
+
+        # Generar Excel
+        buffer = generar_formato_traslado(
+            items_data=items_data,
+            origen_data=origen_data,
+            destino_data=destino_data,
+            fecha=timezone.now()
+        )
+
+        # Preparar respuesta
+        fecha_str = timezone.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"formato_traslado_{fecha_str}.xlsx"
+
+        response = HttpResponse(
+            buffer.read(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
