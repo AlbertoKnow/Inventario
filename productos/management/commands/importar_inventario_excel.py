@@ -96,12 +96,15 @@ class Command(BaseCommand):
             'OPSCAN': 'OPSCAN',
         }
 
-        # Mapeo de estados
+        # Mapeo de estados (según ESTADOS del modelo Item)
+        # ('backup', 'Backup'), ('custodia', 'En Custodia'), ('instalado', 'Instalado'),
+        # ('garantia', 'En Garantía'), ('mantenimiento', 'En Mantenimiento'),
+        # ('transito', 'En Tránsito'), ('baja', 'Baja')
         ESTADO_MAP = {
-            'INSTALADO': 'activo',
-            'BACKUP': 'almacenado',
-            'DAÑADO': 'dañado',
-            'DANADO': 'dañado',
+            'INSTALADO': 'instalado',
+            'BACKUP': 'backup',
+            'DAÑADO': 'baja',
+            'DANADO': 'baja',
         }
 
         # Contadores
@@ -167,16 +170,16 @@ class Command(BaseCommand):
                         continue
 
                     # Limpiar pabellón (algunos tienen fórmulas rotas)
-                    if pabellon_str.startswith('=') or pabellon_str == '-' or len(pabellon_str) > 2:
+                    if pabellon_str.startswith('=') or pabellon_str == '-' or len(pabellon_str) > 1:
                         pabellon_str = 'X'  # Pabellón desconocido
 
-                    # Obtener o crear pabellón
+                    # Obtener o crear pabellón (usa campo 'letra' no 'nombre')
                     if pabellon_str not in cache_pabellones:
                         if not dry_run:
                             pab, created = Pabellon.objects.get_or_create(
-                                nombre=pabellon_str,
+                                letra=pabellon_str,
                                 sede=sede_parra,
-                                defaults={'pisos': 5, 'activo': True}
+                                defaults={'nombre': f'Pabellón {pabellon_str}', 'pisos': 5, 'activo': True}
                             )
                             cache_pabellones[pabellon_str] = pab
                             if created:
@@ -188,22 +191,33 @@ class Command(BaseCommand):
 
                     pabellon = cache_pabellones.get(pabellon_str)
 
+                    # Determinar piso y número del ambiente
+                    try:
+                        piso_num = int(piso) if piso and piso.isdigit() else 1
+                    except:
+                        piso_num = 1
+
+                    # Extraer número del ambiente del nombre (ej: "204" → num=4, "S204" → num=4)
+                    ambiente_num = 1
+                    match = re.search(r'(\d+)$', nombre_ambiente)
+                    if match:
+                        num_str = match.group(1)
+                        if len(num_str) >= 2:
+                            ambiente_num = int(num_str[-2:])  # últimos 2 dígitos
+                        else:
+                            ambiente_num = int(num_str)
+
                     # Obtener o crear ambiente
                     ambiente_key = f'{pabellon_str}_{nombre_ambiente}'
                     if ambiente_key not in cache_ambientes:
                         if not dry_run and pabellon:
-                            # Determinar piso numérico
-                            try:
-                                piso_num = int(piso) if piso and piso.isdigit() else 1
-                            except:
-                                piso_num = 1
-
                             amb, created = Ambiente.objects.get_or_create(
                                 nombre=nombre_ambiente,
                                 pabellon=pabellon,
+                                piso=piso_num,
                                 defaults={
-                                    'piso': piso_num,
-                                    'codigo': cod_ambiente if cod_ambiente else nombre_ambiente,
+                                    'numero': ambiente_num,
+                                    'tipo': 'lab_computo',  # Tipo por defecto para equipos de sistemas
                                     'activo': True
                                 }
                             )
@@ -286,13 +300,28 @@ class Command(BaseCommand):
                         procesador = cache_procesadores.get(procesador_str)
 
                     # Mapear estado
-                    estado = ESTADO_MAP.get(estado_str, 'activo')
+                    estado = ESTADO_MAP.get(estado_str, 'instalado')
+
+                    # Validar y limpiar codigo_utp (max 20 caracteres)
+                    if len(codigo_utp) > 20:
+                        codigo_utp = codigo_utp[:20]
+
+                    # Validar serie (debe ser única)
+                    serie_original = serie if serie and serie != 'None' else f'SIN-SERIE-{codigo_utp}'
+                    serie_final = serie_original
+                    contador_serie = 1
+                    while not dry_run and Item.objects.filter(serie=serie_final).exists():
+                        serie_final = f'{serie_original}-{contador_serie}'
+                        contador_serie += 1
+                        if contador_serie > 100:
+                            self.stdout.write(f'  Fila {idx}: Serie duplicada sin resolver: {serie_original}')
+                            break
 
                     # Crear item
                     if not dry_run:
                         item = Item.objects.create(
                             codigo_utp=codigo_utp,
-                            serie=serie if serie and serie != 'None' else '',
+                            serie=serie_final,
                             nombre=equipo,
                             area=area_sistemas,
                             tipo_item=tipo_item,
