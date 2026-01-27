@@ -264,21 +264,25 @@ class Command(BaseCommand):
 
                     # Crear especificaciones
                     if marca or modelo or procesador or (ram and ram != 'NO APLICA'):
-                        ram_gb = None
+                        ram_total = None
                         if ram and ram != 'NO APLICA':
                             m = re.search(r'(\d+)', str(ram))
                             if m:
-                                ram_gb = int(m.group(1))
+                                ram_total = int(m.group(1))
 
-                        hdd_val = ssd_val = ''
-                        if hdd and hdd not in ['NO APLICA', '-']:
-                            m = re.search(r'(\d+)', str(hdd))
-                            if m:
-                                hdd_val = f'{m.group(1)} GB'
-                        if ssd and ssd not in ['NO APLICA', '-']:
+                        almac_gb = None
+                        almac_tipo = ''
+                        # Preferir SSD sobre HDD
+                        if ssd and ssd not in ['NO APLICA', '-', 'None']:
                             m = re.search(r'(\d+)', str(ssd))
                             if m:
-                                ssd_val = f'{m.group(1)} GB'
+                                almac_gb = int(m.group(1))
+                                almac_tipo = 'SSD'
+                        elif hdd and hdd not in ['NO APLICA', '-', 'None']:
+                            m = re.search(r'(\d+)', str(hdd))
+                            if m:
+                                almac_gb = int(m.group(1))
+                                almac_tipo = 'HDD'
 
                         EspecificacionesSistemas.objects.create(
                             item=item,
@@ -286,9 +290,9 @@ class Command(BaseCommand):
                             modelo_equipo=modelo,
                             procesador_equipo=procesador,
                             generacion_procesador=generacion if generacion != 'NO APLICA' else '',
-                            ram_gb=ram_gb,
-                            almacenamiento_principal=ssd_val or hdd_val or '',
-                            almacenamiento_secundario=hdd_val if ssd_val else '',
+                            ram_total_gb=ram_total,
+                            almacenamiento_gb=almac_gb,
+                            almacenamiento_tipo=almac_tipo,
                             sistema_operativo=so if so != 'NO APLICA' else '',
                         )
 
