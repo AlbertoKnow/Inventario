@@ -131,6 +131,7 @@
         </div>
     </form>
 </div>
+{% endblock %}
 
 {% block extra_js %}
 <script>
@@ -201,42 +202,45 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Agregar item
     listaResultados.addEventListener('click', function(e) {
+        e.stopPropagation();
         const btn = e.target.closest('.btn-agregar');
-        if (btn) {
-            const id = btn.dataset.id;
-            const codigo = btn.dataset.codigo;
-            const nombre = btn.dataset.nombre;
-            const marca = btn.dataset.marca;
-            const modelo = btn.dataset.modelo;
-            const ubicacion = btn.dataset.ubicacion;
+        if (!btn) return;
 
-            if (!itemsAgregados.has(parseInt(id))) {
-                itemsAgregados.add(parseInt(id));
-                sinItems.style.display = 'none';
+        const id = parseInt(btn.dataset.id);
 
-                // Mostrar origen del primer item
-                if (!primerOrigen) {
-                    primerOrigen = ubicacion;
-                    textoOrigen.textContent = `Origen: ${primerOrigen}`;
-                    alertaOrigen.style.display = 'block';
-                }
+        // Verificación para evitar duplicados
+        if (itemsAgregados.has(id)) return;
 
-                const tr = document.createElement('tr');
-                tr.dataset.id = id;
-                tr.innerHTML = `
-                    <td>${codigo}<input type="hidden" name="items" value="${id}"></td>
-                    <td>${nombre}</td>
-                    <td>${marca}</td>
-                    <td>${modelo}</td>
-                    <td><small class="text-muted">${ubicacion}</small></td>
-                    <td><button type="button" class="btn btn-sm btn-outline-danger btn-quitar"><i class="fas fa-times"></i></button></td>
-                `;
-                itemsSeleccionados.appendChild(tr);
+        const codigo = btn.dataset.codigo;
+        const nombre = btn.dataset.nombre;
+        const marca = btn.dataset.marca;
+        const modelo = btn.dataset.modelo;
+        const ubicacion = btn.dataset.ubicacion;
 
-                // Ocultar de resultados
-                btn.closest('.list-group-item').remove();
-            }
+        itemsAgregados.add(id);
+        sinItems.style.display = 'none';
+
+        // Mostrar origen del primer item
+        if (!primerOrigen) {
+            primerOrigen = ubicacion;
+            textoOrigen.textContent = `Origen: ${primerOrigen}`;
+            alertaOrigen.style.display = 'block';
         }
+
+        const tr = document.createElement('tr');
+        tr.dataset.id = id;
+        tr.innerHTML = `
+            <td>${codigo}<input type="hidden" name="items" value="${id}"></td>
+            <td>${nombre}</td>
+            <td>${marca}</td>
+            <td>${modelo}</td>
+            <td><small class="text-muted">${ubicacion}</small></td>
+            <td><button type="button" class="btn btn-sm btn-outline-danger btn-quitar"><i class="fas fa-times"></i></button></td>
+        `;
+        itemsSeleccionados.appendChild(tr);
+
+        // Ocultar de resultados
+        btn.closest('.list-group-item').remove();
     });
 
     // Quitar item
@@ -339,5 +343,4 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 </script>
-{% endblock %}
 {% endblock %}
