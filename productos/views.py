@@ -4105,10 +4105,13 @@ class FormatoTrasladoGenerarView(PerfilRequeridoMixin, View):
         # Obtener items seleccionados
         item_ids = request.POST.getlist('items')
         items = Item.objects.filter(pk__in=item_ids).select_related(
-            'tipo_item', 'ambiente', 'colaborador_asignado', 'usuario_asignado'
+            'tipo_item', 'ambiente', 'ambiente__pabellon', 'ambiente__pabellon__sede',
+            'ambiente__pabellon__sede__campus', 'colaborador_asignado', 'usuario_asignado'
         )
 
         items_data = []
+        primer_item_con_ubicacion = None
+
         for item in items:
             item_dict = {
                 'codigo_utp': item.codigo_utp or item.codigo_interno,
@@ -4118,30 +4121,36 @@ class FormatoTrasladoGenerarView(PerfilRequeridoMixin, View):
             }
             # Si tiene especificaciones de sistemas
             if hasattr(item, 'especificaciones_sistemas'):
-                specs = item.especificaciones_sistemas
-                if specs.marca_equipo:
-                    item_dict['marca'] = specs.marca_equipo.nombre
-                if specs.modelo_equipo:
-                    item_dict['modelo'] = specs.modelo_equipo.nombre
+                try:
+                    specs = item.especificaciones_sistemas
+                    if specs.marca_equipo:
+                        item_dict['marca'] = specs.marca_equipo.nombre
+                    if specs.modelo_equipo:
+                        item_dict['modelo'] = specs.modelo_equipo.nombre
+                except:
+                    pass
             items_data.append(item_dict)
 
-        # Datos de origen
-        ambiente_origen_id = request.POST.get('ambiente_origen')
+            # Guardar el primer item con ubicación para obtener datos de origen
+            if not primer_item_con_ubicacion and item.ambiente:
+                primer_item_con_ubicacion = item
+
+        # Datos de origen - se obtienen automáticamente del primer item
         origen_data = {'sede': '', 'piso': '', 'ubicacion': '', 'usuario': ''}
 
-        if ambiente_origen_id:
-            try:
-                amb = Ambiente.objects.select_related('pabellon__sede__campus').get(pk=ambiente_origen_id)
-                origen_data['sede'] = f"{amb.pabellon.sede.campus.nombre} - {amb.pabellon.sede.nombre}"
-                origen_data['piso'] = amb.pabellon.nombre
-                origen_data['ubicacion'] = amb.nombre
-            except Ambiente.DoesNotExist:
-                pass
+        if primer_item_con_ubicacion and primer_item_con_ubicacion.ambiente:
+            amb = primer_item_con_ubicacion.ambiente
+            origen_data['sede'] = f"{amb.pabellon.sede.campus.nombre} - {amb.pabellon.sede.nombre}"
+            origen_data['piso'] = amb.pabellon.nombre
+            origen_data['ubicacion'] = amb.nombre
+            # Si el item tiene usuario asignado, usarlo como usuario de origen
+            if primer_item_con_ubicacion.usuario_asignado:
+                origen_data['usuario'] = primer_item_con_ubicacion.usuario_asignado.get_full_name()
 
-        origen_data['usuario'] = request.POST.get('usuario_origen', '')
-
-        # Datos de destino
+        # Datos de destino - pueden venir de ambiente, pabellón o solo sede
         ambiente_destino_id = request.POST.get('ambiente_destino')
+        pabellon_destino_id = request.POST.get('pabellon_destino')
+        sede_destino_id = request.POST.get('sede_destino')
         destino_data = {'sede': '', 'piso': '', 'ubicacion': '', 'usuario': ''}
 
         if ambiente_destino_id:
@@ -4152,8 +4161,19 @@ class FormatoTrasladoGenerarView(PerfilRequeridoMixin, View):
                 destino_data['ubicacion'] = amb.nombre
             except Ambiente.DoesNotExist:
                 pass
-
-        destino_data['usuario'] = request.POST.get('usuario_destino', '')
+        elif pabellon_destino_id:
+            try:
+                pab = Pabellon.objects.select_related('sede__campus').get(pk=pabellon_destino_id)
+                destino_data['sede'] = f"{pab.sede.campus.nombre} - {pab.sede.nombre}"
+                destino_data['piso'] = pab.nombre
+            except Pabellon.DoesNotExist:
+                pass
+        elif sede_destino_id:
+            try:
+                sede = Sede.objects.select_related('campus').get(pk=sede_destino_id)
+                destino_data['sede'] = f"{sede.campus.nombre} - {sede.nombre}"
+            except Sede.DoesNotExist:
+                pass
 
         # Generar Excel
         buffer = generar_formato_traslado(
