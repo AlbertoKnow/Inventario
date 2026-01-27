@@ -5,12 +5,12 @@ Uso: python manage.py importar_inventario_excel /path/to/file.xlsx
 
 from django.core.management.base import BaseCommand
 from django.db import transaction
+from django.contrib.auth.models import User
 from openpyxl import load_workbook
 from productos.models import (
     Campus, Sede, Pabellon, Ambiente, Area, TipoItem, Item,
     MarcaEquipo, ModeloEquipo, ProcesadorEquipo, EspecificacionesSistemas
 )
-from django.contrib.auth.models import User
 import re
 
 
@@ -19,17 +19,14 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument('archivo', type=str, help='Ruta al archivo Excel')
-        parser.add_argument('--dry-run', action='store_true', help='Simular sin guardar')
         parser.add_argument('--hoja', type=str, default='INVENTARIO GENERAL SEDE PARRA', help='Nombre de la hoja')
 
     def handle(self, *args, **options):
         archivo = options['archivo']
-        dry_run = options['dry_run']
         hoja = options['hoja']
 
         self.stdout.write(f'Leyendo archivo: {archivo}')
         self.stdout.write(f'Hoja: {hoja}')
-        self.stdout.write(f'Modo: {"SIMULACIÓN" if dry_run else "REAL"}')
         self.stdout.write('')
 
         try:
@@ -37,6 +34,16 @@ class Command(BaseCommand):
             ws = wb[hoja]
         except Exception as e:
             self.stderr.write(f'Error al abrir archivo: {e}')
+            return
+
+        # Obtener usuario admin para auditoría
+        try:
+            admin_user = User.objects.filter(is_superuser=True).first()
+            if not admin_user:
+                admin_user = User.objects.first()
+            self.stdout.write(f'Usuario para auditoría: {admin_user.username}')
+        except:
+            self.stderr.write('ERROR: No se encontró usuario para auditoría')
             return
 
         # Obtener área de Sistemas
@@ -59,79 +66,49 @@ class Command(BaseCommand):
 
         # Mapeo de columnas (índice 0-based)
         COL = {
-            'equipo': 0,        # A - Nombre del equipo
-            'tipo': 1,          # B - Tipo de Equipo
-            'so': 2,            # C - Sistema Operativo
-            'marca': 3,         # D - Marca
-            'modelo': 4,        # E - Modelo
-            'inventario': 5,    # F - Código UTP
-            'serie': 6,         # G - Serie
-            'procesador': 9,    # J - Procesador
-            'generacion': 10,   # K - Generación
-            'ram': 11,          # L - RAM
-            'hdd': 12,          # M - HDD
-            'ssd': 13,          # N - SSD
-            'usuario': 14,      # O - Usuario
-            'cod_ambiente': 19, # T - Código de Ambiente
-            'ambiente': 20,     # U - Nombre de ambiente
-            'pabellon': 21,     # V - Pabellón
-            'piso': 23,         # X - Nro de piso
-            'estado': 25,       # Z - Estado
+            'equipo': 0, 'tipo': 1, 'so': 2, 'marca': 3, 'modelo': 4,
+            'inventario': 5, 'serie': 6, 'procesador': 9, 'generacion': 10,
+            'ram': 11, 'hdd': 12, 'ssd': 13, 'usuario': 14, 'cod_ambiente': 19,
+            'ambiente': 20, 'pabellon': 21, 'piso': 23, 'estado': 25,
         }
 
-        # Mapeo de tipos de item
+        # Mapeo de tipos
         TIPO_MAP = {
-            'MONITOR': 'Monitor',
-            'DESKTOP': 'DESKTOP',
-            'MINI': 'MINI',
-            'PROYECTOR': 'PROYECTOR',
-            'LAPTOP': 'LAPTOP',
-            'ALL IN ONE': 'ALL IN ONE',
-            'MULTIFUNCIONAL': 'MULTIFUNCIONAL',
-            'MINIX': 'MINI',
-            'HUB': 'HUB',
-            'TABLET': 'TABLET',
-            'HUELLERO': 'HUELLERO',
-            'TOUCH': 'TOUCH',
-            'OPSCAN': 'OPSCAN',
+            'MONITOR': 'Monitor', 'DESKTOP': 'DESKTOP', 'MINI': 'MINI',
+            'PROYECTOR': 'PROYECTOR', 'LAPTOP': 'LAPTOP', 'ALL IN ONE': 'ALL IN ONE',
+            'MULTIFUNCIONAL': 'MULTIFUNCIONAL', 'MINIX': 'MINI', 'HUB': 'HUB',
+            'TABLET': 'TABLET', 'HUELLERO': 'HUELLERO', 'TOUCH': 'TOUCH', 'OPSCAN': 'OPSCAN',
         }
 
-        # Mapeo de estados (según ESTADOS del modelo Item)
-        # ('backup', 'Backup'), ('custodia', 'En Custodia'), ('instalado', 'Instalado'),
-        # ('garantia', 'En Garantía'), ('mantenimiento', 'En Mantenimiento'),
-        # ('transito', 'En Tránsito'), ('baja', 'Baja')
         ESTADO_MAP = {
-            'INSTALADO': 'instalado',
-            'BACKUP': 'backup',
-            'DAÑADO': 'baja',
-            'DANADO': 'baja',
+            'INSTALADO': 'instalado', 'BACKUP': 'backup',
+            'DAÑADO': 'baja', 'DANADO': 'baja',
         }
 
-        # Contadores
         stats = {
-            'pabellones_creados': 0,
-            'ambientes_creados': 0,
-            'tipos_creados': 0,
-            'marcas_creadas': 0,
-            'modelos_creados': 0,
-            'procesadores_creados': 0,
-            'items_creados': 0,
-            'items_omitidos': 0,
-            'errores': 0,
+            'pabellones': 0, 'ambientes': 0, 'tipos': 0,
+            'marcas': 0, 'modelos': 0, 'procesadores': 0,
+            'items': 0, 'omitidos': 0, 'errores': 0,
         }
 
-        # Cache para evitar queries repetidas
-        cache_pabellones = {p.nombre: p for p in Pabellon.objects.filter(sede=sede_parra)}
-        cache_ambientes = {}
-        cache_tipos = {t.nombre.upper(): t for t in TipoItem.objects.all()}
-        cache_marcas = {}
+        # Cache
+        cache_pab = {p.letra: p for p in Pabellon.objects.filter(sede=sede_parra)}
+        cache_amb = {}  # key: "pab_piso_numero"
+        cache_tipos = {t.nombre.upper(): t for t in TipoItem.objects.filter(area=area_sistemas)}
+        cache_marcas = {m.nombre.upper(): m for m in MarcaEquipo.objects.all()}
         cache_modelos = {}
-        cache_procesadores = {}
+        cache_procs = {p.nombre.upper(): p for p in ProcesadorEquipo.objects.all()}
+        cache_series = set(Item.objects.values_list('serie', flat=True))
+        cache_utps = set(Item.objects.values_list('codigo_utp', flat=True))
 
-        # Leer todas las filas
+        # Pre-cargar ambientes existentes
+        for amb in Ambiente.objects.filter(pabellon__sede=sede_parra):
+            key = f'{amb.pabellon.letra}_{amb.piso}_{amb.numero}'
+            cache_amb[key] = amb
+
         rows = list(ws.iter_rows(min_row=2, values_only=True))
-        total_rows = len(rows)
-        self.stdout.write(f'Total filas a procesar: {total_rows}')
+        total = len(rows)
+        self.stdout.write(f'Total filas: {total}')
         self.stdout.write('')
 
         with transaction.atomic():
@@ -150,8 +127,6 @@ class Command(BaseCommand):
                     ram = str(row[COL['ram']] or '').strip()
                     hdd = str(row[COL['hdd']] or '').strip()
                     ssd = str(row[COL['ssd']] or '').strip()
-                    usuario = str(row[COL['usuario']] or '').strip()
-                    cod_ambiente = str(row[COL['cod_ambiente']] or '').strip()
                     nombre_ambiente = str(row[COL['ambiente']] or '').strip()
                     pabellon_str = str(row[COL['pabellon']] or '').strip().upper()
                     piso = str(row[COL['piso']] or '').strip()
@@ -159,241 +134,179 @@ class Command(BaseCommand):
 
                     # Validar código UTP
                     if not codigo_utp or codigo_utp == 'None':
-                        self.stdout.write(f'  Fila {idx}: Sin código UTP, omitiendo')
-                        stats['items_omitidos'] += 1
+                        stats['omitidos'] += 1
                         continue
 
-                    # Verificar si ya existe
-                    if Item.objects.filter(codigo_utp=codigo_utp).exists():
-                        self.stdout.write(f'  Fila {idx}: {codigo_utp} ya existe, omitiendo')
-                        stats['items_omitidos'] += 1
+                    # Truncar código UTP si es muy largo
+                    if len(codigo_utp) > 20:
+                        codigo_utp = codigo_utp[:20]
+
+                    # Verificar duplicado
+                    if codigo_utp in cache_utps:
+                        stats['omitidos'] += 1
                         continue
 
-                    # Limpiar pabellón (algunos tienen fórmulas rotas)
-                    if pabellon_str.startswith('=') or pabellon_str == '-' or len(pabellon_str) > 1:
-                        pabellon_str = 'X'  # Pabellón desconocido
+                    # Limpiar pabellón
+                    if not pabellon_str or pabellon_str.startswith('=') or pabellon_str == '-' or len(pabellon_str) > 1:
+                        pabellon_str = 'X'
 
-                    # Obtener o crear pabellón (usa campo 'letra' no 'nombre')
-                    if pabellon_str not in cache_pabellones:
-                        if not dry_run:
-                            pab, created = Pabellon.objects.get_or_create(
-                                letra=pabellon_str,
-                                sede=sede_parra,
-                                defaults={'nombre': f'Pabellón {pabellon_str}', 'pisos': 5, 'activo': True}
-                            )
-                            cache_pabellones[pabellon_str] = pab
-                            if created:
-                                stats['pabellones_creados'] += 1
-                                self.stdout.write(f'  Pabellón creado: {pabellon_str}')
-                        else:
-                            cache_pabellones[pabellon_str] = None
-                            stats['pabellones_creados'] += 1
+                    # Obtener/crear pabellón
+                    if pabellon_str not in cache_pab:
+                        pab = Pabellon.objects.create(
+                            sede=sede_parra,
+                            letra=pabellon_str,
+                            nombre=f'Pabellón {pabellon_str}',
+                            pisos=5,
+                            activo=True
+                        )
+                        cache_pab[pabellon_str] = pab
+                        stats['pabellones'] += 1
 
-                    pabellon = cache_pabellones.get(pabellon_str)
+                    pabellon = cache_pab[pabellon_str]
 
-                    # Determinar piso y número del ambiente
+                    # Determinar piso y número
                     try:
                         piso_num = int(piso) if piso and piso.isdigit() else 1
                     except:
                         piso_num = 1
 
-                    # Extraer número del ambiente del nombre (ej: "204" → num=4, "S204" → num=4)
                     ambiente_num = 1
                     match = re.search(r'(\d+)$', nombre_ambiente)
                     if match:
                         num_str = match.group(1)
-                        if len(num_str) >= 2:
-                            ambiente_num = int(num_str[-2:])  # últimos 2 dígitos
-                        else:
-                            ambiente_num = int(num_str)
+                        ambiente_num = int(num_str[-2:]) if len(num_str) >= 2 else int(num_str)
 
-                    # Obtener o crear ambiente
-                    ambiente_key = f'{pabellon_str}_{nombre_ambiente}'
-                    if ambiente_key not in cache_ambientes:
-                        if not dry_run and pabellon:
-                            amb, created = Ambiente.objects.get_or_create(
-                                nombre=nombre_ambiente,
-                                pabellon=pabellon,
-                                piso=piso_num,
-                                defaults={
-                                    'numero': ambiente_num,
-                                    'tipo': 'lab_computo',  # Tipo por defecto para equipos de sistemas
-                                    'activo': True
-                                }
-                            )
-                            cache_ambientes[ambiente_key] = amb
-                            if created:
-                                stats['ambientes_creados'] += 1
-                        else:
-                            cache_ambientes[ambiente_key] = None
-                            if ambiente_key not in cache_ambientes:
-                                stats['ambientes_creados'] += 1
+                    # Obtener/crear ambiente
+                    amb_key = f'{pabellon_str}_{piso_num}_{ambiente_num}'
+                    if amb_key not in cache_amb:
+                        amb = Ambiente.objects.create(
+                            pabellon=pabellon,
+                            piso=piso_num,
+                            numero=ambiente_num,
+                            tipo='lab_computo',
+                            nombre=nombre_ambiente or f'Ambiente {piso_num}{ambiente_num:02d}',
+                            activo=True
+                        )
+                        cache_amb[amb_key] = amb
+                        stats['ambientes'] += 1
 
-                    ambiente = cache_ambientes.get(ambiente_key)
+                    ambiente = cache_amb[amb_key]
 
-                    # Obtener o crear tipo de item
-                    tipo_nombre = TIPO_MAP.get(tipo_str, tipo_str)
+                    # Obtener/crear tipo
+                    tipo_nombre = TIPO_MAP.get(tipo_str, tipo_str) or 'OTROS'
                     if tipo_nombre.upper() not in cache_tipos:
-                        if not dry_run:
-                            tipo_obj, created = TipoItem.objects.get_or_create(
-                                nombre=tipo_nombre,
-                                defaults={'descripcion': f'Tipo: {tipo_nombre}'}
-                            )
-                            cache_tipos[tipo_nombre.upper()] = tipo_obj
-                            if created:
-                                stats['tipos_creados'] += 1
-                                self.stdout.write(f'  Tipo creado: {tipo_nombre}')
-                        else:
-                            cache_tipos[tipo_nombre.upper()] = None
-                            stats['tipos_creados'] += 1
+                        tipo_obj = TipoItem.objects.create(
+                            nombre=tipo_nombre,
+                            area=area_sistemas,
+                            descripcion=f'Tipo: {tipo_nombre}',
+                            activo=True
+                        )
+                        cache_tipos[tipo_nombre.upper()] = tipo_obj
+                        stats['tipos'] += 1
 
-                    tipo_item = cache_tipos.get(tipo_nombre.upper())
+                    tipo_item = cache_tipos[tipo_nombre.upper()]
 
-                    # Obtener o crear marca
+                    # Obtener/crear marca
                     marca = None
-                    if marca_str and marca_str != 'NO APLICA':
+                    if marca_str and marca_str not in ['NO APLICA', '-', 'None']:
                         if marca_str not in cache_marcas:
-                            if not dry_run:
-                                marca_obj, created = MarcaEquipo.objects.get_or_create(
-                                    nombre=marca_str
-                                )
-                                cache_marcas[marca_str] = marca_obj
-                                if created:
-                                    stats['marcas_creadas'] += 1
-                            else:
-                                cache_marcas[marca_str] = None
-                                stats['marcas_creadas'] += 1
-                        marca = cache_marcas.get(marca_str)
+                            marca = MarcaEquipo.objects.create(nombre=marca_str)
+                            cache_marcas[marca_str] = marca
+                            stats['marcas'] += 1
+                        marca = cache_marcas[marca_str]
 
-                    # Obtener o crear modelo
+                    # Obtener/crear modelo
                     modelo = None
-                    if modelo_str and modelo_str != 'NO APLICA':
+                    if modelo_str and modelo_str not in ['NO APLICA', '-', 'None'] and marca:
                         modelo_key = f'{marca_str}_{modelo_str}'
                         if modelo_key not in cache_modelos:
-                            if not dry_run and marca:
-                                modelo_obj, created = ModeloEquipo.objects.get_or_create(
-                                    nombre=modelo_str,
-                                    marca=marca
-                                )
-                                cache_modelos[modelo_key] = modelo_obj
-                                if created:
-                                    stats['modelos_creados'] += 1
-                            else:
-                                cache_modelos[modelo_key] = None
-                                stats['modelos_creados'] += 1
-                        modelo = cache_modelos.get(modelo_key)
+                            modelo = ModeloEquipo.objects.create(nombre=modelo_str, marca=marca)
+                            cache_modelos[modelo_key] = modelo
+                            stats['modelos'] += 1
+                        modelo = cache_modelos[modelo_key]
 
-                    # Obtener o crear procesador
+                    # Obtener/crear procesador
                     procesador = None
                     if procesador_str and procesador_str not in ['NO APLICA', '-', 'None']:
-                        if procesador_str not in cache_procesadores:
-                            if not dry_run:
-                                proc_obj, created = ProcesadorEquipo.objects.get_or_create(
-                                    nombre=procesador_str
-                                )
-                                cache_procesadores[procesador_str] = proc_obj
-                                if created:
-                                    stats['procesadores_creados'] += 1
-                            else:
-                                cache_procesadores[procesador_str] = None
-                                stats['procesadores_creados'] += 1
-                        procesador = cache_procesadores.get(procesador_str)
+                        if procesador_str not in cache_procs:
+                            procesador = ProcesadorEquipo.objects.create(nombre=procesador_str)
+                            cache_procs[procesador_str] = procesador
+                            stats['procesadores'] += 1
+                        procesador = cache_procs[procesador_str]
 
-                    # Mapear estado
+                    # Validar serie única
+                    serie_final = serie if serie and serie != 'None' else f'SIN-SERIE-{codigo_utp}'
+                    contador = 1
+                    while serie_final in cache_series:
+                        serie_final = f'{serie}-DUP{contador}'
+                        contador += 1
+
+                    # Estado
                     estado = ESTADO_MAP.get(estado_str, 'instalado')
 
-                    # Validar y limpiar codigo_utp (max 20 caracteres)
-                    if len(codigo_utp) > 20:
-                        codigo_utp = codigo_utp[:20]
-
-                    # Validar serie (debe ser única)
-                    serie_original = serie if serie and serie != 'None' else f'SIN-SERIE-{codigo_utp}'
-                    serie_final = serie_original
-                    contador_serie = 1
-                    while not dry_run and Item.objects.filter(serie=serie_final).exists():
-                        serie_final = f'{serie_original}-{contador_serie}'
-                        contador_serie += 1
-                        if contador_serie > 100:
-                            self.stdout.write(f'  Fila {idx}: Serie duplicada sin resolver: {serie_original}')
-                            break
-
                     # Crear item
-                    if not dry_run:
-                        item = Item.objects.create(
-                            codigo_utp=codigo_utp,
-                            serie=serie_final,
-                            nombre=equipo,
-                            area=area_sistemas,
-                            tipo_item=tipo_item,
-                            ambiente=ambiente,
-                            estado=estado,
+                    item = Item(
+                        codigo_utp=codigo_utp,
+                        serie=serie_final,
+                        nombre=equipo or tipo_nombre,
+                        area=area_sistemas,
+                        tipo_item=tipo_item,
+                        ambiente=ambiente,
+                        estado=estado,
+                        creado_por=admin_user,
+                        modificado_por=admin_user,
+                    )
+                    item.save()
+
+                    # Registrar en cache
+                    cache_utps.add(codigo_utp)
+                    cache_series.add(serie_final)
+
+                    # Crear especificaciones
+                    if marca or modelo or procesador or (ram and ram != 'NO APLICA'):
+                        ram_gb = None
+                        if ram and ram != 'NO APLICA':
+                            m = re.search(r'(\d+)', str(ram))
+                            if m:
+                                ram_gb = int(m.group(1))
+
+                        hdd_val = ssd_val = ''
+                        if hdd and hdd not in ['NO APLICA', '-']:
+                            m = re.search(r'(\d+)', str(hdd))
+                            if m:
+                                hdd_val = f'{m.group(1)} GB'
+                        if ssd and ssd not in ['NO APLICA', '-']:
+                            m = re.search(r'(\d+)', str(ssd))
+                            if m:
+                                ssd_val = f'{m.group(1)} GB'
+
+                        EspecificacionesSistemas.objects.create(
+                            item=item,
+                            marca_equipo=marca,
+                            modelo_equipo=modelo,
+                            procesador_equipo=procesador,
+                            generacion_procesador=generacion if generacion != 'NO APLICA' else '',
+                            ram_gb=ram_gb,
+                            almacenamiento_principal=ssd_val or hdd_val or '',
+                            almacenamiento_secundario=hdd_val if ssd_val else '',
+                            sistema_operativo=so if so != 'NO APLICA' else '',
                         )
 
-                        # Crear especificaciones si tiene datos técnicos
-                        if marca or modelo or procesador or (ram and ram != 'NO APLICA'):
-                            # Parsear RAM
-                            ram_gb = None
-                            if ram and ram != 'NO APLICA':
-                                match = re.search(r'(\d+)', str(ram))
-                                if match:
-                                    ram_gb = int(match.group(1))
+                    stats['items'] += 1
 
-                            # Parsear almacenamiento
-                            hdd_val = None
-                            ssd_val = None
-                            if hdd and hdd != 'NO APLICA' and hdd != '-':
-                                match = re.search(r'(\d+)', str(hdd))
-                                if match:
-                                    hdd_val = match.group(1) + ' GB'
-                            if ssd and ssd != 'NO APLICA' and ssd != '-':
-                                match = re.search(r'(\d+)', str(ssd))
-                                if match:
-                                    ssd_val = match.group(1) + ' GB'
-
-                            EspecificacionesSistemas.objects.create(
-                                item=item,
-                                marca_equipo=marca,
-                                modelo_equipo=modelo,
-                                procesador_equipo=procesador,
-                                generacion_procesador=generacion if generacion != 'NO APLICA' else '',
-                                ram_gb=ram_gb,
-                                almacenamiento_principal=ssd_val or hdd_val or '',
-                                almacenamiento_secundario=hdd_val if ssd_val else '',
-                                sistema_operativo=so if so != 'NO APLICA' else '',
-                            )
-
-                        stats['items_creados'] += 1
-
-                    else:
-                        stats['items_creados'] += 1
-
-                    # Progreso cada 100 filas
                     if idx % 100 == 0:
-                        self.stdout.write(f'  Procesadas {idx}/{total_rows} filas...')
+                        self.stdout.write(f'  {idx}/{total}...')
 
                 except Exception as e:
-                    self.stderr.write(f'  ERROR en fila {idx}: {e}')
+                    self.stderr.write(f'  ERROR fila {idx}: {e}')
                     stats['errores'] += 1
-
-            if dry_run:
-                self.stdout.write('')
-                self.stdout.write('=== MODO SIMULACIÓN - NO SE GUARDARON CAMBIOS ===')
-                raise Exception('Dry run - rollback')
 
         wb.close()
 
-        # Resumen
         self.stdout.write('')
         self.stdout.write('=' * 50)
-        self.stdout.write('RESUMEN DE IMPORTACIÓN')
+        self.stdout.write('RESUMEN')
         self.stdout.write('=' * 50)
-        self.stdout.write(f'Pabellones creados: {stats["pabellones_creados"]}')
-        self.stdout.write(f'Ambientes creados: {stats["ambientes_creados"]}')
-        self.stdout.write(f'Tipos creados: {stats["tipos_creados"]}')
-        self.stdout.write(f'Marcas creadas: {stats["marcas_creadas"]}')
-        self.stdout.write(f'Modelos creados: {stats["modelos_creados"]}')
-        self.stdout.write(f'Procesadores creados: {stats["procesadores_creados"]}')
-        self.stdout.write(f'Items creados: {stats["items_creados"]}')
-        self.stdout.write(f'Items omitidos: {stats["items_omitidos"]}')
-        self.stdout.write(f'Errores: {stats["errores"]}')
+        for k, v in stats.items():
+            self.stdout.write(f'{k}: {v}')
         self.stdout.write('=' * 50)
