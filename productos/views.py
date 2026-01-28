@@ -7,7 +7,7 @@ from django.contrib.auth.models import User
 from django.urls import reverse_lazy, reverse
 from django.db.models import Q, Sum, Count
 from django.contrib import messages
-from django.http import JsonResponse, HttpResponse
+from django.http import JsonResponse, HttpResponse, Http404
 from django.utils import timezone
 from datetime import timedelta, date
 
@@ -454,18 +454,36 @@ class ItemDetailView(PerfilRequeridoMixin, DetailView):
     model = Item
     template_name = 'productos/item_detail.html'
     context_object_name = 'item'
-    slug_field = 'codigo_interno'
     slug_url_kwarg = 'codigo'
-    
+
     def get_queryset(self):
         """Restringir acceso por área si no es admin."""
         queryset = super().get_queryset()
         perfil = getattr(self.request.user, 'perfil', None)
-        
+
         if perfil and perfil.rol != 'admin' and perfil.area:
             queryset = queryset.filter(area=perfil.area)
-        
+
         return queryset
+
+    def get_object(self, queryset=None):
+        """Buscar item por codigo_interno o codigo_utp."""
+        if queryset is None:
+            queryset = self.get_queryset()
+
+        codigo = self.kwargs.get(self.slug_url_kwarg)
+
+        # Primero buscar por codigo_interno
+        obj = queryset.filter(codigo_interno=codigo).first()
+
+        # Si no existe, buscar por codigo_utp
+        if not obj:
+            obj = queryset.filter(codigo_utp=codigo).first()
+
+        if not obj:
+            raise Http404("Item no encontrado")
+
+        return obj
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
