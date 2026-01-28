@@ -79,9 +79,11 @@
                         </div>
                         <div class="col-md-6">
                             <label class="text-muted small">Ubicación</label>
-                            <div class="fw-semibold">{{ item.ambiente.nombre|default:"Sin asignar" }}</div>
                             {% if item.ambiente %}
-                            <small class="text-muted">{{ item.ambiente.pabellon.sede.campus.codigo }} &raquo; {{ item.ambiente.pabellon.sede.nombre }} &raquo; Pab. {{ item.ambiente.pabellon.nombre }}</small>
+                            <div class="fw-semibold">{{ item.ambiente.pabellon.letra }}{{ item.ambiente.piso }}{{ item.ambiente.numero|stringformat:"02d" }}</div>
+                            <small class="text-muted">{{ item.ambiente.pabellon.sede.campus.codigo }} &raquo; {{ item.ambiente.pabellon.sede.nombre }} &raquo; Pab. {{ item.ambiente.pabellon.letra }}</small>
+                            {% else %}
+                            <div class="fw-semibold">Sin asignar</div>
                             {% endif %}
                         </div>
                         <div class="col-md-6">
