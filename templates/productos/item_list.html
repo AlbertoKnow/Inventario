@@ -132,15 +132,15 @@
                         </div>
 
                         <div class="col-md-3">
-                            <label class="form-label small fw-semibold">Usuario Asignado</label>
-                            <select name="usuario_asignado" class="form-select form-select-sm">
+                            <label class="form-label small fw-semibold">Colaborador Asignado</label>
+                            <select name="colaborador_asignado" class="form-select form-select-sm">
                                 <option value="">Todos</option>
-                                <option value="sin_asignar" {% if filtros_activos.usuario_asignado == 'sin_asignar' %}selected{% endif %}>Sin Asignar</option>
-                                <option value="asignado" {% if filtros_activos.usuario_asignado == 'asignado' %}selected{% endif %}>Asignado</option>
-                                <optgroup label="Usuarios Específicos">
-                                {% for usuario in usuarios %}
-                                <option value="{{ usuario.id }}" {% if filtros_activos.usuario_asignado == usuario.id|stringformat:"i" %}selected{% endif %}>
-                                    {{ usuario.get_full_name }}
+                                <option value="sin_asignar" {% if filtros_activos.colaborador_asignado == 'sin_asignar' %}selected{% endif %}>Sin Asignar</option>
+                                <option value="asignado" {% if filtros_activos.colaborador_asignado == 'asignado' %}selected{% endif %}>Asignado</option>
+                                <optgroup label="Colaboradores">
+                                {% for colaborador in colaboradores %}
+                                <option value="{{ colaborador.id }}" {% if filtros_activos.colaborador_asignado == colaborador.id|stringformat:"i" %}selected{% endif %}>
+                                    {{ colaborador.nombre_completo }}
                                 </option>
                                 {% endfor %}
                                 </optgroup>
@@ -207,8 +207,8 @@
             {% elif filtros_activos.utp_pendiente == '0' %}
             <span class="badge bg-secondary">Con Código UTP</span>
             {% endif %}
-            {% if filtros_activos.usuario_asignado %}
-            <span class="badge bg-secondary">Usuario</span>
+            {% if filtros_activos.colaborador_asignado %}
+            <span class="badge bg-secondary">Colaborador</span>
             {% endif %}
             {% if filtros_activos.garantia %}
             <span class="badge bg-secondary">Garantía</span>
@@ -285,7 +285,7 @@
                                 <span class="badge bg-secondary">{{ item.area.nombre }}</span>
                             </td>
                             <td>{{ item.tipo_item.nombre }}</td>
-                            <td>{{ item.ambiente.nombre|default:"-" }}</td>
+                            <td>{% if item.ambiente %}Pab. {{ item.ambiente.pabellon.letra }} - {{ item.ambiente.nombre }}{% else %}-{% endif %}</td>
                             <td>
                                 {% if item.estado == 'nuevo' %}
                                 <span class="badge bg-success">Nuevo</span>

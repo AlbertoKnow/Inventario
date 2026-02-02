@@ -107,7 +107,7 @@
                             <td><strong>{{ ambiente.codigo }}</strong></td>
                             <td>
                                 <a href="{% url 'productos:ubicacion-detail' ambiente.pk %}" class="text-decoration-none fw-semibold">
-                                    {{ ambiente.nombre }}
+                                    Pab. {{ ambiente.pabellon.letra }} - {{ ambiente.nombre }}
                                 </a>
                             </td>
                             <td>

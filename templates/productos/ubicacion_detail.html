@@ -143,10 +143,10 @@
                                         {% endif %}
                                     </td>
                                     <td>
-                                        {% if item.usuario_asignado %}
-                                        {{ item.usuario_asignado.get_full_name|default:item.usuario_asignado.username }}
+                                        {% if item.colaborador_asignado %}
+                                        {{ item.colaborador_asignado.nombre_completo }}
                                         {% else %}
-                                        <span class="text-muted">-</span>
+                                        <span class="text-muted">Sin asignar</span>
                                         {% endif %}
                                     </td>
                                 </tr>

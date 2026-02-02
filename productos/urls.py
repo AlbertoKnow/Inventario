@@ -24,7 +24,10 @@ urlpatterns = [
     path('movimientos/<int:pk>/', views.MovimientoDetailView.as_view(), name='movimiento-detail'),
     path('movimientos/<int:pk>/aprobar/', views.MovimientoAprobarView.as_view(), name='movimiento-aprobar'),
     path('movimientos/<int:pk>/rechazar/', views.MovimientoRechazarView.as_view(), name='movimiento-rechazar'),
-    
+    path('movimientos/<int:pk>/en-ejecucion/', views.MovimientoEnEjecucionView.as_view(), name='movimiento-en-ejecucion'),
+    path('movimientos/<int:pk>/en-transito/', views.MovimientoEnTransitoView.as_view(), name='movimiento-en-transito'),
+    path('movimientos/<int:pk>/ejecutar/', views.MovimientoEjecutarView.as_view(), name='movimiento-ejecutar'),
+
     # Notificaciones
     path('notificaciones/', views.NotificacionListView.as_view(), name='notificacion-list'),
     path('notificaciones/<int:pk>/leer/', views.NotificacionMarcarLeidaView.as_view(), name='notificacion-leer'),

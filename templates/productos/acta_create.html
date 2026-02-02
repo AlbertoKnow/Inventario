@@ -217,7 +217,7 @@
                             <input type="checkbox" name="items" value="{{ item.id }}" id="item_{{ item.id }}">
                             <div class="d-flex justify-content-between">
                                 <div>
-                                    <strong>{{ item.codigo_interno }}</strong>
+                                    <strong>{% if item.codigo_utp_pendiente %}{{ item.codigo_interno }}{% else %}{{ item.codigo_utp }}{% endif %}</strong>
                                     <br><span class="text-muted">{{ item.nombre }}</span>
                                     {% if item.especificaciones_sistemas %}
                                     <br><small>{{ item.especificaciones_sistemas.marca }} {{ item.especificaciones_sistemas.modelo }}</small>
@@ -305,7 +305,7 @@
                 {% for item in items %}
                 <div class="border rounded p-3 mb-3">
                     <h6 class="mb-3">
-                        <i class="fas fa-laptop me-2"></i>{{ item.codigo_interno }} - {{ item.nombre }}
+                        <i class="fas fa-laptop me-2"></i>{% if item.codigo_utp_pendiente %}{{ item.codigo_interno }}{% else %}{{ item.codigo_utp }}{% endif %} - {{ item.nombre }}
                     </h6>
                     <div class="row g-2">
                         <div class="col-md-4">

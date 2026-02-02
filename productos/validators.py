@@ -5,10 +5,29 @@ Este módulo contiene validadores de seguridad para archivos subidos,
 incluyendo validación de extensiones, tipos MIME y tamaño.
 """
 
-import magic
+import logging
+from django.conf import settings
+
+try:
+    import magic
+    HAS_MAGIC = True
+except ImportError:
+    HAS_MAGIC = False
+
 from django.core.exceptions import ValidationError
 from django.core.validators import FileExtensionValidator
 from django.utils.deconstruct import deconstructible
+
+logger = logging.getLogger(__name__)
+
+# Verificar si estamos en producción (DEBUG=False)
+# En producción, python-magic es OBLIGATORIO para seguridad
+if not HAS_MAGIC and not getattr(settings, 'DEBUG', True):
+    raise ImportError(
+        "SEGURIDAD: python-magic es requerido en producción. "
+        "Instálelo con: pip install python-magic-bin (Windows) "
+        "o pip install python-magic (Linux/Mac)"
+    )
 
 
 # Extensiones permitidas para imágenes
@@ -83,6 +102,15 @@ class ImageValidator:
         Valida el tipo MIME real del archivo usando python-magic.
         Esto previene que usuarios renombren archivos maliciosos.
         """
+        if not HAS_MAGIC:
+            # En desarrollo (DEBUG=True), advertir pero continuar
+            logger.warning(
+                "ADVERTENCIA DE SEGURIDAD: python-magic no está instalado. "
+                "La validación MIME está deshabilitada. "
+                "Instálelo con: pip install python-magic-bin"
+            )
+            return
+
         try:
             # Leer los primeros bytes para detectar el tipo real
             file_content = value.read(2048)
@@ -95,12 +123,11 @@ class ImageValidator:
                     f'Tipo de archivo no permitido: {mime}. '
                     f'Solo se permiten imágenes ({", ".join(self.allowed_extensions)})'
                 )
+        except ValidationError:
+            raise
         except Exception as e:
-            # Si python-magic no está disponible, solo validar extensión
-            if 'magic' in str(e).lower():
-                pass  # Continuar sin validación MIME si magic no está instalado
-            else:
-                raise ValidationError(f'Error al validar el archivo: {str(e)}')
+            logger.error(f"Error validando MIME type: {e}")
+            raise ValidationError(f'Error al validar el archivo: {str(e)}')
 
     def __eq__(self, other):
         return (

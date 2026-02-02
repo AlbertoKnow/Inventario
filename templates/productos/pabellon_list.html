@@ -82,7 +82,7 @@
                             <th>Sede</th>
                             <th>Campus</th>
                             <th class="text-center">Pisos</th>
-                            <th class="text-center">Sótano</th>
+                            <th class="text-center">Sótanos</th>
                             <th class="text-center">Ambientes</th>
                             <th class="text-center">Estado</th>
                             <th class="text-center">Acciones</th>
@@ -98,10 +98,10 @@
                             </td>
                             <td class="text-center">{{ pabellon.pisos }}</td>
                             <td class="text-center">
-                                {% if pabellon.tiene_sotano %}
-                                <i class="fas fa-check text-success"></i>
+                                {% if pabellon.sotanos %}
+                                <span class="badge bg-info">{{ pabellon.sotanos }}</span>
                                 {% else %}
-                                <i class="fas fa-times text-muted"></i>
+                                <span class="text-muted">-</span>
                                 {% endif %}
                             </td>
                             <td class="text-center">

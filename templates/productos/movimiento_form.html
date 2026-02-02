@@ -109,26 +109,25 @@
 
         <div class="row">
             <div class="col-lg-8">
-                <!-- Buscar Ítem -->
+                <!-- Buscar y Seleccionar Ítems -->
                 {% if not item %}
-                <div class="card mb-4">
+                <div class="card mb-4" id="cardBusquedaItems">
                     <div class="card-header">
-                        <i class="fas fa-search me-2"></i>Buscar Ítem
+                        <i class="fas fa-search me-2"></i>Buscar y Agregar Ítems
                     </div>
                     <div class="card-body">
                         <!-- Campo de búsqueda con autocompletado -->
                         <div class="mb-3">
-                            <label class="form-label">Buscar por Código UTP, Serie o Nombre <span class="text-danger">*</span></label>
+                            <label class="form-label">Buscar por Código UTP, Serie o Nombre</label>
                             <div class="position-relative">
                                 <input type="text"
-                                       class="form-control form-control-lg"
+                                       class="form-control"
                                        id="buscarItem"
-                                       placeholder="Escribe para buscar..."
+                                       placeholder="Escribe para buscar y agregar ítems..."
                                        autocomplete="off">
                                 <div id="sugerenciasItem" class="list-group position-absolute w-100 shadow" style="z-index: 1000; max-height: 300px; overflow-y: auto; display: none;"></div>
                             </div>
-                            <!-- Campo oculto para el ID del ítem -->
-                            <input type="hidden" name="item" id="id_item" value="">
+                            <small class="text-muted">Puedes agregar múltiples ítems al movimiento</small>
                         </div>
 
                         <!-- Filtros opcionales (colapsables) -->
@@ -184,81 +183,61 @@
                     </div>
                 </div>
                 {% else %}
-                <input type="hidden" name="item" value="{{ item.pk }}">
+                <!-- Ítem preseleccionado -->
+                <input type="hidden" name="items" value="{{ item.pk }}">
                 {% endif %}
 
-                <!-- Panel de Información del Ítem -->
-                <div class="card mb-4 {% if not item %}d-none{% endif %}" id="panelInfoItem">
-                    <div class="card-header bg-info bg-opacity-10">
-                        <i class="fas fa-box me-2"></i>Información del Ítem Seleccionado
+                <!-- Panel de Ítems Seleccionados -->
+                <div class="card mb-4" id="panelItemsSeleccionados">
+                    <div class="card-header bg-success bg-opacity-10 d-flex justify-content-between align-items-center">
+                        <span>
+                            <i class="fas fa-boxes me-2"></i>Ítems Seleccionados
+                            <span class="badge bg-primary ms-2" id="contadorItems">{% if item %}1{% else %}0{% endif %}</span>
+                        </span>
+                        {% if not item %}
+                        <button type="button" class="btn btn-sm btn-outline-danger" id="btnLimpiarItems" style="display: none;">
+                            <i class="fas fa-trash me-1"></i>Limpiar todos
+                        </button>
+                        {% endif %}
                     </div>
                     <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <table class="table table-sm table-borderless mb-0">
-                                    <tr>
-                                        <td class="text-muted" style="width: 40%;">Código UTP:</td>
-                                        <td><strong id="info_codigo">{% if item %}{{ item.codigo_utp }}{% endif %}</strong></td>
-                                    </tr>
-                                    <tr>
-                                        <td class="text-muted">Nombre:</td>
-                                        <td id="info_nombre">{% if item %}{{ item.nombre }}{% endif %}</td>
-                                    </tr>
-                                    <tr>
-                                        <td class="text-muted">Serie:</td>
-                                        <td id="info_serie">{% if item %}{{ item.serie|default:"-" }}{% endif %}</td>
-                                    </tr>
-                                    <tr>
-                                        <td class="text-muted">Estado:</td>
-                                        <td>
-                                            <span class="badge bg-secondary" id="info_estado">
-                                                {% if item %}{{ item.get_estado_display }}{% endif %}
-                                            </span>
-                                        </td>
-                                    </tr>
-                                </table>
-                            </div>
-                            <div class="col-md-6">
-                                <table class="table table-sm table-borderless mb-0">
-                                    <tr>
-                                        <td class="text-muted" style="width: 40%;">Área:</td>
-                                        <td id="info_area">{% if item %}{{ item.area.nombre }}{% endif %}</td>
-                                    </tr>
-                                    <tr>
-                                        <td class="text-muted">Tipo:</td>
-                                        <td id="info_tipo">{% if item %}{{ item.tipo_item.nombre|default:"-" }}{% endif %}</td>
-                                    </tr>
-                                    <tr>
-                                        <td class="text-muted">Colaborador:</td>
-                                        <td id="info_colaborador">{% if item %}{{ item.colaborador_asignado.nombre_completo|default:"-" }}{% endif %}</td>
-                                    </tr>
-                                </table>
-                            </div>
+                        <!-- Contenedor de campos hidden para los items -->
+                        <div id="itemsHiddenContainer">
+                            {% if item %}
+                            <input type="hidden" name="items" value="{{ item.pk }}" data-item-id="{{ item.pk }}">
+                            {% endif %}
                         </div>
 
-                        <!-- Ubicación actual (origen) -->
-                        <div class="alert alert-secondary mt-3 mb-0">
-                            <i class="fas fa-map-marker-alt me-2"></i>
-                            <strong>Ubicación actual (origen):</strong>
-                            <span id="info_ubicacion">
-                                {% if item and item.ambiente %}
-                                {{ item.ambiente.pabellon.sede.campus.nombre }} &raquo;
-                                {{ item.ambiente.pabellon.sede.nombre }} &raquo;
-                                Pabellón {{ item.ambiente.pabellon.letra }} &raquo;
-                                {{ item.ambiente.nombre }}
-                                {% elif item %}
-                                Sin ubicación asignada
-                                {% endif %}
-                            </span>
+                        <!-- Lista visual de ítems seleccionados -->
+                        <div id="listaItemsSeleccionados">
+                            {% if item %}
+                            <div class="item-seleccionado border rounded p-3 mb-2" data-item-id="{{ item.pk }}">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <strong>{{ item.codigo_utp }}</strong> - {{ item.nombre }}
+                                        <br><small class="text-muted">Serie: {{ item.serie|default:"-" }} | {{ item.area.nombre }}</small>
+                                        <br><small class="text-muted">
+                                            <i class="fas fa-map-marker-alt me-1"></i>
+                                            {% if item.ambiente %}
+                                            {{ item.ambiente.pabellon.sede.campus.nombre }} &raquo;
+                                            {{ item.ambiente.pabellon.sede.nombre }} &raquo;
+                                            Pab. {{ item.ambiente.pabellon.letra }} - {{ item.ambiente.nombre }}
+                                            {% else %}
+                                            Sin ubicación
+                                            {% endif %}
+                                        </small>
+                                    </div>
+                                    <span class="badge bg-secondary">{{ item.get_estado_display }}</span>
+                                </div>
+                            </div>
+                            {% else %}
+                            <div class="text-center text-muted py-4" id="mensajeSinItems">
+                                <i class="fas fa-inbox fa-3x mb-3 d-block opacity-50"></i>
+                                <p class="mb-0">No hay ítems seleccionados</p>
+                                <small>Usa el buscador de arriba para agregar ítems al movimiento</small>
+                            </div>
+                            {% endif %}
                         </div>
-
-                        {% if not item %}
-                        <div class="mt-3 text-end">
-                            <button type="button" class="btn btn-sm btn-outline-secondary" id="btnCambiarItem">
-                                <i class="fas fa-exchange-alt me-1"></i>Cambiar ítem
-                            </button>
-                        </div>
-                        {% endif %}
                     </div>
                 </div>
 
@@ -495,9 +474,14 @@ document.addEventListener('DOMContentLoaded', function() {
     // Campos de búsqueda
     const buscarInput = document.getElementById('buscarItem');
     const sugerenciasDiv = document.getElementById('sugerenciasItem');
-    const itemIdInput = document.getElementById('id_item');
-    const panelInfoItem = document.getElementById('panelInfoItem');
     const btnEnviar = document.getElementById('btnEnviar');
+
+    // Contenedores de ítems seleccionados
+    const itemsHiddenContainer = document.getElementById('itemsHiddenContainer');
+    const listaItemsSeleccionados = document.getElementById('listaItemsSeleccionados');
+    const contadorItems = document.getElementById('contadorItems');
+    const mensajeSinItems = document.getElementById('mensajeSinItems');
+    const btnLimpiarItems = document.getElementById('btnLimpiarItems');
 
     // Campos en cascada destino
     const campusDestino = document.getElementById('id_campus_destino');
@@ -512,6 +496,123 @@ document.addEventListener('DOMContentLoaded', function() {
     const filtroTipo = document.getElementById('filtro_tipo');
 
     let timeoutBusqueda = null;
+    let itemsSeleccionados = new Map(); // Map de id -> datos del item
+
+    // Inicializar con ítem preseleccionado si existe
+    {% if item %}
+    itemsSeleccionados.set({{ item.pk }}, {
+        id: {{ item.pk }},
+        codigo_utp: '{{ item.codigo_utp }}',
+        nombre: '{{ item.nombre }}',
+        serie: '{{ item.serie|default:"-" }}',
+        area: '{{ item.area.nombre }}',
+        estado_display: '{{ item.get_estado_display }}',
+        ubicacion: '{% if item.ambiente %}{{ item.ambiente.pabellon.sede.campus.nombre }} » {{ item.ambiente.pabellon.sede.nombre }} » Pab. {{ item.ambiente.pabellon.letra }} - {{ item.ambiente.nombre }}{% else %}Sin ubicación{% endif %}'
+    });
+    {% endif %}
+
+    // ===== FUNCIONES DE GESTIÓN DE ÍTEMS =====
+    function actualizarContador() {
+        const count = itemsSeleccionados.size;
+        contadorItems.textContent = count;
+
+        // Mostrar/ocultar mensaje vacío y botón limpiar
+        if (mensajeSinItems) {
+            mensajeSinItems.style.display = count === 0 ? 'block' : 'none';
+        }
+        if (btnLimpiarItems) {
+            btnLimpiarItems.style.display = count > 0 ? 'inline-block' : 'none';
+        }
+
+        // Habilitar/deshabilitar botón enviar
+        btnEnviar.disabled = count === 0;
+    }
+
+    function agregarItem(item) {
+        // Verificar si ya está seleccionado
+        if (itemsSeleccionados.has(item.id)) {
+            alert('Este ítem ya está seleccionado');
+            return;
+        }
+
+        // Agregar al Map
+        itemsSeleccionados.set(item.id, item);
+
+        // Crear campo hidden
+        const hiddenInput = document.createElement('input');
+        hiddenInput.type = 'hidden';
+        hiddenInput.name = 'items';
+        hiddenInput.value = item.id;
+        hiddenInput.dataset.itemId = item.id;
+        itemsHiddenContainer.appendChild(hiddenInput);
+
+        // Crear elemento visual
+        const itemDiv = document.createElement('div');
+        itemDiv.className = 'item-seleccionado border rounded p-3 mb-2';
+        itemDiv.dataset.itemId = item.id;
+        itemDiv.innerHTML = `
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <strong>${item.codigo_utp}</strong> - ${item.nombre}
+                    <br><small class="text-muted">Serie: ${item.serie || '-'} | ${item.area}</small>
+                    <br><small class="text-muted">
+                        <i class="fas fa-map-marker-alt me-1"></i>${item.ubicacion || 'Sin ubicación'}
+                    </small>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-secondary">${item.estado_display}</span>
+                    <button type="button" class="btn btn-sm btn-outline-danger btn-quitar-item" data-item-id="${item.id}">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+        listaItemsSeleccionados.appendChild(itemDiv);
+
+        // Agregar evento al botón quitar
+        itemDiv.querySelector('.btn-quitar-item').addEventListener('click', function() {
+            quitarItem(item.id);
+        });
+
+        actualizarContador();
+
+        // Limpiar búsqueda
+        if (buscarInput) {
+            buscarInput.value = '';
+            buscarInput.focus();
+        }
+    }
+
+    function quitarItem(itemId) {
+        // Quitar del Map
+        itemsSeleccionados.delete(itemId);
+
+        // Quitar campo hidden
+        const hiddenInput = itemsHiddenContainer.querySelector(`input[data-item-id="${itemId}"]`);
+        if (hiddenInput) hiddenInput.remove();
+
+        // Quitar elemento visual
+        const itemDiv = listaItemsSeleccionados.querySelector(`.item-seleccionado[data-item-id="${itemId}"]`);
+        if (itemDiv) itemDiv.remove();
+
+        actualizarContador();
+    }
+
+    function limpiarTodosItems() {
+        itemsSeleccionados.clear();
+        itemsHiddenContainer.innerHTML = '';
+        listaItemsSeleccionados.querySelectorAll('.item-seleccionado').forEach(el => el.remove());
+        actualizarContador();
+    }
+
+    // Evento para limpiar todos los ítems
+    if (btnLimpiarItems) {
+        btnLimpiarItems.addEventListener('click', function() {
+            if (confirm('¿Está seguro de quitar todos los ítems seleccionados?')) {
+                limpiarTodosItems();
+            }
+        });
+    }
 
     // ===== AUTOCOMPLETADO DE ÍTEMS =====
     if (buscarInput) {
@@ -537,7 +638,18 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function buscarItems(query) {
+        // Verificar que se haya seleccionado un tipo de movimiento
+        const tipoMovimiento = tipoSelect ? tipoSelect.value : '';
+        if (!tipoMovimiento) {
+            sugerenciasDiv.innerHTML = '<div class="list-group-item text-warning"><i class="fas fa-exclamation-triangle me-2"></i>Primero seleccione el tipo de movimiento</div>';
+            sugerenciasDiv.style.display = 'block';
+            return;
+        }
+
         let url = '{% url "productos:api-items-buscar" %}?q=' + encodeURIComponent(query);
+
+        // Añadir tipo de movimiento para filtrar ítems disponibles
+        url += '&tipo_movimiento=' + tipoMovimiento;
 
         // Añadir filtros si están activos
         if (filtroCampus && filtroCampus.value) url += '&campus=' + filtroCampus.value;
@@ -565,74 +677,34 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         items.forEach(item => {
+            const yaSeleccionado = itemsSeleccionados.has(item.id);
             const div = document.createElement('a');
             div.href = '#';
-            div.className = 'list-group-item list-group-item-action';
+            div.className = 'list-group-item list-group-item-action' + (yaSeleccionado ? ' bg-light' : '');
             div.innerHTML = `
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
                         <strong>${item.codigo_utp}</strong> - ${item.nombre}
                         <br><small class="text-muted">${item.serie || 'Sin serie'} | ${item.area}</small>
                     </div>
-                    <span class="badge bg-secondary">${item.estado_display}</span>
+                    <div>
+                        <span class="badge bg-secondary">${item.estado_display}</span>
+                        ${yaSeleccionado ? '<span class="badge bg-success ms-1"><i class="fas fa-check"></i></span>' : ''}
+                    </div>
                 </div>
                 <small class="text-muted"><i class="fas fa-map-marker-alt me-1"></i>${item.ubicacion || 'Sin ubicación'}</small>
             `;
             div.addEventListener('click', function(e) {
                 e.preventDefault();
-                seleccionarItem(item.id);
+                if (!yaSeleccionado) {
+                    agregarItem(item);
+                    sugerenciasDiv.style.display = 'none';
+                }
             });
             sugerenciasDiv.appendChild(div);
         });
 
         sugerenciasDiv.style.display = 'block';
-    }
-
-    function seleccionarItem(itemId) {
-        fetch('{% url "productos:api-item-detalle" %}?id=' + itemId)
-            .then(response => response.json())
-            .then(item => {
-                // Guardar ID
-                itemIdInput.value = item.id;
-
-                // Mostrar info
-                document.getElementById('info_codigo').textContent = item.codigo_utp;
-                document.getElementById('info_nombre').textContent = item.nombre;
-                document.getElementById('info_serie').textContent = item.serie || '-';
-                document.getElementById('info_estado').textContent = item.estado_display;
-                document.getElementById('info_area').textContent = item.area;
-                document.getElementById('info_tipo').textContent = item.tipo || '-';
-                document.getElementById('info_colaborador').textContent = item.colaborador_asignado || '-';
-                document.getElementById('info_ubicacion').textContent = item.ubicacion || 'Sin ubicación asignada';
-
-                // Mostrar panel y ocultar búsqueda
-                panelInfoItem.classList.remove('d-none');
-                if (buscarInput) {
-                    buscarInput.closest('.card').classList.add('d-none');
-                }
-                sugerenciasDiv.style.display = 'none';
-
-                // Habilitar envío
-                btnEnviar.disabled = false;
-            })
-            .catch(error => {
-                console.error('Error obteniendo detalle:', error);
-            });
-    }
-
-    // Botón cambiar ítem
-    const btnCambiarItem = document.getElementById('btnCambiarItem');
-    if (btnCambiarItem) {
-        btnCambiarItem.addEventListener('click', function() {
-            itemIdInput.value = '';
-            panelInfoItem.classList.add('d-none');
-            if (buscarInput) {
-                buscarInput.closest('.card').classList.remove('d-none');
-                buscarInput.value = '';
-                buscarInput.focus();
-            }
-            btnEnviar.disabled = true;
-        });
     }
 
     // ===== CASCADA DE UBICACIÓN DESTINO =====
@@ -823,16 +895,24 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     if (tipoSelect) {
-        tipoSelect.addEventListener('change', updateVisibilidad);
+        tipoSelect.addEventListener('change', function() {
+            updateVisibilidad();
+
+            // Limpiar ítems seleccionados cuando cambie el tipo de movimiento
+            // ya que los ítems válidos pueden variar según el tipo
+            if (itemsSeleccionados.size > 0) {
+                if (confirm('Al cambiar el tipo de movimiento se limpiarán los ítems seleccionados. ¿Desea continuar?')) {
+                    limpiarTodosItems();
+                } else {
+                    // Revertir la selección (esto es complicado, mejor solo avisar)
+                }
+            }
+        });
     }
 
-    // Inicializar visibilidad
+    // Inicializar visibilidad y contador
     updateVisibilidad();
-
-    // Deshabilitar envío si no hay ítem seleccionado (solo si no hay ítem preseleccionado)
-    {% if not item %}
-    btnEnviar.disabled = true;
-    {% endif %}
+    actualizarContador();
 });
 </script>
 {% endblock %}

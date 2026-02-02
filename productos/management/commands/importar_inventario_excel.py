@@ -165,16 +165,28 @@ class Command(BaseCommand):
                     pabellon = cache_pab[pabellon_str]
 
                     # Determinar piso y número
-                    try:
-                        piso_num = int(piso) if piso and piso.isdigit() else 1
-                    except:
-                        piso_num = 1
-
+                    # Manejar sótanos: S1XX = piso -1, S2XX = piso -2
+                    piso_num = 1
                     ambiente_num = 1
-                    match = re.search(r'(\d+)$', nombre_ambiente)
-                    if match:
-                        num_str = match.group(1)
-                        ambiente_num = int(num_str[-2:]) if len(num_str) >= 2 else int(num_str)
+
+                    # Verificar si es sótano (nombre empieza con S seguido de dígitos)
+                    sotano_match = re.match(r'^S(\d)(\d{2})$', nombre_ambiente.upper())
+                    if sotano_match:
+                        # Es sótano: S1XX o S2XX
+                        nivel_sotano = int(sotano_match.group(1))
+                        piso_num = -nivel_sotano  # S1XX -> -1, S2XX -> -2
+                        ambiente_num = int(sotano_match.group(2))
+                    else:
+                        # No es sótano, usar lógica normal
+                        try:
+                            piso_num = int(piso) if piso and piso.isdigit() else 1
+                        except:
+                            piso_num = 1
+
+                        match = re.search(r'(\d+)$', nombre_ambiente)
+                        if match:
+                            num_str = match.group(1)
+                            ambiente_num = int(num_str[-2:]) if len(num_str) >= 2 else int(num_str)
 
                     # Obtener/crear ambiente
                     amb_key = f'{pabellon_str}_{piso_num}_{ambiente_num}'

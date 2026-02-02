@@ -117,7 +117,7 @@
                         {% for mantenimiento in mantenimientos %}
                         <tr>
                             <td>
-                                <strong>{{ mantenimiento.item.codigo_interno }}</strong><br>
+                                <strong>{% if mantenimiento.item.codigo_utp_pendiente %}{{ mantenimiento.item.codigo_interno }}{% else %}{{ mantenimiento.item.codigo_utp }}{% endif %}</strong><br>
                                 <small class="text-muted">{{ mantenimiento.item.nombre }}</small>
                             </td>
                             <td>
