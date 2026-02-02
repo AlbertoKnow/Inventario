@@ -452,6 +452,8 @@ class MovimientoForm(forms.ModelForm):
         cleaned_data = super().clean()
         tipo = cleaned_data.get('tipo')
         items = cleaned_data.get('items')
+        colaborador_nuevo = cleaned_data.get('colaborador_nuevo')
+        ambiente_destino = cleaned_data.get('ambiente_destino')
 
         # Validar que se haya seleccionado al menos un ítem
         if not items:
@@ -482,18 +484,21 @@ class MovimientoForm(forms.ModelForm):
 
         # Validaciones según el tipo de movimiento
         if tipo == 'traslado':
-            if not cleaned_data.get('ambiente_destino'):
+            if not ambiente_destino:
                 raise forms.ValidationError('Debe seleccionar una ubicación destino para el traslado.')
 
         if tipo == 'asignacion':
-            if not cleaned_data.get('colaborador_nuevo'):
+            if not colaborador_nuevo:
                 raise forms.ValidationError('Debe seleccionar el colaborador al que se asigna el ítem.')
+            # Ambiente es opcional si hay colaborador (equipo móvil)
+            # Si no hay ambiente, el equipo "sigue" al colaborador
 
         if tipo == 'prestamo':
             if not cleaned_data.get('fecha_devolucion_esperada'):
                 raise forms.ValidationError('Debe indicar la fecha de devolución del préstamo.')
-            if not cleaned_data.get('colaborador_nuevo'):
+            if not colaborador_nuevo:
                 raise forms.ValidationError('Debe seleccionar el colaborador que recibe el préstamo.')
+            # Ambiente es opcional si hay colaborador (equipo móvil)
 
         if tipo in ['mantenimiento', 'garantia', 'reemplazo', 'leasing']:
             # Estos tipos pueden tener ítem de reemplazo opcional

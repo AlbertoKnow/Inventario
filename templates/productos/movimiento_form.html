@@ -272,9 +272,15 @@
                                 {{ form.pabellon_destino }}
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label">Ambiente <span class="text-danger">*</span></label>
+                                <label class="form-label">Ambiente <span class="text-danger ambiente-requerido">*</span></label>
                                 {{ form.ambiente_destino }}
                             </div>
+                        </div>
+                        <!-- Nota para equipos móviles -->
+                        <div class="alert alert-info mt-3 mb-0 small" id="notaEquipoMovil" style="display: none;">
+                            <i class="fas fa-info-circle me-1"></i>
+                            <strong>Equipo móvil:</strong> Si el colaborador se mueve con el equipo (ej: laptop),
+                            el ambiente es opcional. El equipo quedará asignado a la persona sin ubicación fija.
                         </div>
                     </div>
                 </div>
@@ -838,6 +844,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // ===== VISIBILIDAD POR TIPO DE MOVIMIENTO =====
+    const ambienteRequerido = document.querySelector('.ambiente-requerido');
+    const notaEquipoMovil = document.getElementById('notaEquipoMovil');
+
     function updateVisibilidad() {
         const tipo = tipoSelect ? tipoSelect.value : '';
 
@@ -849,16 +858,24 @@ document.addEventListener('DOMContentLoaded', function() {
         if (campoFechaDevolucion) campoFechaDevolucion.style.display = 'none';
         if (pasoTransito) pasoTransito.style.display = 'flex';
 
+        // Por defecto: ambiente obligatorio, nota oculta
+        if (ambienteRequerido) ambienteRequerido.style.display = 'inline';
+        if (notaEquipoMovil) notaEquipoMovil.style.display = 'none';
+
         // Mostrar secciones según tipo de movimiento
         switch(tipo) {
             case 'traslado':
                 seccionDestino.style.display = 'block';
+                // Ambiente obligatorio para traslados
                 break;
 
             case 'asignacion':
                 seccionColaborador.style.display = 'block';
                 seccionDestino.style.display = 'block';
                 pasoTransito.style.display = 'none';
+                // Ambiente opcional (equipo móvil)
+                if (ambienteRequerido) ambienteRequerido.style.display = 'none';
+                if (notaEquipoMovil) notaEquipoMovil.style.display = 'block';
                 break;
 
             case 'prestamo':
@@ -866,6 +883,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 campoFechaDevolucion.style.display = 'block';
                 seccionDestino.style.display = 'block';
                 pasoTransito.style.display = 'none';
+                // Ambiente opcional (equipo móvil)
+                if (ambienteRequerido) ambienteRequerido.style.display = 'none';
+                if (notaEquipoMovil) notaEquipoMovil.style.display = 'block';
                 break;
 
             case 'mantenimiento':
