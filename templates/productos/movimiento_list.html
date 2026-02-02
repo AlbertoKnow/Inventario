@@ -33,10 +33,13 @@
                     <label class="form-label">Tipo</label>
                     <select name="tipo" class="form-select">
                         <option value="">Todos</option>
-                        <option value="entrada" {% if request.GET.tipo == 'entrada' %}selected{% endif %}>Entrada</option>
-                        <option value="salida" {% if request.GET.tipo == 'salida' %}selected{% endif %}>Salida</option>
                         <option value="traslado" {% if request.GET.tipo == 'traslado' %}selected{% endif %}>Traslado</option>
-                        <option value="baja" {% if request.GET.tipo == 'baja' %}selected{% endif %}>Baja</option>
+                        <option value="asignacion" {% if request.GET.tipo == 'asignacion' %}selected{% endif %}>Asignación</option>
+                        <option value="prestamo" {% if request.GET.tipo == 'prestamo' %}selected{% endif %}>Préstamo</option>
+                        <option value="mantenimiento" {% if request.GET.tipo == 'mantenimiento' %}selected{% endif %}>Mantenimiento</option>
+                        <option value="garantia" {% if request.GET.tipo == 'garantia' %}selected{% endif %}>Garantía</option>
+                        <option value="reemplazo" {% if request.GET.tipo == 'reemplazo' %}selected{% endif %}>Reemplazo</option>
+                        <option value="leasing" {% if request.GET.tipo == 'leasing' %}selected{% endif %}>Dev. Leasing</option>
                     </select>
                 </div>
                 <div class="col-md-3">
@@ -98,14 +101,22 @@
                             <small class="text-muted">{{ movimiento.item.nombre|truncatewords:5 }}</small>
                         </td>
                         <td>
-                            {% if movimiento.tipo == 'entrada' %}
-                            <span class="badge bg-success">Entrada</span>
-                            {% elif movimiento.tipo == 'salida' %}
-                            <span class="badge bg-danger">Salida</span>
-                            {% elif movimiento.tipo == 'traslado' %}
+                            {% if movimiento.tipo == 'traslado' %}
                             <span class="badge bg-info">Traslado</span>
-                            {% elif movimiento.tipo == 'baja' %}
-                            <span class="badge bg-dark">Baja</span>
+                            {% elif movimiento.tipo == 'asignacion' %}
+                            <span class="badge bg-success">Asignación</span>
+                            {% elif movimiento.tipo == 'prestamo' %}
+                            <span class="badge bg-warning text-dark">Préstamo</span>
+                            {% elif movimiento.tipo == 'mantenimiento' %}
+                            <span class="badge bg-orange">Mantenimiento</span>
+                            {% elif movimiento.tipo == 'garantia' %}
+                            <span class="badge bg-purple">Garantía</span>
+                            {% elif movimiento.tipo == 'reemplazo' %}
+                            <span class="badge bg-secondary">Reemplazo</span>
+                            {% elif movimiento.tipo == 'leasing' %}
+                            <span class="badge bg-dark">Dev. Leasing</span>
+                            {% else %}
+                            <span class="badge bg-light text-dark">{{ movimiento.get_tipo_display }}</span>
                             {% endif %}
                         </td>
                         <td>{{ movimiento.ambiente_origen.nombre|default:"-" }}</td>
@@ -170,6 +181,10 @@
 <style>
 .bg-orange {
     background-color: #fd7e14 !important;
+    color: white;
+}
+.bg-purple {
+    background-color: #6f42c1 !important;
     color: white;
 }
 </style>
