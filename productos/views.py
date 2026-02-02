@@ -13,9 +13,9 @@ from datetime import timedelta, date
 
 from .models import (
     Area, Campus, Sede, Pabellon, Ambiente, TipoItem, Item, EspecificacionesSistemas,
-    Movimiento, HistorialCambio, Notificacion, PerfilUsuario,
+    Movimiento, MovimientoItem, HistorialCambio, Notificacion, PerfilUsuario,
     Proveedor, Contrato, AnexoContrato, Lote, Mantenimiento,
-    MarcaEquipo, ModeloEquipo, ProcesadorEquipo
+    MarcaEquipo, ModeloEquipo, ProcesadorEquipo, Colaborador
 )
 from .forms import (
     ItemForm, ItemSistemasForm, MovimientoForm, TipoItemForm, AmbienteForm,
@@ -184,32 +184,56 @@ class DashboardView(PerfilRequeridoMixin, CampusFilterMixin, TemplateView):
     template_name = 'productos/dashboard.html'
 
     def get_context_data(self, **kwargs):
+        from django.db.models import Case, When, IntegerField, Value
+        from django.core.cache import cache
+        from datetime import timedelta
+
         context = super().get_context_data(**kwargs)
 
         user = self.request.user
         perfil = getattr(user, 'perfil', None)
+        hoy = timezone.now().date()
 
         # Base queryset - filtrado por campus permitidos
         items = Item.objects.all()
-
-        # Filtrar por campus según permisos
         items = self.filtrar_por_campus(items, 'ambiente__pabellon__sede__campus')
 
         # Filtrar por área si no es admin
         if perfil and perfil.rol != 'admin' and perfil.area:
             items = items.filter(area=perfil.area)
 
-        # Estadísticas generales
-        context['total_items'] = items.count()
-        context['items_por_estado'] = {
-            'nuevo': items.filter(estado='nuevo').count(),
-            'instalado': items.filter(estado='instalado').count(),
-            'dañado': items.filter(estado='dañado').count(),
-            'obsoleto': items.filter(estado='obsoleto').count(),
-        }
-        context['items_sin_asignar'] = items.filter(colaborador_asignado__isnull=True).count()
+        # OPTIMIZACIÓN: Obtener todos los conteos en una sola query usando agregación
+        fecha_limite_garantia = hoy + timedelta(days=30)
+        stats = items.aggregate(
+            total=Count('id'),
+            estado_backup=Count('id', filter=Q(estado='backup')),
+            estado_custodia=Count('id', filter=Q(estado='custodia')),
+            estado_instalado=Count('id', filter=Q(estado='instalado')),
+            estado_mantenimiento=Count('id', filter=Q(estado='mantenimiento')),
+            estado_garantia=Count('id', filter=Q(estado='garantia')),
+            estado_baja=Count('id', filter=Q(estado='baja')),
+            sin_asignar=Count('id', filter=Q(colaborador_asignado__isnull=True)),
+            sin_codigo_utp=Count('id', filter=Q(codigo_utp='PENDIENTE')),
+            garantias_proximas=Count('id', filter=Q(
+                garantia_hasta__lte=fecha_limite_garantia,
+                garantia_hasta__gte=hoy
+            )),
+        )
 
-        # Items por área (filtrado por campus)
+        context['total_items'] = stats['total']
+        context['items_por_estado'] = {
+            'backup': stats['estado_backup'],
+            'custodia': stats['estado_custodia'],
+            'instalado': stats['estado_instalado'],
+            'mantenimiento': stats['estado_mantenimiento'],
+            'garantia': stats['estado_garantia'],
+            'baja': stats['estado_baja'],
+        }
+        context['items_sin_asignar'] = stats['sin_asignar']
+        context['items_sin_codigo_utp'] = stats['sin_codigo_utp']
+        context['garantias_proximas'] = stats['garantias_proximas']
+
+        # Items por área (filtrado por campus) - una sola query
         campus_ids = list(self.get_campus_permitidos().values_list('id', flat=True))
         if perfil and perfil.rol == 'admin':
             context['items_por_area'] = Area.objects.annotate(
@@ -220,48 +244,61 @@ class DashboardView(PerfilRequeridoMixin, CampusFilterMixin, TemplateView):
                 total=Count('items', filter=Q(items__ambiente__pabellon__sede__campus_id__in=campus_ids))
             ).values('nombre', 'total')
 
-        # Garantías próximas a vencer (30 días)
-        fecha_limite = timezone.now().date() + timezone.timedelta(days=30)
-        context['garantias_proximas'] = items.filter(
-            garantia_hasta__lte=fecha_limite,
-            garantia_hasta__gte=timezone.now().date()
-        ).count()
-
-        # Ítems sin código UTP (pendientes de etiqueta de logística)
-        context['items_sin_codigo_utp'] = items.filter(codigo_utp='PENDIENTE').count()
-
-        # Últimos movimientos - filtrados por campus
-        movimientos = Movimiento.objects.select_related('item', 'solicitado_por')
+        # Últimos movimientos - limitado a últimos 30 días y optimizado
+        fecha_limite_movimientos = timezone.now() - timedelta(days=30)
+        movimientos = Movimiento.objects.filter(
+            fecha_solicitud__gte=fecha_limite_movimientos
+        ).select_related(
+            'item', 'item__tipo_item', 'solicitado_por'
+        ).only(
+            'id', 'tipo', 'estado', 'fecha_solicitud',
+            'item__codigo_interno', 'item__codigo_utp', 'item__nombre',
+            'item__tipo_item__nombre',
+            'solicitado_por__username', 'solicitado_por__first_name', 'solicitado_por__last_name'
+        )
         movimientos = self.filtrar_por_campus(movimientos, 'item__ambiente__pabellon__sede__campus')
         if perfil and perfil.rol != 'admin' and perfil.area:
             movimientos = movimientos.filter(item__area=perfil.area)
         context['ultimos_movimientos'] = movimientos[:10]
 
         # Movimientos pendientes de aprobar
-        if perfil and perfil.rol in ['admin', 'supervisor']:
-            pendientes = Movimiento.objects.filter(estado='pendiente')
+        if perfil and perfil.rol in ['admin', 'supervisor', 'gerente']:
+            pendientes = Movimiento.objects.filter(estado='pendiente').select_related(
+                'item', 'item__tipo_item', 'solicitado_por'
+            ).only(
+                'id', 'tipo', 'estado', 'fecha_solicitud', 'motivo',
+                'item__codigo_interno', 'item__codigo_utp', 'item__nombre',
+                'solicitado_por__username', 'solicitado_por__first_name'
+            )
             pendientes = self.filtrar_por_campus(pendientes, 'item__ambiente__pabellon__sede__campus')
             if perfil.rol == 'supervisor' and perfil.area:
                 pendientes = pendientes.filter(item__area=perfil.area)
             context['movimientos_pendientes'] = pendientes[:5]
 
-        # Notificaciones
+        # Notificaciones no leídas
         context['notificaciones'] = Notificacion.objects.filter(
             usuario=user, leida=False
-        )[:5]
+        ).only('id', 'titulo', 'tipo', 'fecha', 'url')[:5]
 
-        # Mantenimientos - filtrados por campus
-        mantenimientos = Mantenimiento.objects.select_related('item')
-        mantenimientos = self.filtrar_por_campus(mantenimientos, 'item__ambiente__pabellon__sede__campus')
+        # Mantenimientos - optimizado con una sola agregación
+        mantenimientos_base = Mantenimiento.objects.all()
+        mantenimientos_base = self.filtrar_por_campus(mantenimientos_base, 'item__ambiente__pabellon__sede__campus')
         if perfil and perfil.rol != 'admin' and perfil.area:
-            mantenimientos = mantenimientos.filter(item__area=perfil.area)
+            mantenimientos_base = mantenimientos_base.filter(item__area=perfil.area)
 
-        context['mantenimientos_pendientes'] = mantenimientos.filter(estado='pendiente').count()
-        context['mantenimientos_vencidos'] = mantenimientos.filter(
-            estado='pendiente',
-            fecha_programada__lt=timezone.now().date()
-        ).count()
-        context['ultimos_mantenimientos'] = mantenimientos.order_by('-fecha_programada')[:5]
+        mant_stats = mantenimientos_base.aggregate(
+            pendientes=Count('id', filter=Q(estado='pendiente')),
+            vencidos=Count('id', filter=Q(estado='pendiente', fecha_programada__lt=hoy)),
+        )
+        context['mantenimientos_pendientes'] = mant_stats['pendientes']
+        context['mantenimientos_vencidos'] = mant_stats['vencidos']
+
+        context['ultimos_mantenimientos'] = mantenimientos_base.select_related(
+            'item', 'item__tipo_item'
+        ).only(
+            'id', 'tipo', 'estado', 'fecha_programada',
+            'item__codigo_interno', 'item__nombre', 'item__tipo_item__nombre'
+        ).order_by('-fecha_programada')[:5]
 
         # Campus del usuario para mostrar en dashboard
         context['campus_usuario'] = self.get_campus_permitidos()
@@ -282,8 +319,8 @@ class ItemListView(PerfilRequeridoMixin, CampusFilterMixin, ListView):
 
     def get_queryset(self):
         queryset = Item.objects.select_related(
-            'area', 'tipo_item', 'ambiente', 'usuario_asignado',
-            'ambiente__pabellon__sede__campus', 'colaborador_asignado'
+            'area', 'tipo_item', 'ambiente', 'colaborador_asignado',
+            'ambiente__pabellon__sede__campus'
         )
 
         perfil = getattr(self.request.user, 'perfil', None)
@@ -331,14 +368,14 @@ class ItemListView(PerfilRequeridoMixin, CampusFilterMixin, ListView):
         elif utp_pendiente == '0':
             queryset = queryset.exclude(codigo_utp='PENDIENTE')
 
-        # Filtro por usuario asignado
-        usuario_asignado = self.request.GET.get('usuario_asignado')
-        if usuario_asignado == 'sin_asignar':
-            queryset = queryset.filter(usuario_asignado__isnull=True)
-        elif usuario_asignado == 'asignado':
-            queryset = queryset.filter(usuario_asignado__isnull=False)
-        elif usuario_asignado:
-            queryset = queryset.filter(usuario_asignado_id=usuario_asignado)
+        # Filtro por colaborador asignado
+        colaborador_asignado = self.request.GET.get('colaborador_asignado')
+        if colaborador_asignado == 'sin_asignar':
+            queryset = queryset.filter(colaborador_asignado__isnull=True)
+        elif colaborador_asignado == 'asignado':
+            queryset = queryset.filter(colaborador_asignado__isnull=False)
+        elif colaborador_asignado:
+            queryset = queryset.filter(colaborador_asignado_id=colaborador_asignado)
 
         # Filtro por ambiente
         ambiente = self.request.GET.get('ambiente')
@@ -413,7 +450,7 @@ class ItemListView(PerfilRequeridoMixin, CampusFilterMixin, ListView):
         context['ambientes'] = Ambiente.objects.filter(activo=True).select_related('pabellon__sede__campus')
         context['estados'] = Item.ESTADOS
         context['tipos_item'] = TipoItem.objects.filter(activo=True).select_related('area')
-        context['usuarios'] = User.objects.filter(is_active=True).order_by('first_name', 'last_name')
+        context['colaboradores'] = Colaborador.objects.filter(activo=True).order_by('nombre_completo')
         context['lotes'] = Lote.objects.filter(activo=True).order_by('-creado_en')[:50]
 
         # Filtros activos (para mostrar chips)
@@ -423,7 +460,7 @@ class ItemListView(PerfilRequeridoMixin, CampusFilterMixin, ListView):
             'estado': self.request.GET.getlist('estado'),
             'tipo_item': self.request.GET.get('tipo_item', ''),
             'utp_pendiente': self.request.GET.get('utp_pendiente', ''),
-            'usuario_asignado': self.request.GET.get('usuario_asignado', ''),
+            'colaborador_asignado': self.request.GET.get('colaborador_asignado', ''),
             'ambiente': self.request.GET.get('ambiente', ''),
             'campus': self.request.GET.get('campus', ''),
             'precio_min': self.request.GET.get('precio_min', ''),
@@ -624,20 +661,26 @@ class MovimientoListView(PerfilRequeridoMixin, ListView):
     
     def get_queryset(self):
         queryset = Movimiento.objects.select_related(
-            'item', 'solicitado_por', 'aprobado_por'
+            'item', 'item__area', 'item__tipo_item',
+            'solicitado_por', 'aprobado_por', 'ejecutado_por',
+            'ambiente_origen__pabellon__sede',
+            'ambiente_destino__pabellon__sede',
+            'colaborador_nuevo', 'colaborador_anterior'
+        ).prefetch_related(
+            'items_movimiento__item'  # Para movimientos con múltiples ítems
         )
-        
+
         perfil = getattr(self.request.user, 'perfil', None)
-        
+
         # Filtrar por área si no es admin
         if perfil and perfil.rol != 'admin' and perfil.area:
             queryset = queryset.filter(item__area=perfil.area)
-        
+
         # Filtro por estado
         estado = self.request.GET.get('estado')
         if estado:
             queryset = queryset.filter(estado=estado)
-        
+
         return queryset
     
     def get_context_data(self, **kwargs):
@@ -654,15 +697,21 @@ class MovimientoPendientesView(SupervisorRequeridoMixin, ListView):
     
     def get_queryset(self):
         queryset = Movimiento.objects.filter(estado='pendiente').select_related(
-            'item', 'solicitado_por'
+            'item', 'item__area', 'item__tipo_item',
+            'solicitado_por',
+            'ambiente_origen__pabellon__sede',
+            'ambiente_destino__pabellon__sede',
+            'colaborador_nuevo'
+        ).prefetch_related(
+            'items_movimiento__item'
         )
-        
+
         perfil = getattr(self.request.user, 'perfil', None)
-        
+
         # Supervisor solo ve de su área
         if perfil and perfil.rol == 'supervisor' and perfil.area:
             queryset = queryset.filter(item__area=perfil.area)
-        
+
         return queryset
 
 
@@ -703,17 +752,35 @@ class MovimientoCreateView(PerfilRequeridoMixin, CreateView):
         movimiento.solicitado_por = self.request.user
         movimiento.estado = 'pendiente'
 
-        # Guardar ubicación y colaborador de origen
-        item = movimiento.item
-        movimiento.ambiente_origen = item.ambiente
-        movimiento.colaborador_anterior = item.colaborador_asignado
+        # Obtener los ítems seleccionados
+        items = form.cleaned_data.get('items')
 
-        movimiento.save()
+        if items:
+            # Usar el primer ítem para el campo item del modelo (compatibilidad)
+            primer_item = items[0]
+            movimiento.item = primer_item
+            movimiento.ambiente_origen = primer_item.ambiente
+            movimiento.colaborador_anterior = primer_item.colaborador_asignado
 
-        messages.success(
-            self.request,
-            f'Solicitud de {movimiento.get_tipo_display()} creada. Pendiente de aprobación.'
-        )
+            movimiento.save()
+
+            # Crear registros MovimientoItem para todos los ítems
+            for item in items:
+                MovimientoItem.objects.create(
+                    movimiento=movimiento,
+                    item=item
+                )
+
+            cantidad = len(items)
+            if cantidad == 1:
+                msg = f'Solicitud de {movimiento.get_tipo_display()} creada para 1 ítem. Pendiente de aprobación.'
+            else:
+                msg = f'Solicitud de {movimiento.get_tipo_display()} creada para {cantidad} ítems. Pendiente de aprobación.'
+
+            messages.success(self.request, msg)
+        else:
+            messages.error(self.request, 'Debe seleccionar al menos un ítem.')
+            return self.form_invalid(form)
 
         return redirect('productos:movimiento-list')
 
@@ -734,28 +801,30 @@ class MovimientoDetailView(PerfilRequeridoMixin, DetailView):
 
 
 class MovimientoAprobarView(SupervisorRequeridoMixin, View):
-    """Aprobar un movimiento."""
-    
+    """Aprobar un movimiento - Solo cambia estado a 'aprobado'."""
+
     def post(self, request, pk):
         movimiento = get_object_or_404(Movimiento, pk=pk)
-        
+
         # Verificar que puede aprobar
         perfil = getattr(request.user, 'perfil', None)
         if perfil and perfil.rol == 'supervisor':
             if perfil.area != movimiento.item.area:
                 messages.error(request, 'No puedes aprobar movimientos de otra área.')
                 return redirect('productos:movimiento-detail', pk=pk)
-        
+
         if movimiento.estado != 'pendiente':
             messages.error(request, 'Este movimiento no puede ser aprobado.')
             return redirect('productos:movimiento-detail', pk=pk)
 
-        # Aprobar y ejecutar
+        # Solo aprobar - el auxiliar debe marcar en ejecución después
         movimiento.aprobar(request.user)
-        movimiento.ejecutar()
 
-        messages.success(request, 'Movimiento aprobado y ejecutado.')
-        return redirect('productos:movimiento-pendientes')
+        messages.success(
+            request,
+            'Movimiento aprobado. El auxiliar debe marcar "En Ejecución" cuando retire el equipo.'
+        )
+        return redirect('productos:movimiento-detail', pk=pk)
 
 
 class MovimientoRechazarView(SupervisorRequeridoMixin, View):
@@ -780,6 +849,161 @@ class MovimientoRechazarView(SupervisorRequeridoMixin, View):
         
         messages.success(request, 'Movimiento rechazado.')
         return redirect('productos:movimiento-pendientes')
+
+
+class MovimientoEnEjecucionView(PerfilRequeridoMixin, View):
+    """
+    Marcar movimiento como 'En Ejecución'.
+    El auxiliar de origen usa esto cuando retira físicamente el equipo.
+    """
+
+    def post(self, request, pk):
+        movimiento = get_object_or_404(Movimiento, pk=pk)
+
+        # Verificar permisos - debe ser auxiliar del campus de origen
+        perfil = getattr(request.user, 'perfil', None)
+        if perfil and perfil.rol == 'auxiliar':
+            if movimiento.ambiente_origen:
+                campus_origen = movimiento.ambiente_origen.campus
+                if not perfil.puede_ver_campus(campus_origen):
+                    messages.error(request, 'No tienes permiso para este movimiento.')
+                    return redirect('productos:movimiento-detail', pk=pk)
+
+        if movimiento.estado != 'aprobado':
+            messages.error(request, 'Este movimiento no está en estado "Aprobado".')
+            return redirect('productos:movimiento-detail', pk=pk)
+
+        if movimiento.marcar_en_ejecucion(request.user):
+            messages.success(request, 'Movimiento marcado como "En Ejecución". Equipo retirado.')
+
+            # Si es traslado entre campus, indicar siguiente paso
+            if movimiento.es_entre_campus:
+                messages.info(
+                    request,
+                    'Este es un traslado entre campus. Marca "En Tránsito" cuando el equipo salga.'
+                )
+            else:
+                messages.info(
+                    request,
+                    'Puedes marcar "Ejecutado" cuando el equipo esté instalado/entregado.'
+                )
+        else:
+            messages.error(request, 'No se pudo marcar el movimiento como "En Ejecución".')
+
+        return redirect('productos:movimiento-detail', pk=pk)
+
+
+class MovimientoEnTransitoView(PerfilRequeridoMixin, View):
+    """
+    Marcar movimiento como 'En Tránsito'.
+    Solo aplica para traslados entre campus diferentes.
+    El auxiliar de origen usa esto cuando el equipo sale físicamente.
+    """
+
+    def post(self, request, pk):
+        movimiento = get_object_or_404(Movimiento, pk=pk)
+
+        # Verificar permisos - debe ser auxiliar del campus de origen
+        perfil = getattr(request.user, 'perfil', None)
+        if perfil and perfil.rol == 'auxiliar':
+            if movimiento.ambiente_origen:
+                campus_origen = movimiento.ambiente_origen.campus
+                if not perfil.puede_ver_campus(campus_origen):
+                    messages.error(request, 'No tienes permiso para este movimiento.')
+                    return redirect('productos:movimiento-detail', pk=pk)
+
+        if movimiento.estado != 'en_ejecucion':
+            messages.error(request, 'Este movimiento debe estar "En Ejecución" primero.')
+            return redirect('productos:movimiento-detail', pk=pk)
+
+        if not movimiento.es_entre_campus:
+            messages.error(request, 'Solo los traslados entre campus requieren estado "En Tránsito".')
+            return redirect('productos:movimiento-detail', pk=pk)
+
+        if movimiento.marcar_en_transito(request.user):
+            campus_destino = movimiento.campus_destino
+            messages.success(
+                request,
+                f'Equipo marcado "En Tránsito" hacia {campus_destino.nombre if campus_destino else "destino"}.'
+            )
+            messages.info(
+                request,
+                'El auxiliar del campus destino debe confirmar la recepción.'
+            )
+        else:
+            messages.error(request, 'No se pudo marcar el movimiento como "En Tránsito".')
+
+        return redirect('productos:movimiento-detail', pk=pk)
+
+
+class MovimientoEjecutarView(PerfilRequeridoMixin, View):
+    """
+    Marcar movimiento como 'Ejecutado'.
+    Para asignaciones y préstamos, redirige a crear Acta de Entrega.
+    El auxiliar (de destino si es traslado entre campus) confirma la recepción/instalación.
+    """
+
+    # Tipos de movimiento que requieren Acta de Entrega obligatoria
+    TIPOS_REQUIEREN_ACTA = ['asignacion', 'prestamo']
+
+    def post(self, request, pk):
+        movimiento = get_object_or_404(Movimiento, pk=pk)
+
+        # Verificar permisos
+        perfil = getattr(request.user, 'perfil', None)
+        if perfil and perfil.rol == 'auxiliar':
+            # Si es traslado entre campus, debe ser auxiliar del destino
+            if movimiento.es_entre_campus and movimiento.ambiente_destino:
+                campus_destino = movimiento.ambiente_destino.campus
+                if not perfil.puede_ver_campus(campus_destino):
+                    messages.error(
+                        request,
+                        'Solo el auxiliar del campus destino puede confirmar la recepción.'
+                    )
+                    return redirect('productos:movimiento-detail', pk=pk)
+
+        # Validar estado previo
+        estados_validos = ['aprobado', 'en_ejecucion', 'en_transito']
+        if movimiento.estado not in estados_validos:
+            messages.error(request, f'Este movimiento no puede ejecutarse (estado: {movimiento.get_estado_display()}).')
+            return redirect('productos:movimiento-detail', pk=pk)
+
+        # Si es traslado entre campus y no está en tránsito, advertir
+        if movimiento.es_entre_campus and movimiento.estado != 'en_transito':
+            messages.warning(
+                request,
+                'Este es un traslado entre campus. Se recomienda marcar "En Tránsito" antes de ejecutar.'
+            )
+
+        # Para asignaciones y préstamos: redirigir a crear Acta de Entrega
+        if movimiento.tipo in self.TIPOS_REQUIEREN_ACTA:
+            # Verificar si ya tiene acta
+            if hasattr(movimiento, 'acta_entrega') and movimiento.acta_entrega:
+                messages.info(request, 'Este movimiento ya tiene un acta de entrega asociada.')
+                return redirect('productos:acta-detail', pk=movimiento.acta_entrega.pk)
+
+            # Redirigir a crear acta con el movimiento precargado
+            messages.info(
+                request,
+                'Para completar esta asignación, debe generar el Acta de Entrega con las firmas correspondientes.'
+            )
+            from django.urls import reverse
+            url = reverse('productos:acta-create')
+            return redirect(f"{url}?movimiento={pk}")
+
+        # Para otros tipos de movimiento, ejecutar directamente
+        if movimiento.ejecutar(request.user):
+            messages.success(request, 'Movimiento ejecutado correctamente. Inventario actualizado.')
+
+            # Si requiere formato de traslado, ofrecer descarga
+            if movimiento.requiere_formato_traslado:
+                from django.urls import reverse
+                url = reverse('productos:movimiento-detail', kwargs={'pk': pk})
+                return redirect(f"{url}?descargar_formato=1")
+        else:
+            messages.error(request, 'No se pudo ejecutar el movimiento.')
+
+        return redirect('productos:movimiento-detail', pk=pk)
 
 
 # ============================================================================
@@ -1100,17 +1324,50 @@ class BuscarItemsView(RateLimitMixin, LoginRequiredMixin, View):
         sede_id = request.GET.get('sede')
         pabellon_id = request.GET.get('pabellon')
         ambiente_id = request.GET.get('ambiente')
-        
+        tipo_movimiento = request.GET.get('tipo_movimiento', '')
+
         items = Item.objects.select_related(
             'area', 'tipo_item', 'ambiente', 'ambiente__pabellon',
             'ambiente__pabellon__sede', 'ambiente__pabellon__sede__campus',
-            'usuario_asignado'
+            'usuario_asignado', 'colaborador_asignado'
         )
-        
+
         # Filtrar por área del usuario si no es admin
         perfil = getattr(request.user, 'perfil', None)
         if perfil and perfil.rol != 'admin' and perfil.area:
             items = items.filter(area=perfil.area)
+
+        # Filtrar según tipo de movimiento
+        if tipo_movimiento == 'asignacion':
+            # Solo ítems disponibles para asignar: backup o custodia, sin colaborador
+            items = items.filter(
+                estado__in=['backup', 'custodia'],
+                colaborador_asignado__isnull=True
+            )
+        elif tipo_movimiento == 'traslado':
+            # Cualquier ítem excepto baja o en tránsito
+            items = items.exclude(estado__in=['baja', 'transito'])
+        elif tipo_movimiento == 'mantenimiento':
+            # Ítems que no estén ya en mantenimiento o garantía
+            items = items.exclude(estado__in=['mantenimiento', 'garantia', 'baja', 'transito'])
+        elif tipo_movimiento == 'garantia':
+            # Ítems instalados o en custodia que necesiten garantía
+            items = items.filter(estado__in=['instalado', 'custodia', 'backup'])
+        elif tipo_movimiento == 'reemplazo':
+            # Ítems disponibles para usar como reemplazo
+            items = items.filter(
+                estado__in=['backup', 'custodia'],
+                colaborador_asignado__isnull=True
+            )
+        elif tipo_movimiento == 'prestamo':
+            # Ítems disponibles para préstamo
+            items = items.filter(
+                estado__in=['backup', 'custodia'],
+                colaborador_asignado__isnull=True
+            )
+        elif tipo_movimiento == 'leasing':
+            # Ítems de leasing que necesitan devolverse
+            items = items.filter(es_leasing=True).exclude(estado='baja')
         
         # Búsqueda por texto
         if query:
@@ -1144,7 +1401,7 @@ class BuscarItemsView(RateLimitMixin, LoginRequiredMixin, View):
             ubicacion = ""
             if item.ambiente:
                 amb = item.ambiente
-                ubicacion = f"{amb.pabellon.sede.campus.codigo} > {amb.pabellon.sede.nombre} > Pab. {amb.pabellon.nombre} > {amb.nombre}"
+                ubicacion = f"{amb.pabellon.sede.campus.codigo} > {amb.pabellon.sede.nombre} > Pab. {amb.pabellon.letra} - {amb.nombre}"
             
             # Obtener marca y modelo si tiene especificaciones
             marca = ''
@@ -1201,7 +1458,7 @@ class ObtenerItemDetalleView(LoginRequiredMixin, View):
         ubicacion_completa = {}
         if item.ambiente:
             amb = item.ambiente
-            ubicacion = f"{amb.pabellon.sede.campus.nombre} > {amb.pabellon.sede.nombre} > Pabellón {amb.pabellon.nombre} > {amb.nombre}"
+            ubicacion = f"{amb.pabellon.sede.campus.nombre} > {amb.pabellon.sede.nombre} > Pab. {amb.pabellon.letra} - {amb.nombre}"
             ubicacion_completa = {
                 'campus_id': amb.pabellon.sede.campus_id,
                 'campus': amb.pabellon.sede.campus.nombre,
@@ -2511,7 +2768,8 @@ class ExportarInventarioExcelView(RateLimitMixin, LoginRequiredMixin, View):
         for idx, item in enumerate(items.select_related('area', 'tipo_item', 'ambiente', 'usuario_asignado')):
             ubicacion = item.ambiente.codigo_completo if item.ambiente else 'Sin asignar'
             usuario = item.usuario_asignado.get_full_name() if item.usuario_asignado else 'Sin asignar'
-            row = [item.codigo_interno, item.codigo_utp, item.serie, item.nombre, item.area.nombre,
+            codigo_mostrar = item.codigo_utp if not item.codigo_utp_pendiente else item.codigo_interno
+            row = [codigo_mostrar, item.codigo_utp, item.serie, item.nombre, item.area.nombre,
                    item.tipo_item.nombre, item.get_estado_display(), ubicacion, usuario,
                    format_currency(item.precio), format_date(item.fecha_adquisicion),
                    format_date(item.garantia_hasta), format_boolean(item.es_leasing)]
@@ -2592,7 +2850,8 @@ class ExportarGarantiasVencenExcelView(RateLimitMixin, LoginRequiredMixin, View)
         for idx, item in enumerate(items.select_related('area', 'lote')):
             dias_restantes = (item.garantia_hasta - hoy).days
             proveedor = item.lote.contrato.proveedor.nombre if (item.lote and item.lote.contrato) else 'N/A'
-            row = [item.codigo_interno, item.serie, item.nombre, item.area.nombre,
+            codigo_mostrar = item.codigo_utp if not item.codigo_utp_pendiente else item.codigo_interno
+            row = [codigo_mostrar, item.serie, item.nombre, item.area.nombre,
                    format_date(item.fecha_adquisicion), format_date(item.garantia_hasta),
                    f"{dias_restantes} días", format_currency(item.precio), proveedor]
             exporter.add_row(row, alternate=(idx % 2 == 0))
@@ -2638,7 +2897,8 @@ class ExportarInventarioPDFView(RateLimitMixin, LoginRequiredMixin, View):
         headers = ['Código', 'Serie', 'Nombre', 'Área', 'Tipo', 'Estado', 'Precio']
         data = []
         for item in items.select_related('area', 'tipo_item')[:100]:
-            data.append([item.codigo_interno, item.serie[:15], item.nombre[:25], item.area.codigo,
+            codigo_mostrar = item.codigo_utp if not item.codigo_utp_pendiente else item.codigo_interno
+            data.append([codigo_mostrar, item.serie[:15], item.nombre[:25], item.area.codigo,
                         item.tipo_item.nombre[:15], item.get_estado_display()[:10], format_currency(item.precio)])
 
         exporter.add_table(headers, data)
@@ -2997,7 +3257,10 @@ class MantenimientoListView(PerfilRequeridoMixin, ListView):
     paginate_by = 20
 
     def get_queryset(self):
-        queryset = Mantenimiento.objects.select_related('item', 'responsable', 'creado_por')
+        queryset = Mantenimiento.objects.select_related(
+            'item', 'item__area', 'item__tipo_item', 'item__ambiente__pabellon__sede',
+            'responsable', 'creado_por'
+        )
         perfil = getattr(self.request.user, 'perfil', None)
 
         # Filtrar por área si no es admin
@@ -3523,8 +3786,13 @@ class ActaListView(PerfilRequeridoMixin, CampusFilterMixin, ListView):
 
     def get_queryset(self):
         queryset = ActaEntrega.objects.select_related(
-            'colaborador', 'creado_por'
-        ).prefetch_related('items')
+            'colaborador', 'colaborador__gerencia', 'colaborador__sede',
+            'creado_por'
+        ).prefetch_related(
+            'items__item',
+            'items__item__tipo_item',
+            'software__software'
+        )
 
         # Filtrar por campus - solo actas que contengan items del campus del usuario
         perfil = getattr(self.request.user, 'perfil', None)
@@ -3592,13 +3860,82 @@ class ActaCreateView(PerfilRequeridoMixin, View):
     template_name = 'productos/acta_create.html'
 
     def get(self, request):
-        # Paso inicial: seleccionar tipo y colaborador
+        # Verificar si viene desde un movimiento
+        movimiento_id = request.GET.get('movimiento')
+        movimiento = None
+        items_movimiento = []
+
+        if movimiento_id:
+            try:
+                movimiento = Movimiento.objects.select_related(
+                    'colaborador_nuevo', 'item'
+                ).get(pk=movimiento_id)
+
+                # Validar que el movimiento requiere acta
+                if movimiento.tipo not in ['asignacion', 'prestamo']:
+                    messages.warning(
+                        request,
+                        'Este tipo de movimiento no requiere acta de entrega.'
+                    )
+                    return redirect('productos:movimiento-detail', pk=movimiento_id)
+
+                # Validar que no tenga acta ya
+                if hasattr(movimiento, 'acta_entrega') and movimiento.acta_entrega:
+                    messages.info(request, 'Este movimiento ya tiene un acta asociada.')
+                    return redirect('productos:acta-detail', pk=movimiento.acta_entrega.pk)
+
+                # Guardar en sesión
+                request.session['acta_movimiento_id'] = movimiento.id
+
+                # Obtener items del movimiento
+                items_movimiento_qs = movimiento.items_movimiento.select_related('item')
+                if items_movimiento_qs.exists():
+                    items_movimiento = [mi.item for mi in items_movimiento_qs]
+                elif movimiento.item:
+                    items_movimiento = [movimiento.item]
+
+                # Precargar datos del form
+                initial_data = {
+                    'tipo': 'entrega',
+                    'colaborador': movimiento.colaborador_nuevo,
+                    'ticket': '',
+                    'observaciones': f'Generado desde movimiento {movimiento.codigo}',
+                }
+
+                form = ActaEntregaForm(user=request.user, initial=initial_data)
+                software_form = SeleccionarSoftwareForm()
+
+                # Si tiene colaborador destino, ir directo al paso 2
+                if movimiento.colaborador_nuevo and items_movimiento:
+                    # Guardar datos en sesión
+                    request.session['acta_tipo'] = 'entrega'
+                    request.session['acta_colaborador_id'] = movimiento.colaborador_nuevo.id
+                    request.session['acta_ticket'] = ''
+                    request.session['acta_observaciones'] = f'Generado desde movimiento {movimiento.codigo}'
+
+                    return render(request, self.template_name, {
+                        'form': form,
+                        'software_form': software_form,
+                        'items_disponibles': items_movimiento,
+                        'items_preseleccionados': [item.id for item in items_movimiento],
+                        'colaborador': movimiento.colaborador_nuevo,
+                        'tipo': 'entrega',
+                        'movimiento': movimiento,
+                        'paso': 2,
+                    })
+
+            except Movimiento.DoesNotExist:
+                messages.error(request, 'Movimiento no encontrado.')
+                return redirect('productos:movimiento-list')
+
+        # Paso inicial normal: seleccionar tipo y colaborador
         form = ActaEntregaForm(user=request.user)
         software_form = SeleccionarSoftwareForm()
 
         return render(request, self.template_name, {
             'form': form,
             'software_form': software_form,
+            'movimiento': movimiento,
             'paso': 1,
         })
 
@@ -3698,8 +4035,17 @@ class ActaCreateView(PerfilRequeridoMixin, View):
             observaciones = request.session.get('acta_observaciones', '')
             items_ids = request.session.get('acta_items_ids', [])
             software_ids = request.session.get('acta_software_ids', [])
+            movimiento_id = request.session.get('acta_movimiento_id')
 
             colaborador = Colaborador.objects.get(id=colaborador_id)
+
+            # Obtener movimiento si existe
+            movimiento = None
+            if movimiento_id:
+                try:
+                    movimiento = Movimiento.objects.get(pk=movimiento_id)
+                except Movimiento.DoesNotExist:
+                    pass
 
             # Procesar firmas (base64 a imagen)
             def base64_to_image(data, filename):
@@ -3717,7 +4063,7 @@ class ActaCreateView(PerfilRequeridoMixin, View):
                 f'firma_emisor_{request.user.username}.png'
             )
 
-            # Crear el acta
+            # Crear el acta (vinculada al movimiento si existe)
             acta = ActaEntrega.objects.create(
                 tipo=tipo,
                 colaborador=colaborador,
@@ -3725,7 +4071,8 @@ class ActaCreateView(PerfilRequeridoMixin, View):
                 observaciones=observaciones,
                 firma_receptor=firma_receptor_file,
                 firma_emisor=firma_emisor_file,
-                creado_por=request.user
+                creado_por=request.user,
+                movimiento=movimiento  # Vincula con movimiento (None si no hay)
             )
 
             # Crear ActaItems con accesorios
@@ -3766,13 +4113,22 @@ class ActaCreateView(PerfilRequeridoMixin, View):
 
             # Limpiar sesión
             for key in ['acta_tipo', 'acta_colaborador_id', 'acta_ticket',
-                       'acta_observaciones', 'acta_items_ids', 'acta_software_ids']:
+                       'acta_observaciones', 'acta_items_ids', 'acta_software_ids',
+                       'acta_movimiento_id']:
                 request.session.pop(key, None)
 
-            messages.success(
-                request,
-                f'Acta {acta.numero_acta} creada correctamente.'
-            )
+            # Mensaje de éxito (diferente si viene de un movimiento)
+            if movimiento:
+                messages.success(
+                    request,
+                    f'Acta {acta.numero_acta} creada correctamente. '
+                    f'El movimiento {movimiento.codigo} ha sido ejecutado automáticamente.'
+                )
+            else:
+                messages.success(
+                    request,
+                    f'Acta {acta.numero_acta} creada correctamente.'
+                )
 
             return redirect('productos:acta-detail', pk=acta.pk)
 
@@ -3782,13 +4138,28 @@ class ActaCreateView(PerfilRequeridoMixin, View):
 class ActaDescargarPDFView(PerfilRequeridoMixin, View):
     """Descargar PDF del acta."""
 
+    def _generar_nombre_archivo(self, acta):
+        """Genera nombre descriptivo para el archivo PDF."""
+        import re
+        # Limpiar nombre del colaborador
+        nombre_colaborador = acta.colaborador.nombre_completo
+        nombre_limpio = nombre_colaborador.replace(' ', '_')
+        nombre_limpio = re.sub(r'[^\w\-_]', '', nombre_limpio)[:30]
+
+        # Generar nombre según tipo de acta
+        if acta.tipo == 'entrega':
+            return f"asignacion_a_{nombre_limpio}.pdf"
+        else:
+            return f"devolucion_de_{nombre_limpio}.pdf"
+
     def get(self, request, pk):
         acta = get_object_or_404(ActaEntrega, pk=pk)
+        filename = self._generar_nombre_archivo(acta)
 
         # Si ya tiene PDF generado, devolverlo
         if acta.pdf_archivo:
             response = HttpResponse(acta.pdf_archivo, content_type='application/pdf')
-            response['Content-Disposition'] = f'attachment; filename="{acta.numero_acta}.pdf"'
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
             return response
 
         # Si no, generar el PDF
@@ -3807,7 +4178,7 @@ class ActaDescargarPDFView(PerfilRequeridoMixin, View):
             )
 
             response = HttpResponse(pdf_bytes, content_type='application/pdf')
-            response['Content-Disposition'] = f'attachment; filename="{acta.numero_acta}.pdf"'
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
             return response
 
         except Exception as e:
@@ -4033,22 +4404,37 @@ class FormatoTrasladoMovimientoView(PerfilRequeridoMixin, View):
 
         movimiento = get_object_or_404(Movimiento, pk=pk)
 
-        # Preparar datos del item
-        item = movimiento.item
-        items_data = [{
-            'codigo_utp': item.codigo_utp or item.codigo_interno,
-            'descripcion': item.nombre or item.tipo_item.nombre if item.tipo_item else '',
-            'marca': '',
-            'modelo': '',
-        }]
+        # Obtener todos los ítems del movimiento (compatible con modelo nuevo y antiguo)
+        items = movimiento.get_items()
 
-        # Si tiene especificaciones de sistemas, obtener marca y modelo
-        if hasattr(item, 'especificaciones_sistemas'):
-            specs = item.especificaciones_sistemas
-            if specs.marca_equipo:
-                items_data[0]['marca'] = specs.marca_equipo.nombre
-            if specs.modelo_equipo:
-                items_data[0]['modelo'] = specs.modelo_equipo.nombre
+        # Preparar datos de todos los ítems
+        items_data = []
+        for item in items:
+            item_data = {
+                'codigo_utp': item.codigo_utp or item.codigo_interno,
+                'descripcion': item.nombre or (item.tipo_item.nombre if item.tipo_item else ''),
+                'marca': '',
+                'modelo': '',
+                'serie': item.serie or '',
+                'estado': 'OPTIMO' if item.estado == 'instalado' else item.get_estado_display().upper(),
+                'observaciones': '',
+            }
+
+            # Si tiene especificaciones de sistemas, obtener marca y modelo
+            if hasattr(item, 'especificaciones_sistemas'):
+                try:
+                    specs = item.especificaciones_sistemas
+                    if specs.marca_equipo:
+                        item_data['marca'] = specs.marca_equipo.nombre
+                    if specs.modelo_equipo:
+                        item_data['modelo'] = specs.modelo_equipo.nombre
+                except:
+                    pass
+
+            items_data.append(item_data)
+
+        # Usar el primer ítem para datos de origen (referencia)
+        primer_item = items[0] if items else movimiento.item
 
         # Preparar datos de origen
         origen_data = {
@@ -4060,12 +4446,12 @@ class FormatoTrasladoMovimientoView(PerfilRequeridoMixin, View):
         if movimiento.ambiente_origen:
             amb = movimiento.ambiente_origen
             origen_data['sede'] = f"{amb.pabellon.sede.campus.nombre} - {amb.pabellon.sede.nombre}" if amb.pabellon and amb.pabellon.sede else ''
-            origen_data['piso'] = amb.pabellon.nombre if amb.pabellon else ''
+            origen_data['piso'] = f"Pab. {amb.pabellon.letra}" if amb.pabellon else ''
             origen_data['ubicacion'] = amb.nombre
-            if item.colaborador_asignado:
-                origen_data['usuario'] = item.colaborador_asignado.nombre_completo
-            elif item.usuario_asignado:
-                origen_data['usuario'] = item.usuario_asignado.get_full_name()
+            if primer_item and primer_item.colaborador_asignado:
+                origen_data['usuario'] = primer_item.colaborador_asignado.nombre_completo
+            elif primer_item and primer_item.usuario_asignado:
+                origen_data['usuario'] = primer_item.usuario_asignado.get_full_name()
 
         # Preparar datos de destino
         destino_data = {
@@ -4077,24 +4463,37 @@ class FormatoTrasladoMovimientoView(PerfilRequeridoMixin, View):
         if movimiento.ambiente_destino:
             amb = movimiento.ambiente_destino
             destino_data['sede'] = f"{amb.pabellon.sede.campus.nombre} - {amb.pabellon.sede.nombre}" if amb.pabellon and amb.pabellon.sede else ''
-            destino_data['piso'] = amb.pabellon.nombre if amb.pabellon else ''
+            destino_data['piso'] = f"Pab. {amb.pabellon.letra}" if amb.pabellon else ''
             destino_data['ubicacion'] = amb.nombre
-            if movimiento.colaborador_destino:
-                destino_data['usuario'] = movimiento.colaborador_destino.nombre_completo
-            elif movimiento.usuario_destino:
-                destino_data['usuario'] = movimiento.usuario_destino.get_full_name()
+            if movimiento.colaborador_nuevo:
+                destino_data['usuario'] = movimiento.colaborador_nuevo.nombre_completo
 
         # Generar Excel
         buffer = generar_formato_traslado(
             items_data=items_data,
             origen_data=origen_data,
             destino_data=destino_data,
-            fecha=movimiento.fecha_creacion
+            fecha=movimiento.fecha_solicitud
         )
 
-        # Preparar respuesta
+        # Preparar respuesta con nombre descriptivo
         fecha_str = timezone.now().strftime('%Y%m%d')
-        filename = f"formato_traslado_{item.codigo_interno}_{fecha_str}.xlsx"
+
+        # Función para limpiar nombres (reemplazar espacios y caracteres especiales)
+        def limpiar_nombre(nombre):
+            import re
+            nombre = nombre.replace(' ', '_')
+            nombre = re.sub(r'[^\w\-_]', '', nombre)
+            return nombre[:30]  # Limitar longitud
+
+        # Generar nombre descriptivo: "FT de [origen] a [destino]"
+        origen_nombre = movimiento.ambiente_origen.nombre if movimiento.ambiente_origen else 'Almacen'
+        destino_nombre = movimiento.ambiente_destino.nombre if movimiento.ambiente_destino else 'Destino'
+
+        origen_limpio = limpiar_nombre(origen_nombre)
+        destino_limpio = limpiar_nombre(destino_nombre)
+
+        filename = f"FT_de_{origen_limpio}_a_{destino_limpio}_{fecha_str}.xlsx"
 
         response = HttpResponse(
             buffer.read(),
@@ -4159,7 +4558,7 @@ class FormatoTrasladoGenerarView(PerfilRequeridoMixin, View):
         if primer_item_con_ubicacion and primer_item_con_ubicacion.ambiente:
             amb = primer_item_con_ubicacion.ambiente
             origen_data['sede'] = f"{amb.pabellon.sede.campus.nombre} - {amb.pabellon.sede.nombre}"
-            origen_data['piso'] = amb.pabellon.nombre
+            origen_data['piso'] = f"Pab. {amb.pabellon.letra}"
             origen_data['ubicacion'] = amb.nombre
             # Si el item tiene usuario asignado, usarlo como usuario de origen
             if primer_item_con_ubicacion.usuario_asignado:
@@ -4175,7 +4574,7 @@ class FormatoTrasladoGenerarView(PerfilRequeridoMixin, View):
             try:
                 amb = Ambiente.objects.select_related('pabellon__sede__campus').get(pk=ambiente_destino_id)
                 destino_data['sede'] = f"{amb.pabellon.sede.campus.nombre} - {amb.pabellon.sede.nombre}"
-                destino_data['piso'] = amb.pabellon.nombre
+                destino_data['piso'] = f"Pab. {amb.pabellon.letra}"
                 destino_data['ubicacion'] = amb.nombre
             except Ambiente.DoesNotExist:
                 pass
@@ -4183,7 +4582,7 @@ class FormatoTrasladoGenerarView(PerfilRequeridoMixin, View):
             try:
                 pab = Pabellon.objects.select_related('sede__campus').get(pk=pabellon_destino_id)
                 destino_data['sede'] = f"{pab.sede.campus.nombre} - {pab.sede.nombre}"
-                destino_data['piso'] = pab.nombre
+                destino_data['piso'] = f"Pab. {pab.letra}"
             except Pabellon.DoesNotExist:
                 pass
         elif sede_destino_id:
@@ -4201,9 +4600,24 @@ class FormatoTrasladoGenerarView(PerfilRequeridoMixin, View):
             fecha=timezone.now()
         )
 
-        # Preparar respuesta
-        fecha_str = timezone.now().strftime('%Y%m%d_%H%M%S')
-        filename = f"formato_traslado_{fecha_str}.xlsx"
+        # Preparar respuesta con nombre descriptivo
+        import re
+        fecha_str = timezone.now().strftime('%Y%m%d')
+
+        # Función para limpiar nombres
+        def limpiar_nombre(nombre):
+            nombre = nombre.replace(' ', '_')
+            nombre = re.sub(r'[^\w\-_]', '', nombre)
+            return nombre[:30]
+
+        # Generar nombre descriptivo: "FT de [origen] a [destino]"
+        origen_nombre = origen_data.get('ubicacion') or 'Origen'
+        destino_nombre = destino_data.get('ubicacion') or destino_data.get('piso') or destino_data.get('sede') or 'Destino'
+
+        origen_limpio = limpiar_nombre(origen_nombre)
+        destino_limpio = limpiar_nombre(destino_nombre)
+
+        filename = f"FT_de_{origen_limpio}_a_{destino_limpio}_{fecha_str}.xlsx"
 
         response = HttpResponse(
             buffer.read(),

@@ -1,4 +1,4 @@
-from django.db import models
+from django.db import models, transaction
 from django.core.validators import MinValueValidator
 from django.core.exceptions import ValidationError
 from django.contrib.auth.models import User
@@ -388,22 +388,28 @@ class Lote(models.Model):
     
     @classmethod
     def generar_codigo_interno(cls):
-        """Genera código automático LOT-YYYY-XXXX."""
+        """
+        Genera código automático LOT-YYYY-XXXX.
+        Usa select_for_update() para evitar race conditions en concurrencia.
+        """
         año = timezone.now().year
-        ultimo = cls.objects.filter(
-            codigo_interno__startswith=f"LOT-{año}-"
-        ).order_by('-codigo_interno').first()
-        
-        if ultimo:
-            try:
-                ultimo_num = int(ultimo.codigo_interno.split('-')[-1])
-                nuevo_num = ultimo_num + 1
-            except ValueError:
+        prefijo = f"LOT-{año}-"
+
+        with transaction.atomic():
+            ultimo = cls.objects.filter(
+                codigo_interno__startswith=prefijo
+            ).select_for_update().order_by('-codigo_interno').first()
+
+            if ultimo:
+                try:
+                    ultimo_num = int(ultimo.codigo_interno.split('-')[-1])
+                    nuevo_num = ultimo_num + 1
+                except ValueError:
+                    nuevo_num = 1
+            else:
                 nuevo_num = 1
-        else:
-            nuevo_num = 1
-        
-        return f"LOT-{año}-{nuevo_num:04d}"
+
+            return f"{prefijo}{nuevo_num:04d}"
     
     @property
     def cantidad_items(self):
@@ -549,7 +555,19 @@ class Item(models.Model):
         ('transito', 'En Tránsito'),
         ('baja', 'Baja'),
     ]
-    
+
+    # Máquina de estados: define transiciones permitidas
+    # Formato: estado_actual -> [estados_destino_permitidos]
+    TRANSICIONES_PERMITIDAS = {
+        'backup': ['instalado', 'custodia', 'mantenimiento', 'garantia', 'transito'],
+        'custodia': ['instalado', 'backup', 'mantenimiento', 'garantia', 'transito', 'baja'],
+        'instalado': ['backup', 'custodia', 'mantenimiento', 'garantia', 'transito'],
+        'garantia': ['instalado', 'backup', 'custodia', 'baja'],  # Regresa reparado o dado de baja
+        'mantenimiento': ['instalado', 'backup', 'custodia', 'baja'],  # Regresa reparado o dado de baja
+        'transito': ['instalado', 'backup', 'custodia'],  # Llega a destino
+        'baja': [],  # Estado final - no puede cambiar
+    }
+
     # Identificación (únicos e inmutables)
     codigo_interno = models.CharField(
         max_length=50,
@@ -675,6 +693,20 @@ class Item(models.Model):
             models.Index(fields=['serie']),
             models.Index(fields=['area', 'estado']),
             models.Index(fields=['ambiente']),
+            # Índices compuestos para queries frecuentes
+            models.Index(fields=['colaborador_asignado', 'estado']),
+            models.Index(fields=['garantia_hasta', 'estado']),
+            models.Index(fields=['tipo_item', 'area']),
+            models.Index(fields=['estado', '-creado_en']),
+            models.Index(fields=['es_leasing', 'leasing_vencimiento']),
+        ]
+        constraints = [
+            # Unicidad de codigo_utp solo cuando no es PENDIENTE
+            models.UniqueConstraint(
+                fields=['codigo_utp'],
+                condition=~models.Q(codigo_utp='PENDIENTE'),
+                name='unique_codigo_utp_when_assigned'
+            ),
         ]
 
     def __str__(self):
@@ -744,9 +776,69 @@ class Item(models.Model):
         """Indica si el ítem está esperando código UTP de logística."""
         return self.codigo_utp == "PENDIENTE"
 
+    def puede_cambiar_estado(self, nuevo_estado):
+        """
+        Verifica si la transición de estado es válida según la máquina de estados.
+
+        Args:
+            nuevo_estado: El estado destino propuesto
+
+        Returns:
+            bool: True si la transición es válida, False si no
+        """
+        if self.estado == nuevo_estado:
+            return True  # No hay cambio
+
+        estados_permitidos = self.TRANSICIONES_PERMITIDAS.get(self.estado, [])
+        return nuevo_estado in estados_permitidos
+
+    def cambiar_estado(self, nuevo_estado, forzar=False):
+        """
+        Cambia el estado del ítem validando la transición.
+
+        Args:
+            nuevo_estado: El estado destino
+            forzar: Si True, permite transiciones no válidas (solo admin)
+
+        Returns:
+            tuple: (exito: bool, mensaje: str)
+
+        Raises:
+            ValidationError: Si la transición no es válida y forzar=False
+        """
+        if self.estado == nuevo_estado:
+            return True, "Estado sin cambios"
+
+        if not forzar and not self.puede_cambiar_estado(nuevo_estado):
+            estados_permitidos = self.TRANSICIONES_PERMITIDAS.get(self.estado, [])
+            raise ValidationError(
+                f"No se puede cambiar de '{self.get_estado_display()}' a "
+                f"'{dict(self.ESTADOS).get(nuevo_estado, nuevo_estado)}'. "
+                f"Transiciones permitidas: {', '.join(estados_permitidos) or 'ninguna'}"
+            )
+
+        estado_anterior = self.estado
+        self.estado = nuevo_estado
+        self.save(update_fields=['estado', 'modificado_en'])
+
+        return True, f"Estado cambiado de {estado_anterior} a {nuevo_estado}"
+
+    def get_estados_posibles(self):
+        """
+        Retorna los estados a los que puede transicionar este ítem.
+
+        Returns:
+            list: Lista de tuplas (codigo, nombre) de estados permitidos
+        """
+        estados_permitidos = self.TRANSICIONES_PERMITIDAS.get(self.estado, [])
+        return [(e, dict(self.ESTADOS).get(e, e)) for e in estados_permitidos]
+
     @classmethod
     def generar_codigo_interno(cls, area_codigo):
-        """Genera automáticamente el próximo código interno para un área."""
+        """
+        Genera automáticamente el próximo código interno para un área.
+        Usa select_for_update() para evitar race conditions en concurrencia.
+        """
         prefijos = {
             'sistemas': 'SIS',
             'operaciones': 'OPE',
@@ -754,22 +846,24 @@ class Item(models.Model):
         }
         prefijo = prefijos.get(area_codigo, 'INV')
         año = timezone.now().year
+        prefijo_completo = f"{prefijo}-{año}-"
 
-        # Buscar el último código del área y año
-        ultimo = cls.objects.filter(
-            codigo_interno__startswith=f"{prefijo}-{año}-"
-        ).order_by('-codigo_interno').first()
+        with transaction.atomic():
+            # Buscar el último código del área y año con lock
+            ultimo = cls.objects.filter(
+                codigo_interno__startswith=prefijo_completo
+            ).select_for_update().order_by('-codigo_interno').first()
 
-        if ultimo:
-            try:
-                ultimo_num = int(ultimo.codigo_interno.split('-')[-1])
-                nuevo_num = ultimo_num + 1
-            except ValueError:
+            if ultimo:
+                try:
+                    ultimo_num = int(ultimo.codigo_interno.split('-')[-1])
+                    nuevo_num = ultimo_num + 1
+                except ValueError:
+                    nuevo_num = 1
+            else:
                 nuevo_num = 1
-        else:
-            nuevo_num = 1
 
-        return f"{prefijo}-{año}-{nuevo_num:04d}"
+            return f"{prefijo_completo}{nuevo_num:04d}"
 
 
 # ============================================================================
@@ -1089,6 +1183,20 @@ class Movimiento(models.Model):
         return False
 
     @property
+    def es_entre_sedes(self):
+        """Determina si el movimiento es entre sedes diferentes."""
+        if self.ambiente_origen and self.ambiente_destino:
+            sede_origen = self.ambiente_origen.pabellon.sede if self.ambiente_origen.pabellon else None
+            sede_destino = self.ambiente_destino.pabellon.sede if self.ambiente_destino.pabellon else None
+            return sede_origen and sede_destino and sede_origen != sede_destino
+        return False
+
+    @property
+    def requiere_formato_traslado(self):
+        """Indica si el movimiento requiere formato de traslado (entre sedes o campus)."""
+        return self.es_entre_sedes or self.es_entre_campus
+
+    @property
     def campus_origen(self):
         """Retorna el campus de origen."""
         if self.ambiente_origen:
@@ -1161,47 +1269,130 @@ class Movimiento(models.Model):
 
         return True
 
+    # Mapeo de tipo de movimiento -> estado destino por defecto
+    ESTADOS_DESTINO_POR_TIPO = {
+        'asignacion': 'instalado',
+        'prestamo': 'instalado',
+        'mantenimiento': 'mantenimiento',
+        'garantia': 'garantia',
+        'leasing': 'baja',
+        'reemplazo': 'instalado',
+        # 'traslado' tiene lógica especial
+    }
+
+    def _obtener_items_a_procesar(self):
+        """Obtiene la lista de items a procesar en el movimiento."""
+        items_movimiento = self.items_movimiento.all()
+
+        if items_movimiento.exists():
+            return [(mov_item.item, mov_item.estado_item_destino) for mov_item in items_movimiento]
+        elif self.item:
+            return [(self.item, None)]
+        return []
+
+    def _determinar_nuevo_estado(self, item, estado_especifico):
+        """
+        Determina el nuevo estado del ítem según prioridad.
+
+        Prioridad:
+        1. Estado específico del MovimientoItem
+        2. Estado definido en el movimiento (estado_item_destino)
+        3. Estado por defecto según tipo de movimiento
+        """
+        if estado_especifico:
+            return estado_especifico
+
+        if self.estado_item_destino:
+            return self.estado_item_destino
+
+        # Caso especial: traslado
+        if self.tipo == 'traslado':
+            return 'custodia' if item.estado == 'transito' else None
+
+        return self.ESTADOS_DESTINO_POR_TIPO.get(self.tipo)
+
+    def _actualizar_colaborador_item(self, item):
+        """Actualiza la asignación de colaborador según el tipo de movimiento."""
+        if self.tipo in ['asignacion', 'prestamo', 'reemplazo']:
+            item.colaborador_asignado = self.colaborador_nuevo
+        elif self.tipo == 'leasing':
+            item.colaborador_asignado = None
+
+    def _procesar_item(self, item, estado_especifico):
+        """Procesa un ítem individual durante la ejecución del movimiento."""
+        # 1. Actualizar ubicación
+        if self.ambiente_destino:
+            item.ambiente = self.ambiente_destino
+
+        # 2. Determinar y aplicar nuevo estado
+        nuevo_estado = self._determinar_nuevo_estado(item, estado_especifico)
+        if nuevo_estado and item.puede_cambiar_estado(nuevo_estado):
+            item.estado = nuevo_estado
+
+        # 3. Actualizar colaborador
+        self._actualizar_colaborador_item(item)
+
+        item.save()
+
+    def _procesar_item_reemplazo(self):
+        """Procesa el ítem de reemplazo si existe."""
+        if self.item_reemplazo and self.ambiente_origen:
+            self.item_reemplazo.ambiente = self.ambiente_origen
+            if self.item_reemplazo.puede_cambiar_estado('instalado'):
+                self.item_reemplazo.estado = 'instalado'
+            if self.colaborador_anterior:
+                self.item_reemplazo.colaborador_asignado = self.colaborador_anterior
+            self.item_reemplazo.save()
+
     def ejecutar(self, usuario):
         """
         Ejecuta el movimiento (confirma recepción/instalación).
-        Actualiza la ubicación y estado del ítem.
+        Actualiza la ubicación y estado de todos los ítems según el tipo de movimiento.
+        Soporta tanto el modelo antiguo (campo item) como el nuevo (MovimientoItem).
+
+        Args:
+            usuario: Usuario que ejecuta el movimiento
+
+        Returns:
+            bool: True si se ejecutó correctamente, False si no
         """
         estados_validos = ['aprobado', 'en_ejecucion', 'en_transito']
         if self.estado not in estados_validos:
             return False
 
-        item = self.item
+        # Procesar cada ítem
+        for item, estado_especifico in self._obtener_items_a_procesar():
+            self._procesar_item(item, estado_especifico)
 
-        # Actualizar ubicación
-        if self.ambiente_destino:
-            item.ambiente = self.ambiente_destino
+        # Procesar ítem de reemplazo si existe
+        self._procesar_item_reemplazo()
 
-        # Actualizar estado del ítem
-        if self.estado_item_destino:
-            item.estado = self.estado_item_destino
-        elif self.tipo == 'asignacion':
-            item.estado = 'instalado'
-
-        # Actualizar asignación de colaborador
-        if self.tipo in ['asignacion', 'prestamo']:
-            item.colaborador_asignado = self.colaborador_nuevo
-
-        item.save()
-
-        # Si hay ítem de reemplazo, actualizar su ubicación también
-        if self.item_reemplazo and self.ambiente_origen:
-            self.item_reemplazo.ambiente = self.ambiente_origen
-            self.item_reemplazo.estado = 'instalado'
-            if self.colaborador_anterior:
-                self.item_reemplazo.colaborador_asignado = self.colaborador_anterior
-            self.item_reemplazo.save()
-
+        # Finalizar el movimiento
         self.estado = 'ejecutado'
         self.ejecutado_por = usuario
         self.fecha_ejecucion = timezone.now()
         self.save()
 
         return True
+
+    def get_items(self):
+        """
+        Retorna todos los ítems del movimiento (compatible con ambos modelos).
+        """
+        items_movimiento = self.items_movimiento.all()
+        if items_movimiento.exists():
+            return [mi.item for mi in items_movimiento]
+        elif self.item:
+            return [self.item]
+        return []
+
+    @property
+    def cantidad_items(self):
+        """Retorna la cantidad de ítems en el movimiento."""
+        count = self.items_movimiento.count()
+        if count > 0:
+            return count
+        return 1 if self.item else 0
 
     def cancelar(self, usuario, motivo=''):
         """Cancela el movimiento si aún no está ejecutado."""
@@ -1212,6 +1403,65 @@ class Movimiento(models.Model):
             self.observaciones += f"\nCancelado por {usuario}: {motivo}"
         self.save()
         return True
+
+
+# ============================================================================
+# ITEMS DE MOVIMIENTO (Modelo intermedio para múltiples ítems)
+# ============================================================================
+
+class MovimientoItem(models.Model):
+    """
+    Modelo intermedio para relacionar Movimiento con múltiples Items.
+    Permite almacenar información específica de cada ítem en el movimiento.
+    """
+
+    movimiento = models.ForeignKey(
+        Movimiento,
+        on_delete=models.CASCADE,
+        related_name='items_movimiento'
+    )
+    item = models.ForeignKey(
+        Item,
+        on_delete=models.CASCADE,
+        related_name='movimientos_item'
+    )
+
+    # Estado específico del ítem al finalizar (puede variar por ítem)
+    estado_item_destino = models.CharField(
+        max_length=20,
+        choices=Item.ESTADOS,
+        blank=True,
+        help_text="Estado final del ítem al ejecutar (si difiere del movimiento)"
+    )
+
+    # Observaciones específicas de este ítem
+    observaciones = models.TextField(
+        blank=True,
+        help_text="Observaciones específicas para este ítem"
+    )
+
+    # Auditoría
+    agregado_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Ítem del Movimiento"
+        verbose_name_plural = "Ítems del Movimiento"
+        unique_together = ['movimiento', 'item']
+        ordering = ['agregado_en']
+
+    def __str__(self):
+        return f"{self.movimiento} - {self.item.codigo_interno}"
+
+    @property
+    def estado_final(self):
+        """Retorna el estado final que tendrá el ítem."""
+        if self.estado_item_destino:
+            return self.estado_item_destino
+        if self.movimiento.estado_item_destino:
+            return self.movimiento.estado_item_destino
+        if self.movimiento.tipo == 'asignacion':
+            return 'instalado'
+        return self.item.estado
 
 
 # ============================================================================
@@ -1652,6 +1902,16 @@ class ActaEntrega(models.Model):
         help_text="Número de ticket de Mesa de Ayuda (opcional)"
     )
 
+    # Vinculación con movimiento (para asignaciones/préstamos)
+    movimiento = models.OneToOneField(
+        'Movimiento',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='acta_entrega',
+        help_text="Movimiento de asignación/préstamo que generó esta acta"
+    )
+
     # Fechas
     fecha = models.DateTimeField(auto_now_add=True)
 
@@ -1703,29 +1963,52 @@ class ActaEntrega(models.Model):
     def save(self, *args, **kwargs):
         if not self.numero_acta:
             self.numero_acta = self.generar_numero_acta()
+
+        # Determinar si es una creación nueva con movimiento vinculado
+        es_nueva = self._state.adding
         super().save(*args, **kwargs)
+
+        # Si es acta nueva vinculada a un movimiento, ejecutarlo automáticamente
+        if es_nueva and self.movimiento:
+            self._ejecutar_movimiento_vinculado()
+
+    def _ejecutar_movimiento_vinculado(self):
+        """
+        Ejecuta automáticamente el movimiento vinculado al crear el acta.
+        Solo aplica para movimientos de asignación o préstamo.
+        """
+        movimiento = self.movimiento
+        if movimiento and movimiento.tipo in ['asignacion', 'prestamo']:
+            # Solo ejecutar si está en estado válido
+            estados_validos = ['aprobado', 'en_ejecucion', 'en_transito']
+            if movimiento.estado in estados_validos:
+                movimiento.ejecutar(self.creado_por)
 
     @classmethod
     def generar_numero_acta(cls):
-        """Genera número de acta: TIPO-AÑO-SECUENCIAL"""
-        from django.utils import timezone
+        """
+        Genera número de acta: ACTA-AÑO-SECUENCIAL.
+        Usa select_for_update() para evitar race conditions en concurrencia.
+        """
         año = timezone.now().year
+        patron = f"-{año}-"
 
-        # Buscar último número del año
-        ultimo = cls.objects.filter(
-            numero_acta__contains=f"-{año}-"
-        ).order_by('-numero_acta').first()
+        with transaction.atomic():
+            # Buscar último número del año con lock
+            ultimo = cls.objects.filter(
+                numero_acta__contains=patron
+            ).select_for_update().order_by('-numero_acta').first()
 
-        if ultimo:
-            try:
-                ultimo_num = int(ultimo.numero_acta.split('-')[-1])
-                nuevo_num = ultimo_num + 1
-            except ValueError:
+            if ultimo:
+                try:
+                    ultimo_num = int(ultimo.numero_acta.split('-')[-1])
+                    nuevo_num = ultimo_num + 1
+                except ValueError:
+                    nuevo_num = 1
+            else:
                 nuevo_num = 1
-        else:
-            nuevo_num = 1
 
-        return f"ACTA-{año}-{nuevo_num:04d}"
+            return f"ACTA-{año}-{nuevo_num:04d}"
 
     @property
     def cantidad_items(self):

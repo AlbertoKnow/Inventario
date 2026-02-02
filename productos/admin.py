@@ -6,7 +6,7 @@ from django.urls import reverse
 from .models import (
     Area, Campus, Sede, Pabellon, Ambiente, TipoItem, PerfilUsuario, Item,
     EspecificacionesSistemas, Movimiento, HistorialCambio, Notificacion,
-    MarcaEquipo, ModeloEquipo, ProcesadorEquipo
+    MarcaEquipo, ModeloEquipo, ProcesadorEquipo, Colaborador
 )
 
 
@@ -508,6 +508,33 @@ class NotificacionAdmin(admin.ModelAdmin):
     def marcar_como_leidas(self, request, queryset):
         queryset.update(leida=True)
         self.message_user(request, f'{queryset.count()} notificación(es) marcada(s) como leída(s).')
+
+
+# ============================================================================
+# COLABORADORES
+# ============================================================================
+
+@admin.register(Colaborador)
+class ColaboradorAdmin(admin.ModelAdmin):
+    list_display = ('dni', 'nombre_completo', 'cargo', 'gerencia', 'sede', 'activo')
+    list_filter = ('gerencia', 'sede', 'activo')
+    search_fields = ('dni', 'nombre_completo', 'cargo', 'correo')
+    ordering = ('nombre_completo',)
+
+    fieldsets = (
+        ('Identificación', {
+            'fields': ('dni', 'nombre_completo')
+        }),
+        ('Datos Laborales', {
+            'fields': ('cargo', 'gerencia', 'sede')
+        }),
+        ('Contacto', {
+            'fields': ('anexo', 'correo')
+        }),
+        ('Estado', {
+            'fields': ('activo',)
+        }),
+    )
 
 
 # ============================================================================

@@ -2,7 +2,7 @@ from django import forms
 from django.contrib.auth.models import User
 from .models import (
     Area, Campus, Sede, Pabellon, Ambiente, TipoItem, Item,
-    EspecificacionesSistemas, Movimiento, PerfilUsuario, Mantenimiento,
+    EspecificacionesSistemas, Movimiento, MovimientoItem, PerfilUsuario, Mantenimiento,
     Gerencia, Colaborador, SoftwareEstandar, ActaEntrega, ActaItem, ActaFoto,
     MarcaEquipo, ModeloEquipo, ProcesadorEquipo
 )
@@ -34,7 +34,7 @@ class ItemForm(forms.ModelForm):
         fields = [
             # Campos principales
             'codigo_utp', 'serie', 'nombre', 'descripcion', 'area', 'tipo_item', 'ambiente',
-            'estado', 'usuario_asignado', 'observaciones',
+            'estado', 'colaborador_asignado', 'observaciones',
             # Garantía y Leasing
             'garantia_hasta', 'es_leasing', 'leasing_vencimiento',
         ]
@@ -50,7 +50,7 @@ class ItemForm(forms.ModelForm):
             'tipo_item': forms.Select(attrs={'class': 'form-select', 'id': 'id_tipo_item'}),
             'ambiente': forms.Select(attrs={'class': 'form-select', 'id': 'id_ambiente'}),
             'estado': forms.Select(attrs={'class': 'form-select'}),
-            'usuario_asignado': forms.Select(attrs={'class': 'form-select'}),
+            'colaborador_asignado': forms.Select(attrs={'class': 'form-select'}),
             'observaciones': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
             'garantia_hasta': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}, format='%Y-%m-%d'),
             'es_leasing': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
@@ -80,14 +80,10 @@ class ItemForm(forms.ModelForm):
             self.fields['pabellon'].initial = pabellon
             self.fields['ambiente'].queryset = Ambiente.objects.filter(pabellon=pabellon, activo=True)
         
-        # Usuarios para asignación: activos + externos (is_active=False pero rol=externo)
-        usuarios_activos = User.objects.filter(is_active=True)
-        usuarios_externos = User.objects.filter(
-            is_active=False,
-            perfil__rol='externo'
-        )
-        self.fields['usuario_asignado'].queryset = usuarios_activos | usuarios_externos
-        self.fields['usuario_asignado'].required = False
+        # Colaboradores para asignación: activos (incluye genéricos como DOCENTE, ALUMNO)
+        self.fields['colaborador_asignado'].queryset = Colaborador.objects.filter(activo=True)
+        self.fields['colaborador_asignado'].required = False
+        self.fields['colaborador_asignado'].empty_label = "SIN ASIGNAR"
         
         # Campos opcionales
         self.fields['descripcion'].required = False
@@ -316,7 +312,20 @@ class ItemSistemasForm(ItemForm):
 
 
 class MovimientoForm(forms.ModelForm):
-    """Formulario para crear movimientos."""
+    """Formulario para crear movimientos con soporte para múltiples ítems."""
+
+    # Campo para selección múltiple de ítems
+    items = forms.ModelMultipleChoiceField(
+        queryset=Item.objects.all(),
+        required=True,
+        label="Ítems",
+        widget=forms.SelectMultiple(attrs={
+            'class': 'form-select',
+            'id': 'id_items',
+            'size': '8'
+        }),
+        help_text="Seleccione uno o más ítems (Ctrl+clic para selección múltiple)"
+    )
 
     # Campos adicionales para selección en cascada de ubicación destino
     campus_destino = forms.ModelChoiceField(
@@ -341,12 +350,11 @@ class MovimientoForm(forms.ModelForm):
     class Meta:
         model = Movimiento
         fields = [
-            'item', 'tipo', 'ambiente_destino', 'estado_item_destino',
+            'tipo', 'ambiente_destino', 'estado_item_destino',
             'colaborador_nuevo', 'item_reemplazo', 'reemplazo_es_temporal',
             'fecha_devolucion_esperada', 'motivo', 'observaciones'
         ]
         widgets = {
-            'item': forms.Select(attrs={'class': 'form-select'}),
             'tipo': forms.Select(attrs={'class': 'form-select', 'id': 'id_tipo'}),
             'ambiente_destino': forms.Select(attrs={'class': 'form-select', 'id': 'id_ambiente_destino'}),
             'estado_item_destino': forms.Select(attrs={'class': 'form-select'}),
@@ -414,13 +422,13 @@ class MovimientoForm(forms.ModelForm):
         if self.user and hasattr(self.user, 'perfil'):
             perfil = self.user.perfil
             if perfil.rol != 'admin' and perfil.area:
-                self.fields['item'].queryset = Item.objects.filter(area=perfil.area)
+                self.fields['items'].queryset = Item.objects.filter(area=perfil.area)
                 # También filtrar ítems de reemplazo por área
                 self.fields['item_reemplazo'].queryset = Item.objects.filter(
                     area=perfil.area, estado__in=['backup', 'custodia']
                 )
             else:
-                self.fields['item'].queryset = Item.objects.all()
+                self.fields['items'].queryset = Item.objects.all()
                 self.fields['item_reemplazo'].queryset = Item.objects.filter(
                     estado__in=['backup', 'custodia']
                 )
@@ -431,8 +439,7 @@ class MovimientoForm(forms.ModelForm):
 
         # Si hay ítem preseleccionado
         if self.item_preseleccionado:
-            self.fields['item'].initial = self.item_preseleccionado
-            self.fields['item'].widget = forms.HiddenInput()
+            self.fields['items'].initial = [self.item_preseleccionado]
 
         # Si no hay datos POST, mantener todos los ambientes activos disponibles
         if not data:
@@ -444,6 +451,34 @@ class MovimientoForm(forms.ModelForm):
     def clean(self):
         cleaned_data = super().clean()
         tipo = cleaned_data.get('tipo')
+        items = cleaned_data.get('items')
+
+        # Validar que se haya seleccionado al menos un ítem
+        if not items:
+            raise forms.ValidationError('Debe seleccionar al menos un ítem.')
+
+        # SEGURIDAD: Validar permisos sobre items seleccionados
+        if self.user and hasattr(self.user, 'perfil'):
+            perfil = self.user.perfil
+            if perfil.rol != 'admin' and perfil.area:
+                # Verificar que todos los items pertenecen al área del usuario
+                items_no_permitidos = [
+                    item for item in items if item.area != perfil.area
+                ]
+                if items_no_permitidos:
+                    codigos = ', '.join([item.codigo_interno for item in items_no_permitidos[:3]])
+                    raise forms.ValidationError(
+                        f'No tienes permiso para mover los siguientes ítems: {codigos}'
+                    )
+
+            # Validar permisos de campus si es auxiliar
+            if perfil.rol == 'auxiliar' and perfil.campus:
+                campus_permitidos = perfil.get_campus_permitidos()
+                for item in items:
+                    if item.ambiente and item.ambiente.campus not in campus_permitidos:
+                        raise forms.ValidationError(
+                            f'No tienes permiso para mover ítems del campus {item.ambiente.campus.nombre}'
+                        )
 
         # Validaciones según el tipo de movimiento
         if tipo == 'traslado':

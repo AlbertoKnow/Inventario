@@ -110,7 +110,7 @@
                                 <tr>
                                     <td>
                                         <a href="{% url 'productos:item-detail' acta_item.item.codigo_interno %}">
-                                            {{ acta_item.item.codigo_interno }}
+                                            {% if acta_item.item.codigo_utp_pendiente %}{{ acta_item.item.codigo_interno }}{% else %}{{ acta_item.item.codigo_utp }}{% endif %}
                                         </a>
                                     </td>
                                     <td>

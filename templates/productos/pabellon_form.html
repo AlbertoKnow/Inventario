@@ -58,25 +58,35 @@
                         <hr class="my-4">
                         <h6 class="text-muted mb-3">Datos del Pabellón</h6>
                         
-                        <div class="mb-3">
-                            <label class="form-label">Nombre/Código <span class="text-danger">*</span></label>
-                            {{ form.nombre }}
-                            <small class="text-muted">Ej: A, B, C, Principal, Torre 1</small>
-                            {% if form.nombre.errors %}
-                            <div class="text-danger small">{{ form.nombre.errors.0 }}</div>
-                            {% endif %}
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Letra <span class="text-danger">*</span></label>
+                                {{ form.letra }}
+                                <small class="text-muted">Una letra (A-Z)</small>
+                                {% if form.letra.errors %}
+                                <div class="text-danger small">{{ form.letra.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Nombre</label>
+                                {{ form.nombre }}
+                                <small class="text-muted">Nombre descriptivo (opcional)</small>
+                                {% if form.nombre.errors %}
+                                <div class="text-danger small">{{ form.nombre.errors.0 }}</div>
+                                {% endif %}
+                            </div>
                         </div>
-                        
+
                         <div class="row mb-3">
                             <div class="col-md-6">
                                 <label class="form-label">Número de Pisos</label>
                                 {{ form.pisos }}
+                                <small class="text-muted">Pisos sobre nivel de suelo</small>
                             </div>
-                            <div class="col-md-6 d-flex align-items-end">
-                                <div class="form-check mb-3">
-                                    {{ form.tiene_sotano }}
-                                    <label class="form-check-label">Tiene Sótano</label>
-                                </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Número de Sótanos</label>
+                                {{ form.sotanos }}
+                                <small class="text-muted">Niveles bajo suelo (0 si no tiene)</small>
                             </div>
                         </div>
                         

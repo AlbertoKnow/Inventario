@@ -12,7 +12,7 @@
                 </div>
                 <div class="card-body">
                     <p>¿Está seguro de eliminar este mantenimiento?</p>
-                    <p><strong>Ítem:</strong> {{ object.item.codigo_interno }} - {{ object.item.nombre }}</p>
+                    <p><strong>Ítem:</strong> {% if object.item.codigo_utp_pendiente %}{{ object.item.codigo_interno }}{% else %}{{ object.item.codigo_utp }}{% endif %} - {{ object.item.nombre }}</p>
                     <p><strong>Tipo:</strong> {{ object.get_tipo_display }}</p>
                     <p><strong>Fecha:</strong> {{ object.fecha_programada|date:"d/m/Y" }}</p>
 

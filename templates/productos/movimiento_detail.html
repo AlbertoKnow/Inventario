@@ -48,6 +48,14 @@
                             <span class="badge bg-success fs-6">
                                 <i class="fas fa-check me-1"></i>Aprobado
                             </span>
+                            {% elif movimiento.estado == 'en_ejecucion' %}
+                            <span class="badge bg-info fs-6">
+                                <i class="fas fa-hand-paper me-1"></i>En Ejecucion
+                            </span>
+                            {% elif movimiento.estado == 'en_transito' %}
+                            <span class="badge bg-orange fs-6">
+                                <i class="fas fa-truck me-1"></i>En Transito
+                            </span>
                             {% elif movimiento.estado == 'rechazado' %}
                             <span class="badge bg-danger fs-6">
                                 <i class="fas fa-times me-1"></i>Rechazado
@@ -56,9 +64,9 @@
                             <span class="badge bg-primary fs-6">
                                 <i class="fas fa-check-double me-1"></i>Ejecutado
                             </span>
-                            {% elif movimiento.estado == 'revertido' %}
+                            {% elif movimiento.estado == 'cancelado' %}
                             <span class="badge bg-secondary fs-6">
-                                <i class="fas fa-undo me-1"></i>Revertido
+                                <i class="fas fa-ban me-1"></i>Cancelado
                             </span>
                             {% endif %}
                         </div>
@@ -76,10 +84,37 @@
                 </div>
             </div>
             
-            <!-- Ítem -->
+            <!-- Ítems del Movimiento -->
             <div class="card mb-4">
-                <div class="card-header">Ítem Afectado</div>
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>Ítems del Movimiento</span>
+                    <span class="badge bg-primary">{{ movimiento.cantidad_items }} ítem{% if movimiento.cantidad_items > 1 %}s{% endif %}</span>
+                </div>
                 <div class="card-body">
+                    {% for item in movimiento.get_items %}
+                    <div class="d-flex align-items-center {% if not forloop.last %}mb-3 pb-3 border-bottom{% endif %}">
+                        <div class="flex-shrink-0">
+                            <div class="rounded-circle p-3" style="background-color: {{ item.area.color }}20;">
+                                <i class="fas fa-box fa-lg" style="color: {{ item.area.color }};"></i>
+                            </div>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h5 class="mb-1">
+                                <a href="{% url 'productos:item-detail' item.codigo_interno %}">
+                                    {% if item.codigo_utp_pendiente %}{{ item.codigo_interno }}{% else %}{{ item.codigo_utp }}{% endif %}
+                                </a>
+                            </h5>
+                            <p class="mb-0 text-muted">{{ item.nombre }}</p>
+                            <div class="d-flex gap-2 align-items-center mt-1">
+                                <span class="badge" style="background-color: {{ item.area.color }};">
+                                    {{ item.area.nombre }}
+                                </span>
+                                <small class="text-muted">Serie: {{ item.serie|default:"-" }}</small>
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <!-- Fallback para movimientos sin items_movimiento -->
                     <div class="d-flex align-items-center">
                         <div class="flex-shrink-0">
                             <div class="rounded-circle p-3" style="background-color: {{ movimiento.item.area.color }}20;">
@@ -98,6 +133,7 @@
                             </span>
                         </div>
                     </div>
+                    {% endfor %}
                 </div>
             </div>
             
@@ -121,11 +157,10 @@
                             {% elif movimiento.item.ambiente %}
                             <div class="p-3 bg-light rounded">
                                 <i class="fas fa-map-marker-alt text-danger mb-2 d-block"></i>
-                                <strong>{{ movimiento.item.ambiente.nombre }}</strong>
+                                <strong>Pab. {{ movimiento.item.ambiente.pabellon.letra }} - {{ movimiento.item.ambiente.nombre }}</strong>
                                 <small class="d-block text-muted">
                                     {{ movimiento.item.ambiente.pabellon.sede.campus.codigo }} &raquo;
-                                    {{ movimiento.item.ambiente.pabellon.sede.nombre }} &raquo;
-                                    Pab. {{ movimiento.item.ambiente.pabellon.nombre }}
+                                    {{ movimiento.item.ambiente.pabellon.sede.nombre }}
                                 </small>
                             </div>
                             {% else %}
@@ -219,13 +254,93 @@
             {% endif %}
             
             {% if movimiento.estado == 'aprobado' %}
-            <div class="card mb-4">
-                <div class="card-header">Acciones</div>
+            <div class="card mb-4 border-info">
+                <div class="card-header bg-info text-white">
+                    <i class="fas fa-tasks me-2"></i>Siguiente Paso
+                </div>
                 <div class="card-body">
+                    {% if movimiento.tipo == 'asignacion' or movimiento.tipo == 'prestamo' %}
+                    <p class="small text-muted mb-3">
+                        <i class="fas fa-clipboard-list text-info"></i>
+                        <strong>Flujo de {{ movimiento.get_tipo_display }}:</strong><br>
+                        1. Retirar equipo de custodia<br>
+                        2. Llevar al colaborador<br>
+                        3. Generar Acta de Entrega con firmas
+                    </p>
+                    {% else %}
+                    <p class="small text-muted mb-3">
+                        Movimiento aprobado. El auxiliar debe retirar el equipo.
+                    </p>
+                    {% endif %}
+                    <form method="post" action="{% url 'productos:movimiento-en-ejecucion' movimiento.pk %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-info w-100 text-white">
+                            <i class="fas fa-hand-paper me-1"></i> Marcar: Equipo Retirado
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if movimiento.estado == 'en_ejecucion' %}
+            <div class="card mb-4 border-primary">
+                <div class="card-header bg-primary text-white">
+                    <i class="fas fa-tasks me-2"></i>Siguiente Paso
+                </div>
+                <div class="card-body">
+                    {% if movimiento.es_entre_campus %}
+                    <p class="small text-muted mb-3">
+                        <i class="fas fa-info-circle text-warning"></i>
+                        Traslado entre campus. Marca "En Transito" cuando el equipo salga.
+                    </p>
+                    <form method="post" action="{% url 'productos:movimiento-en-transito' movimiento.pk %}" class="mb-2">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-warning w-100">
+                            <i class="fas fa-truck me-1"></i> Marcar: En Transito
+                        </button>
+                    </form>
+                    <hr>
+                    <p class="small text-muted mb-2">O si ya esta en destino:</p>
+                    {% elif movimiento.tipo == 'asignacion' or movimiento.tipo == 'prestamo' %}
+                    <p class="small text-muted mb-3">
+                        <i class="fas fa-info-circle text-info"></i>
+                        Para completar la {{ movimiento.get_tipo_display|lower }}, debe generar el <strong>Acta de Entrega</strong> con las firmas del colaborador.
+                    </p>
+                    {% else %}
+                    <p class="small text-muted mb-3">
+                        Equipo retirado. Confirma cuando este instalado/entregado.
+                    </p>
+                    {% endif %}
                     <form method="post" action="{% url 'productos:movimiento-ejecutar' movimiento.pk %}">
                         {% csrf_token %}
-                        <button type="submit" class="btn btn-primary w-100">
-                            <i class="fas fa-play me-1"></i> Ejecutar Movimiento
+                        {% if movimiento.tipo == 'asignacion' or movimiento.tipo == 'prestamo' %}
+                        <button type="submit" class="btn btn-success w-100">
+                            <i class="fas fa-file-signature me-1"></i> Generar Acta de Entrega
+                        </button>
+                        {% else %}
+                        <button type="submit" class="btn btn-success w-100">
+                            <i class="fas fa-check-double me-1"></i> Confirmar Entrega/Instalacion
+                        </button>
+                        {% endif %}
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if movimiento.estado == 'en_transito' %}
+            <div class="card mb-4 border-warning">
+                <div class="card-header bg-warning text-dark">
+                    <i class="fas fa-truck me-2"></i>Equipo en Transito
+                </div>
+                <div class="card-body">
+                    <p class="small text-muted mb-3">
+                        <i class="fas fa-info-circle"></i>
+                        El auxiliar del campus destino debe confirmar la recepcion.
+                    </p>
+                    <form method="post" action="{% url 'productos:movimiento-ejecutar' movimiento.pk %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-success w-100">
+                            <i class="fas fa-check-double me-1"></i> Confirmar Recepcion
                         </button>
                     </form>
                 </div>
@@ -293,6 +408,7 @@
                 <div class="card-header">Timeline</div>
                 <div class="card-body">
                     <div class="timeline">
+                        <!-- Solicitud creada -->
                         <div class="timeline-item completed">
                             <div class="timeline-marker bg-success"></div>
                             <div class="timeline-content">
@@ -300,16 +416,18 @@
                                 <p class="mb-0">Solicitud creada</p>
                             </div>
                         </div>
-                        
+
                         {% if movimiento.estado == 'pendiente' %}
+                        <!-- Pendiente -->
                         <div class="timeline-item active">
                             <div class="timeline-marker bg-warning"></div>
                             <div class="timeline-content">
                                 <small class="text-muted">Esperando</small>
-                                <p class="mb-0">Pendiente de aprobación</p>
+                                <p class="mb-0">Pendiente de aprobacion</p>
                             </div>
                         </div>
                         {% elif movimiento.estado == 'rechazado' %}
+                        <!-- Rechazado -->
                         <div class="timeline-item">
                             <div class="timeline-marker bg-danger"></div>
                             <div class="timeline-content">
@@ -317,7 +435,17 @@
                                 <p class="mb-0">Rechazado</p>
                             </div>
                         </div>
+                        {% elif movimiento.estado == 'cancelado' %}
+                        <!-- Cancelado -->
+                        <div class="timeline-item">
+                            <div class="timeline-marker bg-secondary"></div>
+                            <div class="timeline-content">
+                                <small class="text-muted">Cancelado</small>
+                                <p class="mb-0">Movimiento cancelado</p>
+                            </div>
+                        </div>
                         {% else %}
+                        <!-- Aprobado -->
                         <div class="timeline-item completed">
                             <div class="timeline-marker bg-success"></div>
                             <div class="timeline-content">
@@ -326,7 +454,51 @@
                             </div>
                         </div>
 
+                        {% if movimiento.estado == 'aprobado' %}
+                        <!-- Esperando ejecucion -->
+                        <div class="timeline-item active">
+                            <div class="timeline-marker bg-info"></div>
+                            <div class="timeline-content">
+                                <small class="text-muted">Esperando</small>
+                                <p class="mb-0">Pendiente retiro de equipo</p>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        {% if movimiento.fecha_en_ejecucion or movimiento.estado == 'en_ejecucion' or movimiento.estado == 'en_transito' or movimiento.estado == 'ejecutado' %}
+                        <!-- En ejecucion -->
+                        <div class="timeline-item {% if movimiento.estado == 'en_ejecucion' %}active{% else %}completed{% endif %}">
+                            <div class="timeline-marker {% if movimiento.estado == 'en_ejecucion' %}bg-info{% else %}bg-success{% endif %}"></div>
+                            <div class="timeline-content">
+                                <small class="text-muted">{{ movimiento.fecha_en_ejecucion|date:"d/m H:i"|default:"En proceso" }}</small>
+                                <p class="mb-0">Equipo retirado</p>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        {% if movimiento.fecha_en_transito or movimiento.estado == 'en_transito' or movimiento.estado == 'ejecutado' and movimiento.es_entre_campus %}
+                        <!-- En transito (solo si aplica) -->
+                        {% if movimiento.fecha_en_transito %}
+                        <div class="timeline-item {% if movimiento.estado == 'en_transito' %}active{% else %}completed{% endif %}">
+                            <div class="timeline-marker {% if movimiento.estado == 'en_transito' %}bg-warning{% else %}bg-success{% endif %}"></div>
+                            <div class="timeline-content">
+                                <small class="text-muted">{{ movimiento.fecha_en_transito|date:"d/m H:i" }}</small>
+                                <p class="mb-0">En transito</p>
+                            </div>
+                        </div>
+                        {% elif movimiento.estado == 'en_transito' %}
+                        <div class="timeline-item active">
+                            <div class="timeline-marker bg-warning"></div>
+                            <div class="timeline-content">
+                                <small class="text-muted">En camino</small>
+                                <p class="mb-0">En transito</p>
+                            </div>
+                        </div>
+                        {% endif %}
+                        {% endif %}
+
                         {% if movimiento.estado == 'ejecutado' %}
+                        <!-- Ejecutado -->
                         <div class="timeline-item completed">
                             <div class="timeline-marker bg-primary"></div>
                             <div class="timeline-content">
@@ -339,6 +511,37 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Acta de Entrega Vinculada -->
+            {% if movimiento.acta_entrega %}
+            <div class="card mb-4 border-success">
+                <div class="card-header bg-success text-white">
+                    <i class="fas fa-file-signature me-2"></i>Acta de Entrega
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="mb-1">{{ movimiento.acta_entrega.numero_acta }}</h5>
+                            <p class="mb-0 text-muted">
+                                {{ movimiento.acta_entrega.get_tipo_display }} a
+                                {{ movimiento.acta_entrega.colaborador.nombre_completo }}
+                            </p>
+                            <small class="text-muted">
+                                {{ movimiento.acta_entrega.fecha|date:"d/m/Y H:i" }}
+                            </small>
+                        </div>
+                        <div>
+                            <a href="{% url 'productos:acta-detail' movimiento.acta_entrega.pk %}" class="btn btn-outline-success btn-sm">
+                                <i class="fas fa-eye me-1"></i> Ver Acta
+                            </a>
+                            <a href="{% url 'productos:acta-pdf' movimiento.acta_entrega.pk %}" class="btn btn-success btn-sm">
+                                <i class="fas fa-file-pdf me-1"></i> Descargar PDF
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
         </div>
     </div>
 </div>
@@ -368,6 +571,22 @@
         </div>
     </div>
 </div>
+
+<!-- Script para descarga automática del formato de traslado -->
+{% if movimiento.requiere_formato_traslado %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Verificar si viene el parámetro descargar_formato
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('descargar_formato') === '1') {
+        // Iniciar descarga automática
+        window.location.href = "{% url 'productos:movimiento-formato-traslado' movimiento.pk %}";
+        // Limpiar el parámetro de la URL para evitar descarga repetida al refrescar
+        window.history.replaceState({}, document.title, window.location.pathname);
+    }
+});
+</script>
+{% endif %}
 
 <style>
 .bg-orange {
