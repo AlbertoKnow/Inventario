@@ -3899,7 +3899,7 @@ class ActaCreateView(PerfilRequeridoMixin, View):
                     'tipo': 'entrega',
                     'colaborador': movimiento.colaborador_nuevo,
                     'ticket': '',
-                    'observaciones': f'Generado desde movimiento {movimiento.codigo}',
+                    'observaciones': f'Generado desde movimiento {movimiento.pk}',
                 }
 
                 form = ActaEntregaForm(user=request.user, initial=initial_data)
@@ -3911,7 +3911,7 @@ class ActaCreateView(PerfilRequeridoMixin, View):
                     request.session['acta_tipo'] = 'entrega'
                     request.session['acta_colaborador_id'] = movimiento.colaborador_nuevo.id
                     request.session['acta_ticket'] = ''
-                    request.session['acta_observaciones'] = f'Generado desde movimiento {movimiento.codigo}'
+                    request.session['acta_observaciones'] = f'Generado desde movimiento {movimiento.pk}'
 
                     return render(request, self.template_name, {
                         'form': form,
@@ -4122,7 +4122,7 @@ class ActaCreateView(PerfilRequeridoMixin, View):
                 messages.success(
                     request,
                     f'Acta {acta.numero_acta} creada correctamente. '
-                    f'El movimiento {movimiento.codigo} ha sido ejecutado automáticamente.'
+                    f'El movimiento {movimiento.pk} ha sido ejecutado automáticamente.'
                 )
             else:
                 messages.success(
