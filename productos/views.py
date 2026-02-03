@@ -250,11 +250,6 @@ class DashboardView(PerfilRequeridoMixin, CampusFilterMixin, TemplateView):
             fecha_solicitud__gte=fecha_limite_movimientos
         ).select_related(
             'item', 'item__tipo_item', 'solicitado_por'
-        ).only(
-            'id', 'tipo', 'estado', 'fecha_solicitud',
-            'item__codigo_interno', 'item__codigo_utp', 'item__nombre',
-            'item__tipo_item__nombre',
-            'solicitado_por__username', 'solicitado_por__first_name', 'solicitado_por__last_name'
         )
         movimientos = self.filtrar_por_campus(movimientos, 'item__ambiente__pabellon__sede__campus')
         if perfil and perfil.rol != 'admin' and perfil.area:
@@ -265,10 +260,6 @@ class DashboardView(PerfilRequeridoMixin, CampusFilterMixin, TemplateView):
         if perfil and perfil.rol in ['admin', 'supervisor', 'gerente']:
             pendientes = Movimiento.objects.filter(estado='pendiente').select_related(
                 'item', 'item__tipo_item', 'solicitado_por'
-            ).only(
-                'id', 'tipo', 'estado', 'fecha_solicitud', 'motivo',
-                'item__codigo_interno', 'item__codigo_utp', 'item__nombre',
-                'solicitado_por__username', 'solicitado_por__first_name'
             )
             pendientes = self.filtrar_por_campus(pendientes, 'item__ambiente__pabellon__sede__campus')
             if perfil.rol == 'supervisor' and perfil.area:
