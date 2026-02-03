@@ -1269,10 +1269,16 @@ class UbicacionUpdateView(SupervisorRequeridoMixin, UpdateView):
 
 class SedesPorCampusView(LoginRequiredMixin, View):
     """API para obtener sedes de un campus."""
-    
+
     def get(self, request):
         campus_id = request.GET.get('campus_id')
         if campus_id:
+            # Validar que el usuario tiene acceso al campus
+            perfil = getattr(request.user, 'perfil', None)
+            if perfil:
+                campus_permitidos = perfil.get_campus_permitidos()
+                if not campus_permitidos.filter(pk=campus_id).exists():
+                    return JsonResponse([], safe=False)
             sedes = Sede.objects.filter(campus_id=campus_id, activo=True).values('id', 'nombre')
             return JsonResponse(list(sedes), safe=False)
         return JsonResponse([], safe=False)
@@ -1280,10 +1286,20 @@ class SedesPorCampusView(LoginRequiredMixin, View):
 
 class PabellonesPorSedeView(LoginRequiredMixin, View):
     """API para obtener pabellones de una sede."""
-    
+
     def get(self, request):
         sede_id = request.GET.get('sede_id')
         if sede_id:
+            # Validar que el usuario tiene acceso al campus de la sede
+            perfil = getattr(request.user, 'perfil', None)
+            if perfil:
+                try:
+                    sede = Sede.objects.select_related('campus').get(pk=sede_id)
+                    campus_permitidos = perfil.get_campus_permitidos()
+                    if not campus_permitidos.filter(pk=sede.campus_id).exists():
+                        return JsonResponse([], safe=False)
+                except Sede.DoesNotExist:
+                    return JsonResponse([], safe=False)
             pabellones = Pabellon.objects.filter(sede_id=sede_id, activo=True).values('id', 'nombre')
             return JsonResponse(list(pabellones), safe=False)
         return JsonResponse([], safe=False)
@@ -1291,10 +1307,20 @@ class PabellonesPorSedeView(LoginRequiredMixin, View):
 
 class AmbientesPorPabellonView(LoginRequiredMixin, View):
     """API para obtener ambientes de un pabellón."""
-    
+
     def get(self, request):
         pabellon_id = request.GET.get('pabellon_id')
         if pabellon_id:
+            # Validar que el usuario tiene acceso al campus del pabellón
+            perfil = getattr(request.user, 'perfil', None)
+            if perfil:
+                try:
+                    pabellon = Pabellon.objects.select_related('sede__campus').get(pk=pabellon_id)
+                    campus_permitidos = perfil.get_campus_permitidos()
+                    if not campus_permitidos.filter(pk=pabellon.sede.campus_id).exists():
+                        return JsonResponse([], safe=False)
+                except Pabellon.DoesNotExist:
+                    return JsonResponse([], safe=False)
             ambientes = Ambiente.objects.filter(pabellon_id=pabellon_id, activo=True).values('id', 'nombre', 'piso', 'tipo')
             return JsonResponse(list(ambientes), safe=False)
         return JsonResponse([], safe=False)
@@ -1400,11 +1426,11 @@ class BuscarItemsView(RateLimitMixin, LoginRequiredMixin, View):
             if hasattr(item, 'especificaciones_sistemas'):
                 try:
                     specs = item.especificaciones_sistemas
-                    if specs.marca_equipo:
+                    if specs and specs.marca_equipo:
                         marca = specs.marca_equipo.nombre
-                    if specs.modelo_equipo:
+                    if specs and specs.modelo_equipo:
                         modelo = specs.modelo_equipo.nombre
-                except:
+                except AttributeError:
                     pass
 
             resultados.append({
@@ -4443,11 +4469,11 @@ class FormatoTrasladoMovimientoView(PerfilRequeridoMixin, View):
             if hasattr(item, 'especificaciones_sistemas'):
                 try:
                     specs = item.especificaciones_sistemas
-                    if specs.marca_equipo:
+                    if specs and specs.marca_equipo:
                         item_data['marca'] = specs.marca_equipo.nombre
-                    if specs.modelo_equipo:
+                    if specs and specs.modelo_equipo:
                         item_data['modelo'] = specs.modelo_equipo.nombre
-                except:
+                except AttributeError:
                     pass
 
             items_data.append(item_data)
@@ -4559,11 +4585,11 @@ class FormatoTrasladoGenerarView(PerfilRequeridoMixin, View):
             if hasattr(item, 'especificaciones_sistemas'):
                 try:
                     specs = item.especificaciones_sistemas
-                    if specs.marca_equipo:
+                    if specs and specs.marca_equipo:
                         item_dict['marca'] = specs.marca_equipo.nombre
-                    if specs.modelo_equipo:
+                    if specs and specs.modelo_equipo:
                         item_dict['modelo'] = specs.modelo_equipo.nombre
-                except:
+                except AttributeError:
                     pass
             items_data.append(item_dict)
 
