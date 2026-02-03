@@ -215,17 +215,27 @@ class Ambiente(models.Model):
     @property
     def ubicacion_completa(self):
         """Retorna la ubicación completa en formato legible."""
+        if not self.pabellon:
+            return self.nombre
         sede = self.pabellon.sede
+        if not sede:
+            return f"Pab. {self.pabellon.letra} > {self.piso_display} > {self.nombre}"
         campus = sede.campus
+        if not campus:
+            return f"{sede.nombre} > Pab. {self.pabellon.letra} > {self.piso_display} > {self.nombre}"
         return f"{campus.nombre} > {sede.nombre} > Pab. {self.pabellon.letra} > {self.piso_display} > {self.nombre}"
 
     @property
     def campus(self):
-        return self.pabellon.sede.campus
+        if self.pabellon and self.pabellon.sede:
+            return self.pabellon.sede.campus
+        return None
 
     @property
     def sede(self):
-        return self.pabellon.sede
+        if self.pabellon:
+            return self.pabellon.sede
+        return None
 
 
 class TipoItem(models.Model):
@@ -979,13 +989,16 @@ class EspecificacionesSistemas(models.Model):
         verbose_name_plural = "Especificaciones de Sistemas"
     
     def __str__(self):
-        return f"Specs: {self.item.codigo_utp}"
-    
+        if self.item:
+            return f"Specs: {self.item.codigo_utp}"
+        return "Specs: Sin item"
+
     @property
     def ram_display(self):
         """Muestra la RAM en formato legible."""
         if self.ram_total_gb and self.ram_configuracion:
-            return f"{self.ram_total_gb}GB ({self.ram_configuracion}) {self.ram_tipo}"
+            tipo = f" {self.ram_tipo}" if self.ram_tipo else ""
+            return f"{self.ram_total_gb}GB ({self.ram_configuracion}){tipo}"
         elif self.ram_total_gb:
             return f"{self.ram_total_gb}GB"
         return "-"
@@ -1173,7 +1186,13 @@ class Movimiento(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.get_tipo_display()} - {self.item.codigo_interno} ({self.get_estado_display()})"
+        if self.item:
+            item_info = self.item.codigo_interno
+        elif self.items_movimiento.exists():
+            item_info = f"{self.items_movimiento.count()} items"
+        else:
+            item_info = "Sin items"
+        return f"{self.get_tipo_display()} - {item_info} ({self.get_estado_display()})"
 
     @property
     def es_entre_campus(self):
@@ -1259,13 +1278,16 @@ class Movimiento(models.Model):
         if not self.es_entre_campus:
             return False
 
-        self.estado = 'en_transito'
-        self.fecha_en_transito = timezone.now()
-        self.save()
+        with transaction.atomic():
+            self.estado = 'en_transito'
+            self.fecha_en_transito = timezone.now()
+            self.save()
 
-        # Cambiar estado del ítem a "En Tránsito"
-        self.item.estado = 'transito'
-        self.item.save()
+            # Cambiar estado de los ítems a "En Tránsito"
+            for item in self.get_items():
+                if item and item.puede_cambiar_estado('transito'):
+                    item.estado = 'transito'
+                    item.save()
 
         return True
 
@@ -1360,18 +1382,19 @@ class Movimiento(models.Model):
         if self.estado not in estados_validos:
             return False
 
-        # Procesar cada ítem
-        for item, estado_especifico in self._obtener_items_a_procesar():
-            self._procesar_item(item, estado_especifico)
+        with transaction.atomic():
+            # Procesar cada ítem
+            for item, estado_especifico in self._obtener_items_a_procesar():
+                self._procesar_item(item, estado_especifico)
 
-        # Procesar ítem de reemplazo si existe
-        self._procesar_item_reemplazo()
+            # Procesar ítem de reemplazo si existe
+            self._procesar_item_reemplazo()
 
-        # Finalizar el movimiento
-        self.estado = 'ejecutado'
-        self.ejecutado_por = usuario
-        self.fecha_ejecucion = timezone.now()
-        self.save()
+            # Finalizar el movimiento
+            self.estado = 'ejecutado'
+            self.ejecutado_por = usuario
+            self.fecha_ejecucion = timezone.now()
+            self.save()
 
         return True
 
@@ -1958,7 +1981,8 @@ class ActaEntrega(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.numero_acta} - {self.colaborador.nombre_completo}"
+        nombre = self.colaborador.nombre_completo if self.colaborador else 'Sin colaborador'
+        return f"{self.numero_acta} - {nombre}"
 
     def save(self, *args, **kwargs):
         if not self.numero_acta:
@@ -1982,7 +2006,13 @@ class ActaEntrega(models.Model):
             # Solo ejecutar si está en estado válido
             estados_validos = ['aprobado', 'en_ejecucion', 'en_transito']
             if movimiento.estado in estados_validos:
-                movimiento.ejecutar(self.creado_por)
+                try:
+                    movimiento.ejecutar(self.creado_por)
+                except Exception:
+                    # Registrar el error pero no fallar la creación del acta
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.error(f"Error al ejecutar movimiento {movimiento.pk} desde acta {self.numero_acta}")
 
     @classmethod
     def generar_numero_acta(cls):
@@ -2051,7 +2081,9 @@ class ActaItem(models.Model):
         unique_together = ['acta', 'item']
 
     def __str__(self):
-        return f"{self.acta.numero_acta} - {self.item.codigo_utp}"
+        acta_num = self.acta.numero_acta if self.acta else 'Sin acta'
+        item_cod = self.item.codigo_utp if self.item else 'Sin item'
+        return f"{acta_num} - {item_cod}"
 
     @property
     def accesorios_lista(self):

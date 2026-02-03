@@ -286,9 +286,6 @@ class DashboardView(PerfilRequeridoMixin, CampusFilterMixin, TemplateView):
 
         context['ultimos_mantenimientos'] = mantenimientos_base.select_related(
             'item', 'item__tipo_item'
-        ).only(
-            'id', 'tipo', 'estado', 'fecha_programada',
-            'item__codigo_interno', 'item__nombre', 'item__tipo_item__nombre'
         ).order_by('-fecha_programada')[:5]
 
         # Campus del usuario para mostrar en dashboard
@@ -1392,7 +1389,10 @@ class BuscarItemsView(RateLimitMixin, LoginRequiredMixin, View):
             ubicacion = ""
             if item.ambiente:
                 amb = item.ambiente
-                ubicacion = f"{amb.pabellon.sede.campus.codigo} > {amb.pabellon.sede.nombre} > Pab. {amb.pabellon.letra} - {amb.nombre}"
+                if amb.pabellon and amb.pabellon.sede and amb.pabellon.sede.campus:
+                    ubicacion = f"{amb.pabellon.sede.campus.codigo} > {amb.pabellon.sede.nombre} > Pab. {amb.pabellon.letra} - {amb.nombre}"
+                else:
+                    ubicacion = amb.nombre
             
             # Obtener marca y modelo si tiene especificaciones
             marca = ''
@@ -1413,7 +1413,7 @@ class BuscarItemsView(RateLimitMixin, LoginRequiredMixin, View):
                 'codigo_utp': item.codigo_utp,
                 'serie': item.serie,
                 'nombre': item.nombre,
-                'area': item.area.nombre,
+                'area': item.area.nombre if item.area else '',
                 'tipo': item.tipo_item.nombre if item.tipo_item else '',
                 'estado': item.estado,
                 'estado_display': item.get_estado_display(),
@@ -1449,26 +1449,34 @@ class ObtenerItemDetalleView(LoginRequiredMixin, View):
         ubicacion_completa = {}
         if item.ambiente:
             amb = item.ambiente
-            ubicacion = f"{amb.pabellon.sede.campus.nombre} > {amb.pabellon.sede.nombre} > Pab. {amb.pabellon.letra} - {amb.nombre}"
-            ubicacion_completa = {
-                'campus_id': amb.pabellon.sede.campus_id,
-                'campus': amb.pabellon.sede.campus.nombre,
-                'sede_id': amb.pabellon.sede_id,
-                'sede': amb.pabellon.sede.nombre,
-                'pabellon_id': amb.pabellon_id,
-                'pabellon': amb.pabellon.nombre,
-                'ambiente_id': amb.id,
-                'ambiente': amb.nombre,
-                'piso': amb.piso
-            }
-        
+            if amb.pabellon and amb.pabellon.sede and amb.pabellon.sede.campus:
+                ubicacion = f"{amb.pabellon.sede.campus.nombre} > {amb.pabellon.sede.nombre} > Pab. {amb.pabellon.letra} - {amb.nombre}"
+                ubicacion_completa = {
+                    'campus_id': amb.pabellon.sede.campus_id,
+                    'campus': amb.pabellon.sede.campus.nombre,
+                    'sede_id': amb.pabellon.sede_id,
+                    'sede': amb.pabellon.sede.nombre,
+                    'pabellon_id': amb.pabellon_id,
+                    'pabellon': amb.pabellon.nombre,
+                    'ambiente_id': amb.id,
+                    'ambiente': amb.nombre,
+                    'piso': amb.piso
+                }
+            else:
+                ubicacion = amb.nombre
+                ubicacion_completa = {
+                    'ambiente_id': amb.id,
+                    'ambiente': amb.nombre,
+                    'piso': amb.piso
+                }
+
         return JsonResponse({
             'id': item.id,
             'codigo_utp': item.codigo_utp,
             'serie': item.serie,
             'nombre': item.nombre,
             'descripcion': item.descripcion,
-            'area': item.area.nombre,
+            'area': item.area.nombre if item.area else '',
             'area_id': item.area_id,
             'tipo': item.tipo_item.nombre if item.tipo_item else '',
             'estado': item.estado,
@@ -2760,8 +2768,9 @@ class ExportarInventarioExcelView(RateLimitMixin, LoginRequiredMixin, View):
             ubicacion = item.ambiente.codigo_completo if item.ambiente else 'Sin asignar'
             usuario = item.usuario_asignado.get_full_name() if item.usuario_asignado else 'Sin asignar'
             codigo_mostrar = item.codigo_utp if not item.codigo_utp_pendiente else item.codigo_interno
-            row = [codigo_mostrar, item.codigo_utp, item.serie, item.nombre, item.area.nombre,
-                   item.tipo_item.nombre, item.get_estado_display(), ubicacion, usuario,
+            row = [codigo_mostrar, item.codigo_utp, item.serie, item.nombre,
+                   item.area.nombre if item.area else '',
+                   item.tipo_item.nombre if item.tipo_item else '', item.get_estado_display(), ubicacion, usuario,
                    format_currency(item.precio), format_date(item.fecha_adquisicion),
                    format_date(item.garantia_hasta), format_boolean(item.es_leasing)]
             exporter.add_row(row, alternate=(idx % 2 == 0))
@@ -2840,9 +2849,9 @@ class ExportarGarantiasVencenExcelView(RateLimitMixin, LoginRequiredMixin, View)
 
         for idx, item in enumerate(items.select_related('area', 'lote')):
             dias_restantes = (item.garantia_hasta - hoy).days
-            proveedor = item.lote.contrato.proveedor.nombre if (item.lote and item.lote.contrato) else 'N/A'
+            proveedor = item.lote.contrato.proveedor.nombre if (item.lote and item.lote.contrato and item.lote.contrato.proveedor) else 'N/A'
             codigo_mostrar = item.codigo_utp if not item.codigo_utp_pendiente else item.codigo_interno
-            row = [codigo_mostrar, item.serie, item.nombre, item.area.nombre,
+            row = [codigo_mostrar, item.serie, item.nombre, item.area.nombre if item.area else '',
                    format_date(item.fecha_adquisicion), format_date(item.garantia_hasta),
                    f"{dias_restantes} días", format_currency(item.precio), proveedor]
             exporter.add_row(row, alternate=(idx % 2 == 0))
@@ -4028,7 +4037,20 @@ class ActaCreateView(PerfilRequeridoMixin, View):
             software_ids = request.session.get('acta_software_ids', [])
             movimiento_id = request.session.get('acta_movimiento_id')
 
-            colaborador = Colaborador.objects.get(id=colaborador_id)
+            # Validar datos de sesión
+            if not tipo or not colaborador_id:
+                messages.error(request, 'Datos de sesión incompletos. Por favor, inicie el proceso nuevamente.')
+                return redirect('productos:acta-create')
+
+            if not items_ids:
+                messages.error(request, 'No hay ítems seleccionados. Por favor, seleccione al menos un ítem.')
+                return redirect('productos:acta-create')
+
+            try:
+                colaborador = Colaborador.objects.get(id=colaborador_id)
+            except Colaborador.DoesNotExist:
+                messages.error(request, 'Colaborador no encontrado. Por favor, inicie el proceso nuevamente.')
+                return redirect('productos:acta-create')
 
             # Obtener movimiento si existe
             movimiento = None
@@ -4054,55 +4076,61 @@ class ActaCreateView(PerfilRequeridoMixin, View):
                 f'firma_emisor_{request.user.username}.png'
             )
 
-            # Crear el acta (vinculada al movimiento si existe)
-            acta = ActaEntrega.objects.create(
-                tipo=tipo,
-                colaborador=colaborador,
-                ticket=ticket,
-                observaciones=observaciones,
-                firma_receptor=firma_receptor_file,
-                firma_emisor=firma_emisor_file,
-                creado_por=request.user,
-                movimiento=movimiento  # Vincula con movimiento (None si no hay)
-            )
+            # Crear el acta y sus relaciones en una transacción atómica
+            try:
+                with transaction.atomic():
+                    acta = ActaEntrega.objects.create(
+                        tipo=tipo,
+                        colaborador=colaborador,
+                        ticket=ticket,
+                        observaciones=observaciones,
+                        firma_receptor=firma_receptor_file,
+                        firma_emisor=firma_emisor_file,
+                        creado_por=request.user,
+                        movimiento=movimiento  # Vincula con movimiento (None si no hay)
+                    )
 
-            # Crear ActaItems con accesorios
-            items = Item.objects.filter(id__in=items_ids)
-            for item in items:
-                ActaItem.objects.create(
-                    acta=acta,
-                    item=item,
-                    acc_cargador=request.POST.get(f'acc_cargador_{item.id}') == 'on',
-                    acc_cable_seguridad=request.POST.get(f'acc_cable_seguridad_{item.id}') == 'on',
-                    acc_bateria=request.POST.get(f'acc_bateria_{item.id}') == 'on',
-                    acc_maletin=request.POST.get(f'acc_maletin_{item.id}') == 'on',
-                    acc_cable_red=request.POST.get(f'acc_cable_red_{item.id}') == 'on',
-                    acc_teclado_mouse=request.POST.get(f'acc_teclado_mouse_{item.id}') == 'on',
-                )
+                    # Crear ActaItems con accesorios
+                    items = Item.objects.filter(id__in=items_ids)
+                    for item in items:
+                        ActaItem.objects.create(
+                            acta=acta,
+                            item=item,
+                            acc_cargador=request.POST.get(f'acc_cargador_{item.id}') == 'on',
+                            acc_cable_seguridad=request.POST.get(f'acc_cable_seguridad_{item.id}') == 'on',
+                            acc_bateria=request.POST.get(f'acc_bateria_{item.id}') == 'on',
+                            acc_maletin=request.POST.get(f'acc_maletin_{item.id}') == 'on',
+                            acc_cable_red=request.POST.get(f'acc_cable_red_{item.id}') == 'on',
+                            acc_teclado_mouse=request.POST.get(f'acc_teclado_mouse_{item.id}') == 'on',
+                        )
 
-                # Actualizar asignación del ítem
-                if tipo == 'entrega':
-                    item.colaborador_asignado = colaborador
-                else:
-                    item.colaborador_asignado = None
-                item.save()
+                        # Actualizar asignación del ítem
+                        if tipo == 'entrega':
+                            item.colaborador_asignado = colaborador
+                        else:
+                            item.colaborador_asignado = None
+                        item.save()
 
-            # Crear ActaSoftware
-            for software_id in software_ids:
-                ActaSoftware.objects.create(
-                    acta=acta,
-                    software_id=software_id
-                )
+                    # Crear ActaSoftware
+                    for software_id in software_ids:
+                        ActaSoftware.objects.create(
+                            acta=acta,
+                            software_id=software_id
+                        )
 
-            # Procesar fotos si hay
-            fotos = request.FILES.getlist('fotos')
-            for foto in fotos:
-                ActaFoto.objects.create(
-                    acta=acta,
-                    foto=foto
-                )
+                    # Procesar fotos si hay
+                    fotos = request.FILES.getlist('fotos')
+                    for foto in fotos:
+                        ActaFoto.objects.create(
+                            acta=acta,
+                            foto=foto
+                        )
 
-            # Limpiar sesión
+            except Exception as e:
+                messages.error(request, f'Error al crear el acta: {str(e)}')
+                return redirect('productos:acta-create')
+
+            # Limpiar sesión (fuera de la transacción)
             for key in ['acta_tipo', 'acta_colaborador_id', 'acta_ticket',
                        'acta_observaciones', 'acta_items_ids', 'acta_software_ids',
                        'acta_movimiento_id']:
