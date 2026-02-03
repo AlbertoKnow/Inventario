@@ -2790,8 +2790,8 @@ class ExportarInventarioExcelView(RateLimitMixin, LoginRequiredMixin, View):
                    'Ubicación', 'Usuario Asignado', 'Precio', 'Fecha Adquisición', 'Garantía Hasta', 'Leasing']
         exporter.add_headers(headers)
 
-        for idx, item in enumerate(items.select_related('area', 'tipo_item', 'ambiente', 'usuario_asignado')):
-            ubicacion = item.ambiente.codigo_completo if item.ambiente else 'Sin asignar'
+        for idx, item in enumerate(items.select_related('area', 'tipo_item', 'ambiente', 'ambiente__pabellon', 'usuario_asignado')):
+            ubicacion = item.ambiente.ubicacion_completa if item.ambiente else 'Sin asignar'
             usuario = item.usuario_asignado.get_full_name() if item.usuario_asignado else 'Sin asignar'
             codigo_mostrar = item.codigo_utp if not item.codigo_utp_pendiente else item.codigo_interno
             row = [codigo_mostrar, item.codigo_utp, item.serie, item.nombre,
