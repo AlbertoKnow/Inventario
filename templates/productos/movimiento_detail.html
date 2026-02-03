@@ -115,10 +115,11 @@
                     </div>
                     {% empty %}
                     <!-- Fallback para movimientos sin items_movimiento -->
+                    {% if movimiento.item %}
                     <div class="d-flex align-items-center">
                         <div class="flex-shrink-0">
-                            <div class="rounded-circle p-3" style="background-color: {{ movimiento.item.area.color }}20;">
-                                <i class="fas fa-box fa-lg" style="color: {{ movimiento.item.area.color }};"></i>
+                            <div class="rounded-circle p-3" style="background-color: {{ movimiento.item.area.color|default:'#6c757d' }}20;">
+                                <i class="fas fa-box fa-lg" style="color: {{ movimiento.item.area.color|default:'#6c757d' }};"></i>
                             </div>
                         </div>
                         <div class="flex-grow-1 ms-3">
@@ -128,11 +129,14 @@
                                 </a>
                             </h5>
                             <p class="mb-0 text-muted">{{ movimiento.item.nombre }}</p>
-                            <span class="badge" style="background-color: {{ movimiento.item.area.color }};">
+                            {% if movimiento.item.area %}
+                            <span class="badge" style="background-color: {{ movimiento.item.area.color|default:'#6c757d' }};">
                                 {{ movimiento.item.area.nombre }}
                             </span>
+                            {% endif %}
                         </div>
                     </div>
+                    {% endif %}
                     {% endfor %}
                 </div>
             </div>

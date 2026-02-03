@@ -65,15 +65,15 @@
                         </div>
                         <div class="col-md-6">
                             <label class="text-muted small">Cargo</label>
-                            <div class="fw-semibold">{{ acta.colaborador.cargo }}</div>
+                            <div class="fw-semibold">{{ acta.colaborador.cargo|default:"-" }}</div>
                         </div>
                         <div class="col-md-6">
                             <label class="text-muted small">Gerencia</label>
-                            <div class="fw-semibold">{{ acta.colaborador.gerencia.nombre }}</div>
+                            <div class="fw-semibold">{% if acta.colaborador.gerencia %}{{ acta.colaborador.gerencia.nombre }}{% else %}-{% endif %}</div>
                         </div>
                         <div class="col-md-6">
                             <label class="text-muted small">Sede</label>
-                            <div class="fw-semibold">{{ acta.colaborador.sede.nombre }}</div>
+                            <div class="fw-semibold">{% if acta.colaborador.sede %}{{ acta.colaborador.sede.nombre }}{% else %}-{% endif %}</div>
                         </div>
                         <div class="col-md-6">
                             <label class="text-muted small">Correo</label>

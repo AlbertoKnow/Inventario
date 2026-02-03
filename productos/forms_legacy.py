@@ -545,7 +545,7 @@ class TipoItemForm(forms.ModelForm):
     
     def clean_nombre(self):
         nombre = self.cleaned_data.get('nombre')
-        area = self.cleaned_data.get('area') or (self.user.perfil.area if hasattr(self.user, 'perfil') else None)
+        area = self.cleaned_data.get('area') or (self.user.perfil.area if self.user and hasattr(self.user, 'perfil') else None)
         
         if nombre and area:
             # Buscar tipos similares (búsqueda fuzzy básica)
