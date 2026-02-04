@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+
+{% block title %}Equipos en Proceso de Garantía{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Header -->
+    <div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
+        <div>
+            <h1><i class="fas fa-truck me-2 text-info"></i>Equipos en Proceso de Garantía</h1>
+            <p class="text-muted mb-0">Equipos actualmente enviados a garantía con el proveedor</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'productos:garantia-list' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-1"></i> Volver
+            </a>
+        </div>
+    </div>
+
+    <!-- Estadística principal -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card bg-info text-white">
+                <div class="card-body text-center">
+                    <i class="fas fa-tools fa-3x mb-3"></i>
+                    <h2 class="mb-0">{{ total_en_proceso }}</h2>
+                    <p class="mb-0">Equipos en Garantía</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-8">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="fas fa-info-circle me-2"></i>Información</h5>
+                    <p class="card-text">
+                        Los equipos en esta lista tienen estado <strong>"En Garantía"</strong>, lo que significa
+                        que han sido enviados al proveedor para reparación o revisión bajo garantía.
+                    </p>
+                    <p class="card-text mb-0">
+                        Una vez que el equipo regrese, debe actualizarse su estado mediante un movimiento
+                        de devolución o reinstalación.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabla de Items en Garantía -->
+    <div class="card">
+        <div class="card-header bg-info text-white">
+            <i class="fas fa-box me-2"></i>
+            Equipos Enviados a Garantía
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Código</th>
+                            <th>Equipo</th>
+                            <th>Área</th>
+                            <th>Garantía Hasta</th>
+                            <th>Proveedor</th>
+                            <th>Última Modificación</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in items %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'productos:item-detail' item.codigo_interno %}" class="fw-semibold text-decoration-none">
+                                    {% if item.codigo_utp_pendiente %}
+                                    {{ item.codigo_interno }}
+                                    {% else %}
+                                    {{ item.codigo_utp }}
+                                    {% endif %}
+                                </a>
+                                {% if item.serie %}
+                                <br><small class="text-muted">S/N: {{ item.serie }}</small>
+                                {% endif %}
+                            </td>
+                            <td>{{ item.nombre }}</td>
+                            <td>
+                                <span class="badge" style="background-color: {{ item.area.color|default:'#6c757d' }};">
+                                    {{ item.area.nombre }}
+                                </span>
+                            </td>
+                            <td>
+                                {% if item.garantia_hasta %}
+                                {{ item.garantia_hasta|date:"d/m/Y" }}
+                                {% if item.en_garantia %}
+                                <span class="badge bg-success ms-1">Vigente</span>
+                                {% else %}
+                                <span class="badge bg-danger ms-1">Vencida</span>
+                                {% endif %}
+                                {% else %}
+                                <span class="text-muted">No registrada</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if item.lote and item.lote.contrato and item.lote.contrato.proveedor %}
+                                <strong>{{ item.lote.contrato.proveedor.razon_social|truncatechars:25 }}</strong>
+                                {% if item.lote.contrato.proveedor.telefono %}
+                                <br><small>
+                                    <i class="fas fa-phone me-1 text-muted"></i>
+                                    {{ item.lote.contrato.proveedor.telefono }}
+                                </small>
+                                {% endif %}
+                                {% if item.lote.contrato.proveedor.email %}
+                                <br><small>
+                                    <i class="fas fa-envelope me-1 text-muted"></i>
+                                    {{ item.lote.contrato.proveedor.email }}
+                                </small>
+                                {% endif %}
+                                {% else %}
+                                <span class="text-muted">Proveedor no registrado</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {{ item.modificado_en|date:"d/m/Y H:i" }}
+                                {% if item.modificado_por %}
+                                <br><small class="text-muted">por {{ item.modificado_por.get_full_name|default:item.modificado_por.username }}</small>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
+                                <div class="btn-group">
+                                    <a href="{% url 'productos:item-detail' item.codigo_interno %}"
+                                       class="btn btn-sm btn-outline-primary" title="Ver detalle">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    <a href="{% url 'productos:movimiento-create' %}?item={{ item.id }}"
+                                       class="btn btn-sm btn-outline-success" title="Registrar devolución">
+                                        <i class="fas fa-undo"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center py-4 text-muted">
+                                <i class="fas fa-check-circle fa-2x mb-2 d-block text-success"></i>
+                                No hay equipos actualmente en proceso de garantía
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Paginación -->
+    {% if page_obj.has_other_pages %}
+    <nav class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}">
+                    <i class="fas fa-chevron-left"></i>
+                </a>
+            </li>
+            {% endif %}
+            <li class="page-item disabled">
+                <span class="page-link">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+            </li>
+            {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}">
+                    <i class="fas fa-chevron-right"></i>
+                </a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</div>
+{% endblock %}

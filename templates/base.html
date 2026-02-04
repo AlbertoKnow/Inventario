@@ -546,10 +546,20 @@
                             <i class="fas fa-chart-bar me-1"></i> Reportes
                         </a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{% url 'productos:mantenimiento-list' %}">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
                             <i class="fas fa-tools me-1"></i> Mantenimiento
                         </a>
+                        <ul class="dropdown-menu">
+                            <li class="dropdown-header">Mantenimientos</li>
+                            <li><a class="dropdown-item" href="{% url 'productos:mantenimiento-list' %}"><i class="fas fa-list me-2"></i>Todos los Mantenimientos</a></li>
+                            <li><a class="dropdown-item" href="{% url 'productos:mantenimiento-create' %}"><i class="fas fa-plus me-2 text-success"></i>Programar Mantenimiento</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li class="dropdown-header">Garantías</li>
+                            <li><a class="dropdown-item" href="{% url 'productos:garantia-list' %}"><i class="fas fa-shield-alt me-2"></i>Equipos con Garantía</a></li>
+                            <li><a class="dropdown-item" href="{% url 'productos:garantia-por-vencer' %}"><i class="fas fa-exclamation-triangle me-2 text-warning"></i>Por Vencer</a></li>
+                            <li><a class="dropdown-item" href="{% url 'productos:garantia-en-proceso' %}"><i class="fas fa-truck me-2 text-info"></i>En Proceso</a></li>
+                        </ul>
                     </li>
                     <!-- Menú de Actas - Visible para todos los usuarios -->
                     <li class="nav-item dropdown">
