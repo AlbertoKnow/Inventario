@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block title %}Registrar Garantía{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <!-- Header -->
+            <div class="page-header mb-4">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a href="{% url 'productos:garantia-registro-list' %}">Registros de Garantía</a></li>
+                        <li class="breadcrumb-item active">Nueva Garantía</li>
+                    </ol>
+                </nav>
+                <h1><i class="fas fa-plus-circle me-2 text-primary"></i>Registrar Envío a Garantía</h1>
+                <p class="text-muted">Complete el formulario para registrar un equipo que será enviado a garantía</p>
+            </div>
+
+            <!-- Formulario -->
+            <div class="card">
+                <div class="card-body">
+                    <form method="post" novalidate>
+                        {% csrf_token %}
+
+                        <!-- Equipo -->
+                        <div class="mb-4">
+                            <h5 class="border-bottom pb-2"><i class="fas fa-laptop me-2"></i>Equipo</h5>
+                            <div class="mb-3">
+                                <label for="{{ form.item.id_for_label }}" class="form-label">
+                                    {{ form.item.label }} <span class="text-danger">*</span>
+                                </label>
+                                {{ form.item }}
+                                {% if form.item.errors %}
+                                <div class="invalid-feedback d-block">{{ form.item.errors.0 }}</div>
+                                {% endif %}
+                                <small class="text-muted">Solo se muestran equipos con garantía vigente que no estén ya en proceso de garantía</small>
+                            </div>
+                        </div>
+
+                        <!-- Problema -->
+                        <div class="mb-4">
+                            <h5 class="border-bottom pb-2"><i class="fas fa-exclamation-triangle me-2"></i>Problema</h5>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="{{ form.tipo_problema.id_for_label }}" class="form-label">
+                                        {{ form.tipo_problema.label }} <span class="text-danger">*</span>
+                                    </label>
+                                    {{ form.tipo_problema }}
+                                    {% if form.tipo_problema.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.tipo_problema.errors.0 }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="{{ form.descripcion_problema.id_for_label }}" class="form-label">
+                                    {{ form.descripcion_problema.label }} <span class="text-danger">*</span>
+                                </label>
+                                {{ form.descripcion_problema }}
+                                {% if form.descripcion_problema.errors %}
+                                <div class="invalid-feedback d-block">{{ form.descripcion_problema.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Proveedor -->
+                        <div class="mb-4">
+                            <h5 class="border-bottom pb-2"><i class="fas fa-building me-2"></i>Proveedor (Opcional)</h5>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="{{ form.proveedor.id_for_label }}" class="form-label">
+                                        {{ form.proveedor.label }}
+                                    </label>
+                                    {{ form.proveedor }}
+                                    <small class="text-muted">Si conoce el proveedor que atenderá la garantía</small>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="{{ form.numero_caso.id_for_label }}" class="form-label">
+                                        {{ form.numero_caso.label }}
+                                    </label>
+                                    {{ form.numero_caso }}
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="{{ form.contacto_proveedor.id_for_label }}" class="form-label">
+                                    {{ form.contacto_proveedor.label }}
+                                </label>
+                                {{ form.contacto_proveedor }}
+                            </div>
+                        </div>
+
+                        <!-- Observaciones -->
+                        <div class="mb-4">
+                            <label for="{{ form.observaciones.id_for_label }}" class="form-label">
+                                {{ form.observaciones.label }}
+                            </label>
+                            {{ form.observaciones }}
+                        </div>
+
+                        <!-- Botones -->
+                        <div class="d-flex gap-2 justify-content-end">
+                            <a href="{% url 'productos:garantia-registro-list' %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-times me-1"></i> Cancelar
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-1"></i> Registrar Garantía
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Información -->
+            <div class="alert alert-info mt-4">
+                <h6><i class="fas fa-info-circle me-2"></i>Información</h6>
+                <ul class="mb-0">
+                    <li>Al registrar la garantía, el equipo quedará en estado <strong>"Pendiente de Envío"</strong></li>
+                    <li>Cuando envíe el equipo al proveedor, use el botón <strong>"Marcar como Enviado"</strong></li>
+                    <li>El estado del equipo cambiará automáticamente a <strong>"En Garantía"</strong></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

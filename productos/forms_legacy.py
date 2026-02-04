@@ -1,10 +1,11 @@
 from django import forms
 from django.contrib.auth.models import User
+from django.utils import timezone
 from .models import (
     Area, Campus, Sede, Pabellon, Ambiente, TipoItem, Item,
     EspecificacionesSistemas, Movimiento, MovimientoItem, PerfilUsuario, Mantenimiento,
     Gerencia, Colaborador, SoftwareEstandar, ActaEntrega, ActaItem, ActaFoto,
-    MarcaEquipo, ModeloEquipo, ProcesadorEquipo
+    MarcaEquipo, ModeloEquipo, ProcesadorEquipo, GarantiaRegistro, Proveedor
 )
 from .validators import validate_image
 
@@ -1228,3 +1229,137 @@ class SeleccionarSoftwareForm(forms.Form):
         self.fields['software'].initial = SoftwareEstandar.objects.filter(
             activo=True, es_basico=True
         )
+
+
+# ==============================================================================
+# FORMULARIOS DE GARANTÍAS
+# ==============================================================================
+
+class GarantiaRegistroForm(forms.ModelForm):
+    """Formulario para crear un registro de garantía."""
+
+    class Meta:
+        model = GarantiaRegistro
+        fields = [
+            'item', 'tipo_problema', 'descripcion_problema',
+            'proveedor', 'numero_caso', 'contacto_proveedor', 'observaciones'
+        ]
+        widgets = {
+            'item': forms.Select(attrs={'class': 'form-select', 'id': 'id_item'}),
+            'tipo_problema': forms.Select(attrs={'class': 'form-select'}),
+            'descripcion_problema': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 4,
+                'placeholder': 'Describa detalladamente el problema que presenta el equipo'
+            }),
+            'proveedor': forms.Select(attrs={'class': 'form-select'}),
+            'numero_caso': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Número de ticket o caso del proveedor (opcional)'
+            }),
+            'contacto_proveedor': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Nombre del contacto en el proveedor (opcional)'
+            }),
+            'observaciones': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 2,
+                'placeholder': 'Observaciones adicionales (opcional)'
+            }),
+        }
+        labels = {
+            'item': 'Equipo',
+            'tipo_problema': 'Tipo de Problema',
+            'descripcion_problema': 'Descripción del Problema',
+            'proveedor': 'Proveedor de Garantía',
+            'numero_caso': 'Número de Caso/Ticket',
+            'contacto_proveedor': 'Contacto del Proveedor',
+            'observaciones': 'Observaciones',
+        }
+
+    def __init__(self, *args, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.user = user
+
+        # Filtrar items por área del usuario y que tengan garantía vigente
+        items_query = Item.objects.filter(
+            garantia_hasta__isnull=False,
+            garantia_hasta__gte=timezone.now().date()
+        ).exclude(estado='garantia')  # Excluir items ya en garantía
+
+        if user and hasattr(user, 'perfil'):
+            perfil = user.perfil
+            if perfil.area and perfil.rol != 'admin':
+                items_query = items_query.filter(area=perfil.area)
+
+        self.fields['item'].queryset = items_query
+        self.fields['proveedor'].queryset = Proveedor.objects.filter(activo=True)
+        self.fields['proveedor'].required = False
+        self.fields['numero_caso'].required = False
+        self.fields['contacto_proveedor'].required = False
+        self.fields['observaciones'].required = False
+
+    def clean_item(self):
+        item = self.cleaned_data.get('item')
+        if item:
+            if not item.en_garantia:
+                raise forms.ValidationError(
+                    f'Este equipo no tiene garantía vigente. '
+                    f'La garantía venció el {item.garantia_hasta.strftime("%d/%m/%Y")}.'
+                )
+            if item.estado == 'garantia':
+                raise forms.ValidationError(
+                    'Este equipo ya está en proceso de garantía.'
+                )
+        return item
+
+
+class GarantiaEnviarForm(forms.Form):
+    """Formulario para registrar el envío a garantía."""
+
+    fecha_envio = forms.DateField(
+        widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+        label='Fecha de Envío',
+        initial=timezone.now().date
+    )
+    numero_caso = forms.CharField(
+        max_length=100,
+        required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Número de caso del proveedor'}),
+        label='Número de Caso'
+    )
+    observaciones = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+        label='Observaciones'
+    )
+
+
+class GarantiaRecibirForm(forms.Form):
+    """Formulario para registrar la recepción del equipo de garantía."""
+
+    RESULTADO_CHOICES = [
+        ('reparado', 'Reparado'),
+        ('reemplazado', 'Reemplazado'),
+        ('rechazado', 'Garantía Rechazada'),
+        ('devuelto', 'Devuelto sin reparar'),
+    ]
+
+    fecha_recepcion = forms.DateField(
+        widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+        label='Fecha de Recepción',
+        initial=timezone.now().date
+    )
+    resultado = forms.ChoiceField(
+        choices=RESULTADO_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        label='Resultado'
+    )
+    diagnostico_proveedor = forms.CharField(
+        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Diagnóstico del proveedor'}),
+        label='Diagnóstico del Proveedor'
+    )
+    solucion_aplicada = forms.CharField(
+        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Solución aplicada'}),
+        label='Solución Aplicada'
+    )

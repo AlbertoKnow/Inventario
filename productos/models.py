@@ -1773,6 +1773,200 @@ class Mantenimiento(models.Model):
 
 
 # ==============================================================================
+# REGISTRO DE GARANTÍAS
+# ==============================================================================
+
+class GarantiaRegistro(models.Model):
+    """Registro de envíos a garantía de equipos."""
+
+    ESTADO_GARANTIA = [
+        ('pendiente', 'Pendiente de Envío'),
+        ('enviado', 'Enviado al Proveedor'),
+        ('en_revision', 'En Revisión'),
+        ('reparado', 'Reparado'),
+        ('reemplazado', 'Reemplazado'),
+        ('rechazado', 'Garantía Rechazada'),
+        ('devuelto', 'Devuelto'),
+        ('cancelado', 'Cancelado'),
+    ]
+
+    TIPO_PROBLEMA = [
+        ('hardware', 'Falla de Hardware'),
+        ('software', 'Falla de Software'),
+        ('pantalla', 'Problema de Pantalla'),
+        ('bateria', 'Problema de Batería'),
+        ('teclado', 'Problema de Teclado'),
+        ('disco', 'Problema de Disco'),
+        ('memoria', 'Problema de Memoria'),
+        ('otro', 'Otro'),
+    ]
+
+    # Relación con el ítem
+    item = models.ForeignKey(
+        Item,
+        on_delete=models.CASCADE,
+        related_name='garantias_registro',
+        help_text="Ítem enviado a garantía"
+    )
+
+    # Estado del registro
+    estado = models.CharField(
+        max_length=20,
+        choices=ESTADO_GARANTIA,
+        default='pendiente',
+        help_text="Estado actual del proceso de garantía"
+    )
+
+    # Tipo de problema
+    tipo_problema = models.CharField(
+        max_length=20,
+        choices=TIPO_PROBLEMA,
+        help_text="Tipo de problema reportado"
+    )
+
+    # Descripción del problema
+    descripcion_problema = models.TextField(
+        help_text="Descripción detallada del problema"
+    )
+
+    # Datos del proveedor
+    proveedor = models.ForeignKey(
+        'Proveedor',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='garantias_atendidas',
+        help_text="Proveedor que atiende la garantía"
+    )
+
+    numero_caso = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Número de caso o ticket del proveedor"
+    )
+
+    contacto_proveedor = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Nombre del contacto en el proveedor"
+    )
+
+    # Fechas
+    fecha_reporte = models.DateField(
+        auto_now_add=True,
+        help_text="Fecha en que se reportó el problema"
+    )
+
+    fecha_envio = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Fecha de envío al proveedor"
+    )
+
+    fecha_recepcion = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Fecha de recepción del equipo reparado/reemplazado"
+    )
+
+    # Resultado
+    diagnostico_proveedor = models.TextField(
+        blank=True,
+        help_text="Diagnóstico del proveedor"
+    )
+
+    solucion_aplicada = models.TextField(
+        blank=True,
+        help_text="Solución aplicada por el proveedor"
+    )
+
+    equipo_reemplazo = models.ForeignKey(
+        Item,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='garantia_como_reemplazo',
+        help_text="Si fue reemplazado, el nuevo equipo"
+    )
+
+    # Observaciones
+    observaciones = models.TextField(
+        blank=True,
+        help_text="Observaciones adicionales"
+    )
+
+    # Auditoría
+    creado_por = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='garantias_creadas'
+    )
+    creado_en = models.DateTimeField(auto_now_add=True)
+    actualizado_en = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-creado_en']
+        verbose_name = 'Registro de Garantía'
+        verbose_name_plural = 'Registros de Garantía'
+        indexes = [
+            models.Index(fields=['item', 'estado']),
+            models.Index(fields=['fecha_reporte']),
+            models.Index(fields=['estado', 'fecha_envio']),
+        ]
+
+    def __str__(self):
+        return f"Garantía {self.item.codigo_interno} - {self.get_estado_display()}"
+
+    def enviar(self, fecha_envio=None):
+        """Marca el registro como enviado al proveedor."""
+        self.estado = 'enviado'
+        self.fecha_envio = fecha_envio or timezone.now().date()
+        self.save()
+        # Cambiar estado del ítem a garantía
+        if self.item.puede_cambiar_estado('garantia'):
+            self.item.estado = 'garantia'
+            self.item.save()
+
+    def recibir(self, diagnostico, solucion, resultado='reparado', fecha_recepcion=None):
+        """Registra la recepción del equipo."""
+        self.estado = resultado
+        self.fecha_recepcion = fecha_recepcion or timezone.now().date()
+        self.diagnostico_proveedor = diagnostico
+        self.solucion_aplicada = solucion
+        self.save()
+        # Cambiar estado del ítem según resultado
+        if resultado in ['reparado', 'devuelto']:
+            if self.item.puede_cambiar_estado('instalado'):
+                self.item.estado = 'instalado'
+                self.item.save()
+        elif resultado == 'reemplazado':
+            if self.item.puede_cambiar_estado('baja'):
+                self.item.estado = 'baja'
+                self.item.save()
+
+    def cancelar(self, motivo=''):
+        """Cancela el registro de garantía."""
+        self.estado = 'cancelado'
+        if motivo:
+            self.observaciones += f"\nCancelado: {motivo}"
+        self.save()
+        # Restaurar estado del ítem si estaba en garantía
+        if self.item.estado == 'garantia':
+            if self.item.puede_cambiar_estado('instalado'):
+                self.item.estado = 'instalado'
+                self.item.save()
+
+    @property
+    def dias_en_garantia(self):
+        """Calcula los días que lleva el equipo en garantía."""
+        if self.fecha_envio:
+            fecha_fin = self.fecha_recepcion or timezone.now().date()
+            return (fecha_fin - self.fecha_envio).days
+        return None
+
+
+# ==============================================================================
 # SISTEMA DE ACTAS DE ENTREGA/DEVOLUCIÓN
 # ==============================================================================
 
