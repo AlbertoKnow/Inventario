@@ -104,6 +104,11 @@ urlpatterns = [
     path('mantenimientos/<int:pk>/cancelar/', views.MantenimientoCancelarView.as_view(), name='mantenimiento-cancelar'),
     path('mantenimientos/<int:pk>/eliminar/', views.MantenimientoDeleteView.as_view(), name='mantenimiento-delete'),
 
+    # Garantías
+    path('garantias/', views.GarantiaListView.as_view(), name='garantia-list'),
+    path('garantias/por-vencer/', views.GarantiaPorVencerView.as_view(), name='garantia-por-vencer'),
+    path('garantias/en-proceso/', views.GarantiaEnProcesoView.as_view(), name='garantia-en-proceso'),
+
     # Actas de Entrega/Devolución
     path('actas/', views.ActaListView.as_view(), name='acta-list'),
     path('actas/crear/', views.ActaCreateView.as_view(), name='acta-create'),

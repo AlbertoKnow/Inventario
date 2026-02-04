@@ -3580,6 +3580,161 @@ class MantenimientoLoteView(PerfilRequeridoMixin, View):
 
 
 # ==============================================================================
+# VISTAS DE GARANTÍAS
+# ==============================================================================
+
+class GarantiaListView(PerfilRequeridoMixin, ListView):
+    """Lista de equipos con información de garantía."""
+    model = Item
+    template_name = 'productos/garantia_list.html'
+    context_object_name = 'items'
+    paginate_by = 20
+
+    def get_queryset(self):
+        queryset = Item.objects.select_related(
+            'area', 'tipo_item', 'ambiente', 'ambiente__pabellon__sede__campus',
+            'lote', 'lote__contrato', 'lote__contrato__proveedor'
+        ).filter(
+            garantia_hasta__isnull=False
+        )
+
+        perfil = getattr(self.request.user, 'perfil', None)
+
+        # Filtrar por área si no es admin
+        if perfil and perfil.rol != 'admin' and perfil.area:
+            queryset = queryset.filter(area=perfil.area)
+
+        # Filtros
+        estado_garantia = self.request.GET.get('estado_garantia')
+        area = self.request.GET.get('area')
+        q = self.request.GET.get('q', '').strip()
+
+        if estado_garantia == 'vigente':
+            queryset = queryset.filter(garantia_hasta__gte=timezone.now().date())
+        elif estado_garantia == 'vencida':
+            queryset = queryset.filter(garantia_hasta__lt=timezone.now().date())
+
+        if area:
+            queryset = queryset.filter(area__codigo=area)
+
+        if q:
+            queryset = queryset.filter(
+                Q(codigo_interno__icontains=q) |
+                Q(codigo_utp__icontains=q) |
+                Q(serie__icontains=q) |
+                Q(nombre__icontains=q)
+            )
+
+        return queryset.order_by('garantia_hasta')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        hoy = timezone.now().date()
+        queryset_base = self.get_queryset()
+
+        # Estadísticas
+        context['total_con_garantia'] = queryset_base.count()
+        context['garantias_vigentes'] = queryset_base.filter(garantia_hasta__gte=hoy).count()
+        context['garantias_vencidas'] = queryset_base.filter(garantia_hasta__lt=hoy).count()
+        context['por_vencer_30'] = queryset_base.filter(
+            garantia_hasta__gte=hoy,
+            garantia_hasta__lte=hoy + timedelta(days=30)
+        ).count()
+
+        # Para filtros
+        context['areas'] = Area.objects.filter(activo=True)
+        context['filtros_activos'] = {
+            'q': self.request.GET.get('q', ''),
+            'estado_garantia': self.request.GET.get('estado_garantia', ''),
+            'area': self.request.GET.get('area', ''),
+        }
+
+        return context
+
+
+class GarantiaPorVencerView(PerfilRequeridoMixin, ListView):
+    """Lista de equipos con garantía próxima a vencer."""
+    model = Item
+    template_name = 'productos/garantia_por_vencer.html'
+    context_object_name = 'items'
+    paginate_by = 20
+
+    def get_queryset(self):
+        hoy = timezone.now().date()
+        dias = int(self.request.GET.get('dias', 90))
+
+        queryset = Item.objects.select_related(
+            'area', 'tipo_item', 'ambiente', 'ambiente__pabellon__sede__campus',
+            'lote', 'lote__contrato', 'lote__contrato__proveedor'
+        ).filter(
+            garantia_hasta__isnull=False,
+            garantia_hasta__gte=hoy,
+            garantia_hasta__lte=hoy + timedelta(days=dias)
+        )
+
+        perfil = getattr(self.request.user, 'perfil', None)
+        if perfil and perfil.rol != 'admin' and perfil.area:
+            queryset = queryset.filter(area=perfil.area)
+
+        return queryset.order_by('garantia_hasta')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        hoy = timezone.now().date()
+        dias = int(self.request.GET.get('dias', 90))
+
+        context['dias_filtro'] = dias
+        context['total_items'] = self.get_queryset().count()
+
+        # Agrupar por urgencia
+        queryset = self.get_queryset()
+        context['criticos'] = queryset.filter(garantia_hasta__lte=hoy + timedelta(days=30)).count()
+        context['urgentes'] = queryset.filter(
+            garantia_hasta__gt=hoy + timedelta(days=30),
+            garantia_hasta__lte=hoy + timedelta(days=60)
+        ).count()
+        context['proximos'] = queryset.filter(garantia_hasta__gt=hoy + timedelta(days=60)).count()
+
+        return context
+
+
+class GarantiaEnProcesoView(PerfilRequeridoMixin, ListView):
+    """Lista de equipos actualmente en proceso de garantía."""
+    model = Item
+    template_name = 'productos/garantia_en_proceso.html'
+    context_object_name = 'items'
+    paginate_by = 20
+
+    def get_queryset(self):
+        queryset = Item.objects.select_related(
+            'area', 'tipo_item', 'ambiente', 'ambiente__pabellon__sede__campus',
+            'lote', 'lote__contrato', 'lote__contrato__proveedor'
+        ).filter(
+            estado='garantia'
+        )
+
+        perfil = getattr(self.request.user, 'perfil', None)
+        if perfil and perfil.rol != 'admin' and perfil.area:
+            queryset = queryset.filter(area=perfil.area)
+
+        return queryset.order_by('-modificado_en')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['total_en_proceso'] = self.get_queryset().count()
+
+        # Obtener los movimientos de garantía asociados
+        items_ids = self.get_queryset().values_list('id', flat=True)
+        context['movimientos_garantia'] = Movimiento.objects.filter(
+            item__in=items_ids,
+            tipo='garantia',
+            estado__in=['aprobado', 'en_ejecucion', 'en_transito']
+        ).select_related('item', 'solicitado_por')
+
+        return context
+
+
+# ==============================================================================
 # SISTEMA DE ACTAS DE ENTREGA/DEVOLUCIÓN
 # ==============================================================================
 
