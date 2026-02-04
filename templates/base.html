@@ -556,6 +556,9 @@
                             <li><a class="dropdown-item" href="{% url 'productos:mantenimiento-create' %}"><i class="fas fa-plus me-2 text-success"></i>Programar Mantenimiento</a></li>
                             <li><hr class="dropdown-divider"></li>
                             <li class="dropdown-header">Garantías</li>
+                            <li><a class="dropdown-item" href="{% url 'productos:garantia-registro-list' %}"><i class="fas fa-clipboard-list me-2"></i>Registros de Garantía</a></li>
+                            <li><a class="dropdown-item" href="{% url 'productos:garantia-registro-create' %}"><i class="fas fa-plus me-2 text-success"></i>Enviar a Garantía</a></li>
+                            <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="{% url 'productos:garantia-list' %}"><i class="fas fa-shield-alt me-2"></i>Equipos con Garantía</a></li>
                             <li><a class="dropdown-item" href="{% url 'productos:garantia-por-vencer' %}"><i class="fas fa-exclamation-triangle me-2 text-warning"></i>Por Vencer</a></li>
                             <li><a class="dropdown-item" href="{% url 'productos:garantia-en-proceso' %}"><i class="fas fa-truck me-2 text-info"></i>En Proceso</a></li>

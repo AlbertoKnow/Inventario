@@ -3734,6 +3734,128 @@ class GarantiaEnProcesoView(PerfilRequeridoMixin, ListView):
         return context
 
 
+# Vistas CRUD para Registro de Garantías
+from .models import GarantiaRegistro
+from .forms_legacy import GarantiaRegistroForm, GarantiaEnviarForm, GarantiaRecibirForm
+
+
+class GarantiaRegistroListView(PerfilRequeridoMixin, ListView):
+    """Lista de registros de garantía."""
+    model = GarantiaRegistro
+    template_name = 'productos/garantia_registro_list.html'
+    context_object_name = 'registros'
+    paginate_by = 20
+
+    def get_queryset(self):
+        queryset = GarantiaRegistro.objects.select_related(
+            'item', 'item__area', 'proveedor', 'creado_por'
+        )
+
+        perfil = getattr(self.request.user, 'perfil', None)
+        if perfil and perfil.rol != 'admin' and perfil.area:
+            queryset = queryset.filter(item__area=perfil.area)
+
+        # Filtros
+        estado = self.request.GET.get('estado')
+        if estado:
+            queryset = queryset.filter(estado=estado)
+
+        return queryset.order_by('-creado_en')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        queryset = self.get_queryset()
+        context['total_registros'] = queryset.count()
+        context['pendientes'] = queryset.filter(estado='pendiente').count()
+        context['enviados'] = queryset.filter(estado='enviado').count()
+        context['en_revision'] = queryset.filter(estado='en_revision').count()
+        return context
+
+
+class GarantiaRegistroCreateView(PerfilRequeridoMixin, CreateView):
+    """Crear un nuevo registro de garantía."""
+    model = GarantiaRegistro
+    form_class = GarantiaRegistroForm
+    template_name = 'productos/garantia_registro_form.html'
+    success_url = '/productos/garantias/registros/'
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['user'] = self.request.user
+        return kwargs
+
+    def form_valid(self, form):
+        form.instance.creado_por = self.request.user
+        messages.success(self.request, 'Registro de garantía creado correctamente.')
+        return super().form_valid(form)
+
+
+class GarantiaRegistroDetailView(PerfilRequeridoMixin, DetailView):
+    """Detalle de un registro de garantía."""
+    model = GarantiaRegistro
+    template_name = 'productos/garantia_registro_detail.html'
+    context_object_name = 'registro'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['form_enviar'] = GarantiaEnviarForm()
+        context['form_recibir'] = GarantiaRecibirForm()
+        return context
+
+
+class GarantiaRegistroEnviarView(PerfilRequeridoMixin, View):
+    """Marcar un registro de garantía como enviado."""
+
+    def post(self, request, pk):
+        registro = get_object_or_404(GarantiaRegistro, pk=pk)
+        form = GarantiaEnviarForm(request.POST)
+
+        if form.is_valid():
+            registro.fecha_envio = form.cleaned_data['fecha_envio']
+            if form.cleaned_data.get('numero_caso'):
+                registro.numero_caso = form.cleaned_data['numero_caso']
+            if form.cleaned_data.get('observaciones'):
+                registro.observaciones += f"\n{form.cleaned_data['observaciones']}"
+            registro.enviar()
+            messages.success(request, f'Equipo {registro.item.codigo_interno} marcado como enviado a garantía.')
+        else:
+            messages.error(request, 'Error al procesar el envío.')
+
+        return redirect('productos:garantia-registro-detail', pk=pk)
+
+
+class GarantiaRegistroRecibirView(PerfilRequeridoMixin, View):
+    """Registrar la recepción de un equipo de garantía."""
+
+    def post(self, request, pk):
+        registro = get_object_or_404(GarantiaRegistro, pk=pk)
+        form = GarantiaRecibirForm(request.POST)
+
+        if form.is_valid():
+            registro.recibir(
+                diagnostico=form.cleaned_data['diagnostico_proveedor'],
+                solucion=form.cleaned_data['solucion_aplicada'],
+                resultado=form.cleaned_data['resultado'],
+                fecha_recepcion=form.cleaned_data['fecha_recepcion']
+            )
+            messages.success(request, f'Recepción del equipo {registro.item.codigo_interno} registrada correctamente.')
+        else:
+            messages.error(request, 'Error al procesar la recepción.')
+
+        return redirect('productos:garantia-registro-detail', pk=pk)
+
+
+class GarantiaRegistroCancelarView(PerfilRequeridoMixin, View):
+    """Cancelar un registro de garantía."""
+
+    def post(self, request, pk):
+        registro = get_object_or_404(GarantiaRegistro, pk=pk)
+        motivo = request.POST.get('motivo', '')
+        registro.cancelar(motivo)
+        messages.success(request, f'Registro de garantía cancelado.')
+        return redirect('productos:garantia-registro-list')
+
+
 # ==============================================================================
 # SISTEMA DE ACTAS DE ENTREGA/DEVOLUCIÓN
 # ==============================================================================

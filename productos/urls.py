@@ -104,10 +104,18 @@ urlpatterns = [
     path('mantenimientos/<int:pk>/cancelar/', views.MantenimientoCancelarView.as_view(), name='mantenimiento-cancelar'),
     path('mantenimientos/<int:pk>/eliminar/', views.MantenimientoDeleteView.as_view(), name='mantenimiento-delete'),
 
-    # Garantías
+    # Garantías - Vistas de información
     path('garantias/', views.GarantiaListView.as_view(), name='garantia-list'),
     path('garantias/por-vencer/', views.GarantiaPorVencerView.as_view(), name='garantia-por-vencer'),
     path('garantias/en-proceso/', views.GarantiaEnProcesoView.as_view(), name='garantia-en-proceso'),
+
+    # Garantías - Registro y gestión
+    path('garantias/registros/', views.GarantiaRegistroListView.as_view(), name='garantia-registro-list'),
+    path('garantias/registros/crear/', views.GarantiaRegistroCreateView.as_view(), name='garantia-registro-create'),
+    path('garantias/registros/<int:pk>/', views.GarantiaRegistroDetailView.as_view(), name='garantia-registro-detail'),
+    path('garantias/registros/<int:pk>/enviar/', views.GarantiaRegistroEnviarView.as_view(), name='garantia-registro-enviar'),
+    path('garantias/registros/<int:pk>/recibir/', views.GarantiaRegistroRecibirView.as_view(), name='garantia-registro-recibir'),
+    path('garantias/registros/<int:pk>/cancelar/', views.GarantiaRegistroCancelarView.as_view(), name='garantia-registro-cancelar'),
 
     # Actas de Entrega/Devolución
     path('actas/', views.ActaListView.as_view(), name='acta-list'),
