@@ -209,10 +209,40 @@
                 <p class="text-muted">Seleccione los equipos que el colaborador devolverá:</p>
                 {% endif %}
 
-                <!-- Items Disponibles -->
-                <div class="row g-3 mb-4">
-                    {% for item in items_disponibles %}
+                <!-- Barra de búsqueda y filtros -->
+                <div class="row g-2 mb-3">
                     <div class="col-md-6">
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="fas fa-search"></i></span>
+                            <input type="text" id="buscarItem" class="form-control" placeholder="Buscar por código, nombre o serie...">
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <select id="filtroTipo" class="form-select">
+                            <option value="">Todos los tipos</option>
+                            {% for tipo_item in tipos_item %}
+                            <option value="{{ tipo_item.nombre }}">{{ tipo_item.nombre }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-center">
+                        <span id="contadorItems" class="badge bg-primary fs-6 w-100 text-center">{{ items_disponibles|length }} equipos</span>
+                    </div>
+                </div>
+
+                <div id="noResultados" class="text-center text-muted py-4 d-none">
+                    <i class="fas fa-search fa-2x mb-2"></i>
+                    <p>No se encontraron equipos con ese criterio</p>
+                </div>
+
+                <!-- Items Disponibles -->
+                <div class="row g-3 mb-4" id="itemsContainer">
+                    {% for item in items_disponibles %}
+                    <div class="col-md-6 item-wrapper"
+                         data-codigo="{% if item.codigo_utp_pendiente %}{{ item.codigo_interno }}{% else %}{{ item.codigo_utp }}{% endif %}"
+                         data-nombre="{{ item.nombre }}"
+                         data-serie="{{ item.serie|default:'' }}"
+                         data-tipo="{{ item.tipo_item.nombre|default:'' }}">
                         <div class="item-card" data-item-id="{{ item.id }}">
                             <input type="checkbox" name="items" value="{{ item.id }}" id="item_{{ item.id }}">
                             <div class="d-flex justify-content-between">
@@ -428,19 +458,54 @@
 {% block extra_js %}
 <script>
 {% if paso == 2 %}
-// Manejo de selección de items
+// Manejo de selección y filtrado de items
 document.addEventListener('DOMContentLoaded', function() {
+    const buscarInput = document.getElementById('buscarItem');
+    const filtroTipo = document.getElementById('filtroTipo');
+    const contador = document.getElementById('contadorItems');
+    const noResultados = document.getElementById('noResultados');
+    const itemsContainer = document.getElementById('itemsContainer');
+    const items = document.querySelectorAll('.item-wrapper');
+
+    // Función de filtrado
+    function filtrarItems() {
+        const texto = buscarInput.value.toLowerCase().trim();
+        const tipoSel = filtroTipo.value.toLowerCase();
+        let visibles = 0;
+
+        items.forEach(item => {
+            const codigo = (item.dataset.codigo || '').toLowerCase();
+            const nombre = (item.dataset.nombre || '').toLowerCase();
+            const serie = (item.dataset.serie || '').toLowerCase();
+            const tipo = (item.dataset.tipo || '').toLowerCase();
+
+            const coincideTexto = !texto || codigo.includes(texto) || nombre.includes(texto) || serie.includes(texto);
+            const coincideTipo = !tipoSel || tipo === tipoSel;
+
+            if (coincideTexto && coincideTipo) {
+                item.style.display = '';
+                visibles++;
+            } else {
+                item.style.display = 'none';
+            }
+        });
+
+        contador.textContent = visibles + ' equipo' + (visibles !== 1 ? 's' : '');
+        noResultados.classList.toggle('d-none', visibles > 0);
+    }
+
+    buscarInput.addEventListener('input', filtrarItems);
+    filtroTipo.addEventListener('change', filtrarItems);
+
+    // Manejo de selección de tarjetas
     document.querySelectorAll('.item-card').forEach(card => {
         const checkbox = card.querySelector('input[type="checkbox"]');
-
         if (!checkbox) return;
 
-        // Estado inicial
         if (checkbox.checked) {
             card.classList.add('selected');
         }
 
-        // Click en la tarjeta
         card.addEventListener('click', function(e) {
             e.preventDefault();
             e.stopPropagation();
