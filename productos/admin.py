@@ -5,8 +5,10 @@ from django.utils.html import format_html
 from django.urls import reverse
 from .models import (
     Area, Campus, Sede, Pabellon, Ambiente, TipoItem, PerfilUsuario, Item,
-    EspecificacionesSistemas, Movimiento, HistorialCambio, Notificacion,
-    MarcaEquipo, ModeloEquipo, ProcesadorEquipo, Colaborador
+    EspecificacionesSistemas, Movimiento, MovimientoItem, HistorialCambio,
+    Notificacion, MarcaEquipo, ModeloEquipo, ProcesadorEquipo, Colaborador,
+    Proveedor, Contrato, AnexoContrato, Lote, Mantenimiento, GarantiaRegistro,
+    Gerencia, SoftwareEstandar, ActaEntrega, ActaItem, ActaFoto, ActaSoftware
 )
 
 
@@ -155,6 +157,54 @@ class AmbienteAdmin(admin.ModelAdmin):
     def total_items(self, obj):
         return obj.items.count()
     total_items.short_description = 'Ítems'
+
+
+@admin.register(Proveedor)
+class ProveedorAdmin(admin.ModelAdmin):
+    list_display = ('ruc', 'razon_social', 'nombre_comercial', 'telefono', 'email', 'contacto', 'activo')
+    list_filter = ('activo',)
+    search_fields = ('ruc', 'razon_social', 'nombre_comercial', 'contacto')
+    ordering = ('razon_social',)
+
+
+class AnexoContratoInline(admin.TabularInline):
+    model = AnexoContrato
+    extra = 0
+    fields = ('numero_anexo', 'fecha', 'descripcion', 'monto_modificacion')
+
+
+@admin.register(Contrato)
+class ContratoAdmin(admin.ModelAdmin):
+    list_display = ('numero_contrato', 'proveedor', 'estado', 'fecha_inicio', 'fecha_fin', 'monto_total')
+    list_filter = ('estado', 'proveedor')
+    search_fields = ('numero_contrato', 'proveedor__razon_social', 'descripcion')
+    ordering = ('-fecha_inicio',)
+    readonly_fields = ('creado_por', 'creado_en', 'modificado_en')
+    date_hierarchy = 'fecha_inicio'
+    inlines = [AnexoContratoInline]
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.creado_por = request.user
+        super().save_model(request, obj, form, change)
+
+
+@admin.register(Lote)
+class LoteAdmin(admin.ModelAdmin):
+    list_display = ('codigo_interno', 'codigo_lote', 'descripcion', 'contrato', 'fecha_adquisicion', 'cantidad_items', 'activo')
+    list_filter = ('activo', 'contrato__proveedor')
+    search_fields = ('codigo_interno', 'codigo_lote', 'descripcion')
+    ordering = ('-fecha_adquisicion',)
+    readonly_fields = ('codigo_interno', 'creado_por', 'creado_en')
+
+    def cantidad_items(self, obj):
+        return obj.cantidad_items
+    cantidad_items.short_description = 'Ítems'
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.creado_por = request.user
+        super().save_model(request, obj, form, change)
 
 
 @admin.register(TipoItem)
@@ -372,6 +422,13 @@ class ItemAdmin(admin.ModelAdmin):
 # MOVIMIENTOS
 # ============================================================================
 
+class MovimientoItemInline(admin.TabularInline):
+    model = MovimientoItem
+    extra = 0
+    fields = ('item', 'estado_item_destino', 'observaciones')
+    readonly_fields = ('agregado_en',)
+
+
 @admin.register(Movimiento)
 class MovimientoAdmin(admin.ModelAdmin):
     list_display = (
@@ -422,6 +479,7 @@ class MovimientoAdmin(admin.ModelAdmin):
     )
 
     actions = ['aprobar_movimientos', 'rechazar_movimientos']
+    inlines = [MovimientoItemInline]
 
     def estado_badge(self, obj):
         colores = {
@@ -535,6 +593,182 @@ class ColaboradorAdmin(admin.ModelAdmin):
             'fields': ('activo',)
         }),
     )
+
+
+# ============================================================================
+# GERENCIAS Y SOFTWARE
+# ============================================================================
+
+@admin.register(Gerencia)
+class GerenciaAdmin(admin.ModelAdmin):
+    list_display = ('nombre', 'descripcion', 'activo')
+    list_filter = ('activo',)
+    search_fields = ('nombre',)
+    ordering = ('nombre',)
+
+
+@admin.register(SoftwareEstandar)
+class SoftwareEstandarAdmin(admin.ModelAdmin):
+    list_display = ('nombre', 'es_basico', 'orden', 'activo')
+    list_filter = ('es_basico', 'activo')
+    search_fields = ('nombre',)
+    ordering = ('orden', 'nombre')
+
+
+# ============================================================================
+# MANTENIMIENTO Y GARANTÍAS
+# ============================================================================
+
+@admin.register(Mantenimiento)
+class MantenimientoAdmin(admin.ModelAdmin):
+    list_display = ('item', 'tipo', 'estado_badge', 'fecha_programada', 'responsable', 'tecnico_asignado', 'resultado')
+    list_filter = ('tipo', 'estado', 'resultado')
+    search_fields = ('item__codigo_interno', 'item__codigo_utp', 'item__nombre', 'descripcion_problema', 'tecnico_asignado')
+    ordering = ('-fecha_programada',)
+    readonly_fields = ('creado_por', 'creado_en', 'actualizado_en')
+    date_hierarchy = 'fecha_programada'
+
+    fieldsets = (
+        ('Equipo', {
+            'fields': ('item', 'tipo')
+        }),
+        ('Programación', {
+            'fields': ('estado', 'fecha_programada', 'fecha_inicio', 'fecha_finalizacion')
+        }),
+        ('Trabajo', {
+            'fields': ('descripcion_problema', 'trabajo_realizado', 'resultado')
+        }),
+        ('Responsables', {
+            'fields': ('responsable', 'tecnico_asignado', 'proveedor_servicio')
+        }),
+        ('Costo y Próximo', {
+            'fields': ('costo', 'proximo_mantenimiento'),
+            'classes': ('collapse',)
+        }),
+        ('Observaciones', {
+            'fields': ('observaciones',),
+            'classes': ('collapse',)
+        }),
+        ('Auditoría', {
+            'fields': ('creado_por', 'creado_en', 'actualizado_en'),
+            'classes': ('collapse',)
+        }),
+    )
+
+    def estado_badge(self, obj):
+        colores = {
+            'pendiente': '#f59e0b',
+            'en_proceso': '#06b6d4',
+            'completado': '#22c55e',
+            'cancelado': '#6b7280',
+        }
+        color = colores.get(obj.estado, '#6b7280')
+        return format_html(
+            '<span style="background:{}; color:white; padding:3px 8px; border-radius:4px; font-size:11px;">{}</span>',
+            color, obj.get_estado_display()
+        )
+    estado_badge.short_description = 'Estado'
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.creado_por = request.user
+        super().save_model(request, obj, form, change)
+
+
+@admin.register(GarantiaRegistro)
+class GarantiaRegistroAdmin(admin.ModelAdmin):
+    list_display = ('item', 'estado_badge', 'tipo_problema', 'proveedor', 'numero_caso', 'fecha_reporte', 'fecha_envio', 'fecha_recepcion')
+    list_filter = ('estado', 'tipo_problema', 'proveedor')
+    search_fields = ('item__codigo_interno', 'item__codigo_utp', 'item__nombre', 'numero_caso', 'descripcion_problema')
+    ordering = ('-creado_en',)
+    readonly_fields = ('fecha_reporte', 'creado_por', 'creado_en', 'actualizado_en')
+
+    fieldsets = (
+        ('Equipo', {
+            'fields': ('item',)
+        }),
+        ('Problema', {
+            'fields': ('tipo_problema', 'descripcion_problema')
+        }),
+        ('Estado y Proveedor', {
+            'fields': ('estado', 'proveedor', 'numero_caso', 'contacto_proveedor')
+        }),
+        ('Fechas', {
+            'fields': ('fecha_reporte', 'fecha_envio', 'fecha_recepcion')
+        }),
+        ('Resultado', {
+            'fields': ('diagnostico_proveedor', 'solucion_aplicada', 'equipo_reemplazo'),
+            'classes': ('collapse',)
+        }),
+        ('Observaciones', {
+            'fields': ('observaciones',),
+            'classes': ('collapse',)
+        }),
+        ('Auditoría', {
+            'fields': ('creado_por', 'creado_en', 'actualizado_en'),
+            'classes': ('collapse',)
+        }),
+    )
+
+    def estado_badge(self, obj):
+        colores = {
+            'pendiente': '#f59e0b',
+            'enviado': '#3b82f6',
+            'en_revision': '#6b7280',
+            'reparado': '#22c55e',
+            'reemplazado': '#8b5cf6',
+            'rechazado': '#ef4444',
+            'devuelto': '#06b6d4',
+            'cancelado': '#374151',
+        }
+        color = colores.get(obj.estado, '#6b7280')
+        return format_html(
+            '<span style="background:{}; color:white; padding:3px 8px; border-radius:4px; font-size:11px;">{}</span>',
+            color, obj.get_estado_display()
+        )
+    estado_badge.short_description = 'Estado'
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.creado_por = request.user
+        super().save_model(request, obj, form, change)
+
+
+# ============================================================================
+# ACTAS DE ENTREGA/DEVOLUCIÓN
+# ============================================================================
+
+class ActaItemInline(admin.TabularInline):
+    model = ActaItem
+    extra = 0
+    fields = ('item', 'acc_cargador', 'acc_cable_seguridad', 'acc_bateria', 'acc_maletin', 'acc_cable_red', 'acc_teclado_mouse')
+
+
+class ActaFotoInline(admin.TabularInline):
+    model = ActaFoto
+    extra = 0
+    fields = ('foto', 'descripcion')
+
+
+class ActaSoftwareInline(admin.TabularInline):
+    model = ActaSoftware
+    extra = 0
+    fields = ('software',)
+
+
+@admin.register(ActaEntrega)
+class ActaEntregaAdmin(admin.ModelAdmin):
+    list_display = ('numero_acta', 'tipo', 'colaborador', 'cantidad_items', 'correo_enviado', 'creado_por', 'fecha')
+    list_filter = ('tipo', 'correo_enviado')
+    search_fields = ('numero_acta', 'colaborador__nombre_completo', 'colaborador__dni')
+    ordering = ('-fecha',)
+    readonly_fields = ('numero_acta', 'fecha', 'fecha_envio_correo')
+    date_hierarchy = 'fecha'
+    inlines = [ActaItemInline, ActaSoftwareInline, ActaFotoInline]
+
+    def cantidad_items(self, obj):
+        return obj.cantidad_items
+    cantidad_items.short_description = 'Ítems'
 
 
 # ============================================================================
