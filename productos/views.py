@@ -4216,11 +4216,16 @@ class ActaCreateView(PerfilRequeridoMixin, View):
                     request.session['acta_ticket'] = ''
                     request.session['acta_observaciones'] = f'Generado desde movimiento {movimiento.pk}'
 
+                    # Tipos de item para el filtro
+                    tipos_ids = set(item.tipo_item_id for item in items_movimiento if item.tipo_item_id)
+                    tipos_item = TipoItem.objects.filter(id__in=tipos_ids).order_by('nombre')
+
                     return render(request, self.template_name, {
                         'form': form,
                         'software_form': software_form,
                         'items_disponibles': items_movimiento,
                         'items_preseleccionados': [item.id for item in items_movimiento],
+                        'tipos_item': tipos_item,
                         'colaborador': movimiento.colaborador_nuevo,
                         'tipo': 'entrega',
                         'movimiento': movimiento,
@@ -4279,10 +4284,16 @@ class ActaCreateView(PerfilRequeridoMixin, View):
 
                 software_form = SeleccionarSoftwareForm()
 
+                # Obtener tipos de item presentes en los items disponibles para el filtro
+                tipos_item = TipoItem.objects.filter(
+                    id__in=items_disponibles.values_list('tipo_item', flat=True).distinct()
+                ).order_by('nombre')
+
                 return render(request, self.template_name, {
                     'form': form,
                     'software_form': software_form,
                     'items_disponibles': items_disponibles,
+                    'tipos_item': tipos_item,
                     'colaborador': colaborador,
                     'tipo': tipo,
                     'paso': 2,
