@@ -4534,8 +4534,14 @@ class ActaEnviarCorreoView(PerfilRequeridoMixin, View):
             acta.pdf_archivo.seek(0)
             pdf_bytes = acta.pdf_archivo.read()
 
+            # Obtener rutas de fotos adjuntas
+            fotos_paths = []
+            for foto in acta.fotos.all():
+                if foto.foto and hasattr(foto.foto, 'path'):
+                    fotos_paths.append(foto.foto.path)
+
             # Enviar correo
-            enviar_acta_por_correo(acta, pdf_bytes)
+            enviar_acta_por_correo(acta, pdf_bytes, fotos_paths=fotos_paths if fotos_paths else None)
 
             # Marcar como enviado
             acta.correo_enviado = True
