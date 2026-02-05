@@ -382,7 +382,7 @@ class MovimientoForm(forms.ModelForm):
         self.fields['observaciones'].required = False
 
         # Excluir 'garantia' de los tipos de movimiento (se gestiona desde menú Mantenimiento)
-        tipos_disponibles = [(k, v) for k, v in Movimiento.TIPOS if k != 'garantia']
+        tipos_disponibles = [(k, v) for k, v in Movimiento.TIPOS_MOVIMIENTO if k != 'garantia']
         self.fields['tipo'].choices = tipos_disponibles
 
         # Choices para estado del ítem destino
