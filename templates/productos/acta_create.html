@@ -203,83 +203,53 @@
                     <br><strong>Tipo de Acta:</strong> {{ tipo|title }}
                 </div>
 
-                {% if tipo == 'entrega' %}
-                <p class="text-muted">Seleccione los equipos que se entregarán al colaborador:</p>
-                {% else %}
-                <p class="text-muted">Seleccione los equipos que el colaborador devolverá:</p>
-                {% endif %}
+                <!-- Equipos seleccionados -->
+                <div id="seleccionados" class="mb-3 d-none">
+                    <h6 class="text-success"><i class="fas fa-check-circle me-1"></i>Equipos seleccionados: <span id="contadorSeleccionados">0</span></h6>
+                    <div class="row g-2" id="listaSeleccionados"></div>
+                    <hr>
+                </div>
 
-                <!-- Barra de búsqueda y filtros -->
+                <!-- Barra de búsqueda -->
                 <div class="row g-2 mb-3">
-                    <div class="col-md-6">
+                    <div class="col">
                         <div class="input-group">
                             <span class="input-group-text"><i class="fas fa-search"></i></span>
-                            <input type="text" id="buscarItem" class="form-control" placeholder="Buscar por código, nombre o serie...">
+                            <input type="text" id="buscarItem" class="form-control"
+                                   placeholder="Escriba código, nombre o serie para buscar equipos..."
+                                   autocomplete="off">
+                            <span class="input-group-text" id="spinnerBuscar" style="display:none;">
+                                <i class="fas fa-spinner fa-spin"></i>
+                            </span>
                         </div>
-                    </div>
-                    <div class="col-md-4">
-                        <select id="filtroTipo" class="form-select">
-                            <option value="">Todos los tipos</option>
-                            {% for tipo_item in tipos_item %}
-                            <option value="{{ tipo_item.nombre }}">{{ tipo_item.nombre }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="col-md-2 d-flex align-items-center">
-                        <span id="contadorItems" class="badge bg-primary fs-6 w-100 text-center">{{ items_disponibles|length }} equipos</span>
+                        <small class="text-muted">Escriba al menos 2 caracteres para buscar</small>
                     </div>
                 </div>
+
+                <!-- Mensaje inicial -->
+                <div id="mensajeInicial" class="text-center text-muted py-4">
+                    <i class="fas fa-search fa-2x mb-2 d-block"></i>
+                    {% if tipo == 'entrega' %}
+                    Busque los equipos que desea entregar al colaborador
+                    {% else %}
+                    Busque los equipos que el colaborador devolverá
+                    {% endif %}
+                </div>
+
+                <!-- Resultados de búsqueda -->
+                <div id="resultadosBusqueda" class="row g-3 mb-4" style="display:none;"></div>
 
                 <div id="noResultados" class="text-center text-muted py-4 d-none">
-                    <i class="fas fa-search fa-2x mb-2"></i>
-                    <p>No se encontraron equipos con ese criterio</p>
+                    <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
+                    No se encontraron equipos con ese criterio
                 </div>
 
-                <!-- Items Disponibles -->
-                <div class="row g-3 mb-4" id="itemsContainer">
-                    {% for item in items_disponibles %}
-                    <div class="col-md-6 item-wrapper"
-                         data-codigo="{% if item.codigo_utp_pendiente %}{{ item.codigo_interno }}{% else %}{{ item.codigo_utp }}{% endif %}"
-                         data-nombre="{{ item.nombre }}"
-                         data-serie="{{ item.serie|default:'' }}"
-                         data-tipo="{{ item.tipo_item.nombre|default:'' }}">
-                        <div class="item-card" data-item-id="{{ item.id }}">
-                            <input type="checkbox" name="items" value="{{ item.id }}" id="item_{{ item.id }}">
-                            <div class="d-flex justify-content-between">
-                                <div>
-                                    <strong>{% if item.codigo_utp_pendiente %}{{ item.codigo_interno }}{% else %}{{ item.codigo_utp }}{% endif %}</strong>
-                                    <br><span class="text-muted">{{ item.nombre }}</span>
-                                    {% if item.especificaciones_sistemas %}
-                                    <br><small>{{ item.especificaciones_sistemas.marca }} {{ item.especificaciones_sistemas.modelo }}</small>
-                                    {% endif %}
-                                </div>
-                                <div class="text-end">
-                                    <small class="text-muted">Serie: {{ item.serie }}</small>
-                                    <br>
-                                    {% if item.estado == 'nuevo' %}
-                                    <span class="badge bg-success">Nuevo</span>
-                                    {% elif item.estado == 'instalado' %}
-                                    <span class="badge bg-info">Instalado</span>
-                                    {% else %}
-                                    <span class="badge bg-secondary">{{ item.estado|title }}</span>
-                                    {% endif %}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    {% empty %}
-                    <div class="col-12 text-center text-muted py-4">
-                        <i class="fas fa-box-open fa-2x mb-2"></i>
-                        <p>
-                            {% if tipo == 'entrega' %}
-                            No hay equipos disponibles para asignar.
-                            {% else %}
-                            Este colaborador no tiene equipos asignados para devolver.
-                            {% endif %}
-                        </p>
-                    </div>
-                    {% endfor %}
+                <div id="infoTotal" class="text-center d-none">
+                    <small class="text-muted">Mostrando máximo 50 resultados. Refine su búsqueda si no encuentra el equipo.</small>
                 </div>
+
+                <!-- Hidden inputs para items seleccionados (se agregan dinámicamente) -->
+                <div id="hiddenItems"></div>
             </div>
         </div>
 
@@ -458,61 +428,184 @@
 {% block extra_js %}
 <script>
 {% if paso == 2 %}
-// Manejo de selección y filtrado de items
+// Búsqueda AJAX de items para acta
 document.addEventListener('DOMContentLoaded', function() {
     const buscarInput = document.getElementById('buscarItem');
-    const filtroTipo = document.getElementById('filtroTipo');
-    const contador = document.getElementById('contadorItems');
+    const spinner = document.getElementById('spinnerBuscar');
+    const mensajeInicial = document.getElementById('mensajeInicial');
+    const resultados = document.getElementById('resultadosBusqueda');
     const noResultados = document.getElementById('noResultados');
-    const itemsContainer = document.getElementById('itemsContainer');
-    const items = document.querySelectorAll('.item-wrapper');
+    const infoTotal = document.getElementById('infoTotal');
+    const seleccionadosDiv = document.getElementById('seleccionados');
+    const listaSeleccionados = document.getElementById('listaSeleccionados');
+    const contadorSel = document.getElementById('contadorSeleccionados');
+    const hiddenItems = document.getElementById('hiddenItems');
 
-    // Función de filtrado
-    function filtrarItems() {
-        const texto = buscarInput.value.toLowerCase().trim();
-        const tipoSel = filtroTipo.value.toLowerCase();
-        let visibles = 0;
+    const tipoActa = '{{ tipo }}';
+    const colaboradorId = '{{ colaborador.id }}';
+    const apiUrl = '{% url "productos:api-items-acta" %}';
 
-        items.forEach(item => {
-            const codigo = (item.dataset.codigo || '').toLowerCase();
-            const nombre = (item.dataset.nombre || '').toLowerCase();
-            const serie = (item.dataset.serie || '').toLowerCase();
-            const tipo = (item.dataset.tipo || '').toLowerCase();
+    // Items seleccionados: {id: {codigo, nombre, serie, tipo, estado}}
+    const seleccionados = {};
 
-            const coincideTexto = !texto || codigo.includes(texto) || nombre.includes(texto) || serie.includes(texto);
-            const coincideTipo = !tipoSel || tipo === tipoSel;
+    {% if items_preseleccionados %}
+    // Preseleccionar items si vienen de un movimiento
+    {% for item in items_disponibles %}
+    seleccionados[{{ item.id }}] = {
+        codigo: '{% if item.codigo_utp_pendiente %}{{ item.codigo_interno }}{% else %}{{ item.codigo_utp }}{% endif %}',
+        nombre: '{{ item.nombre|escapejs }}',
+        serie: '{{ item.serie|default:""|escapejs }}',
+        tipo: '{{ item.tipo_item.nombre|default:""|escapejs }}',
+        estado: '{{ item.get_estado_display|escapejs }}'
+    };
+    {% endfor %}
+    actualizarSeleccionados();
+    {% endif %}
 
-            if (coincideTexto && coincideTipo) {
-                item.style.display = '';
-                visibles++;
-            } else {
-                item.style.display = 'none';
-            }
-        });
+    let debounceTimer;
 
-        contador.textContent = visibles + ' equipo' + (visibles !== 1 ? 's' : '');
-        noResultados.classList.toggle('d-none', visibles > 0);
-    }
+    buscarInput.addEventListener('input', function() {
+        clearTimeout(debounceTimer);
+        const query = this.value.trim();
 
-    buscarInput.addEventListener('input', filtrarItems);
-    filtroTipo.addEventListener('change', filtrarItems);
-
-    // Manejo de selección de tarjetas
-    document.querySelectorAll('.item-card').forEach(card => {
-        const checkbox = card.querySelector('input[type="checkbox"]');
-        if (!checkbox) return;
-
-        if (checkbox.checked) {
-            card.classList.add('selected');
+        if (query.length < 2) {
+            resultados.style.display = 'none';
+            noResultados.classList.add('d-none');
+            infoTotal.classList.add('d-none');
+            mensajeInicial.style.display = '';
+            return;
         }
 
-        card.addEventListener('click', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            checkbox.checked = !checkbox.checked;
-            card.classList.toggle('selected', checkbox.checked);
-        });
+        debounceTimer = setTimeout(() => buscar(query), 300);
     });
+
+    function buscar(query) {
+        spinner.style.display = '';
+        mensajeInicial.style.display = 'none';
+
+        const params = new URLSearchParams({
+            q: query,
+            tipo_acta: tipoActa,
+            colaborador_id: colaboradorId
+        });
+
+        fetch(apiUrl + '?' + params)
+            .then(r => r.json())
+            .then(data => {
+                spinner.style.display = 'none';
+                renderResultados(data.items, data.total);
+            })
+            .catch(() => {
+                spinner.style.display = 'none';
+            });
+    }
+
+    function renderResultados(items, total) {
+        resultados.innerHTML = '';
+
+        if (items.length === 0) {
+            resultados.style.display = 'none';
+            noResultados.classList.remove('d-none');
+            infoTotal.classList.add('d-none');
+            return;
+        }
+
+        noResultados.classList.add('d-none');
+        infoTotal.classList.toggle('d-none', total <= 50);
+
+        items.forEach(item => {
+            const yaSeleccionado = seleccionados[item.id];
+            const estadoBadge = item.estado_key === 'nuevo'
+                ? '<span class="badge bg-success">Nuevo</span>'
+                : item.estado_key === 'instalado'
+                    ? '<span class="badge bg-info">Instalado</span>'
+                    : '<span class="badge bg-secondary">' + item.estado + '</span>';
+
+            const col = document.createElement('div');
+            col.className = 'col-md-6';
+            col.innerHTML = `
+                <div class="item-card ${yaSeleccionado ? 'selected' : ''}" data-item-id="${item.id}" style="cursor:pointer;">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <strong>${item.codigo}</strong>
+                            <br><span class="text-muted">${item.nombre}</span>
+                        </div>
+                        <div class="text-end">
+                            <small class="text-muted">Serie: ${item.serie || '-'}</small>
+                            <br>${estadoBadge}
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            col.querySelector('.item-card').addEventListener('click', function() {
+                toggleItem(item, this);
+            });
+
+            resultados.appendChild(col);
+        });
+
+        resultados.style.display = '';
+    }
+
+    function toggleItem(item, cardEl) {
+        if (seleccionados[item.id]) {
+            delete seleccionados[item.id];
+            cardEl.classList.remove('selected');
+        } else {
+            seleccionados[item.id] = {
+                codigo: item.codigo,
+                nombre: item.nombre,
+                serie: item.serie,
+                tipo: item.tipo,
+                estado: item.estado
+            };
+            cardEl.classList.add('selected');
+        }
+        actualizarSeleccionados();
+    }
+
+    function actualizarSeleccionados() {
+        const ids = Object.keys(seleccionados);
+        contadorSel.textContent = ids.length;
+
+        // Hidden inputs
+        hiddenItems.innerHTML = '';
+        ids.forEach(id => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'items';
+            input.value = id;
+            hiddenItems.appendChild(input);
+        });
+
+        // Lista visual
+        if (ids.length > 0) {
+            seleccionadosDiv.classList.remove('d-none');
+            listaSeleccionados.innerHTML = '';
+            ids.forEach(id => {
+                const item = seleccionados[id];
+                const tag = document.createElement('div');
+                tag.className = 'col-auto';
+                tag.innerHTML = `
+                    <span class="badge bg-success fs-6 d-flex align-items-center gap-2 py-2 px-3">
+                        <span>${item.codigo} - ${item.nombre}</span>
+                        <i class="fas fa-times" style="cursor:pointer;" data-remove-id="${id}"></i>
+                    </span>
+                `;
+                tag.querySelector('[data-remove-id]').addEventListener('click', function() {
+                    delete seleccionados[id];
+                    actualizarSeleccionados();
+                    // Actualizar card si está visible
+                    const card = document.querySelector(`.item-card[data-item-id="${id}"]`);
+                    if (card) card.classList.remove('selected');
+                });
+                listaSeleccionados.appendChild(tag);
+            });
+        } else {
+            seleccionadosDiv.classList.add('d-none');
+        }
+    }
 });
 {% endif %}
 

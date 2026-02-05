@@ -1454,6 +1454,65 @@ class BuscarItemsView(RateLimitMixin, LoginRequiredMixin, View):
         return JsonResponse({'items': resultados})
 
 
+class BuscarItemsActaView(RateLimitMixin, LoginRequiredMixin, View):
+    """API para buscar ítems disponibles para actas de entrega/devolución."""
+    ratelimit_key = 'search'
+
+    def get(self, request):
+        query = request.GET.get('q', '').strip()
+        tipo_acta = request.GET.get('tipo_acta', 'entrega')
+        colaborador_id = request.GET.get('colaborador_id')
+        tipo_item_id = request.GET.get('tipo_item')
+
+        if not query or len(query) < 2:
+            return JsonResponse({'items': [], 'total': 0})
+
+        if tipo_acta == 'entrega':
+            items = Item.objects.filter(
+                colaborador_asignado__isnull=True,
+                estado__in=['nuevo', 'instalado']
+            )
+        else:
+            # Devolución: items asignados al colaborador
+            if not colaborador_id:
+                return JsonResponse({'items': [], 'total': 0})
+            items = Item.objects.filter(colaborador_asignado_id=colaborador_id)
+
+        # Filtrar por área del usuario si no es admin
+        perfil = getattr(request.user, 'perfil', None)
+        if perfil and perfil.rol != 'admin' and perfil.area:
+            items = items.filter(area=perfil.area)
+
+        # Filtrar por tipo de item
+        if tipo_item_id:
+            items = items.filter(tipo_item_id=tipo_item_id)
+
+        # Búsqueda por texto
+        items = items.filter(
+            Q(codigo_interno__icontains=query) |
+            Q(codigo_utp__icontains=query) |
+            Q(serie__icontains=query) |
+            Q(nombre__icontains=query)
+        ).select_related('tipo_item', 'area')
+
+        total = items.count()
+        items = items[:50]
+
+        resultados = []
+        for item in items:
+            resultados.append({
+                'id': item.id,
+                'codigo': item.codigo_utp if not item.codigo_utp_pendiente else item.codigo_interno,
+                'nombre': item.nombre,
+                'serie': item.serie or '',
+                'tipo': item.tipo_item.nombre if item.tipo_item else '',
+                'estado': item.get_estado_display(),
+                'estado_key': item.estado,
+            })
+
+        return JsonResponse({'items': resultados, 'total': total})
+
+
 class ObtenerItemDetalleView(LoginRequiredMixin, View):
     """API para obtener detalles de un ítem específico."""
     
@@ -4216,16 +4275,11 @@ class ActaCreateView(PerfilRequeridoMixin, View):
                     request.session['acta_ticket'] = ''
                     request.session['acta_observaciones'] = f'Generado desde movimiento {movimiento.pk}'
 
-                    # Tipos de item para el filtro
-                    tipos_ids = set(item.tipo_item_id for item in items_movimiento if item.tipo_item_id)
-                    tipos_item = TipoItem.objects.filter(id__in=tipos_ids).order_by('nombre')
-
                     return render(request, self.template_name, {
                         'form': form,
                         'software_form': software_form,
                         'items_disponibles': items_movimiento,
                         'items_preseleccionados': [item.id for item in items_movimiento],
-                        'tipos_item': tipos_item,
                         'colaborador': movimiento.colaborador_nuevo,
                         'tipo': 'entrega',
                         'movimiento': movimiento,
@@ -4258,24 +4312,6 @@ class ActaCreateView(PerfilRequeridoMixin, View):
                 tipo = form.cleaned_data['tipo']
                 colaborador = form.cleaned_data['colaborador']
 
-                # Obtener ítems disponibles según el tipo
-                if tipo == 'entrega':
-                    # Para entrega: items sin asignar y en buen estado (nuevo/instalado)
-                    items_disponibles = Item.objects.filter(
-                        colaborador_asignado__isnull=True,
-                        estado__in=['nuevo', 'instalado']
-                    ).select_related('tipo_item', 'area')
-                else:
-                    # Para devolución: items asignados al colaborador
-                    items_disponibles = Item.objects.filter(
-                        colaborador_asignado=colaborador
-                    ).select_related('tipo_item', 'area')
-
-                # Filtrar por área si no es admin
-                perfil = request.user.perfil
-                if perfil.rol != 'admin' and perfil.area:
-                    items_disponibles = items_disponibles.filter(area=perfil.area)
-
                 # Guardar datos en sesión
                 request.session['acta_tipo'] = tipo
                 request.session['acta_colaborador_id'] = colaborador.id
@@ -4284,16 +4320,10 @@ class ActaCreateView(PerfilRequeridoMixin, View):
 
                 software_form = SeleccionarSoftwareForm()
 
-                # Obtener tipos de item presentes en los items disponibles para el filtro
-                tipos_item = TipoItem.objects.filter(
-                    id__in=items_disponibles.values_list('tipo_item', flat=True).distinct()
-                ).order_by('nombre')
-
+                # Ya no cargamos items aquí - se buscan por AJAX
                 return render(request, self.template_name, {
                     'form': form,
                     'software_form': software_form,
-                    'items_disponibles': items_disponibles,
-                    'tipos_item': tipos_item,
                     'colaborador': colaborador,
                     'tipo': tipo,
                     'paso': 2,
