@@ -161,6 +161,7 @@ urlpatterns = [
     path('api/pabellones/', views.PabellonesPorSedeView.as_view(), name='api-pabellones'),
     path('api/ambientes/', views.AmbientesPorPabellonView.as_view(), name='api-ambientes'),
     path('api/items-buscar/', views.BuscarItemsView.as_view(), name='api-items-buscar'),
+    path('api/items-acta/', views.BuscarItemsActaView.as_view(), name='api-items-acta'),
     path('api/item-detalle/', views.ObtenerItemDetalleView.as_view(), name='api-item-detalle'),
     path('api/colaboradores-buscar/', views.BuscarColaboradorView.as_view(), name='api-colaboradores-buscar'),
     path('api/especificaciones-valores/', views.EspecificacionesValoresView.as_view(), name='api-especificaciones-valores'),
