@@ -1167,7 +1167,7 @@ class UbicacionListView(PerfilRequeridoMixin, CampusFilterMixin, ListView):
     model = Ambiente
     template_name = 'productos/ubicacion_list.html'
     context_object_name = 'ambientes'
-    paginate_by = 20
+    paginate_by = 50
 
     def get_queryset(self):
         queryset = Ambiente.objects.filter(activo=True).select_related(
