@@ -11,7 +11,7 @@
                 <nav aria-label="breadcrumb">
                     <ol class="breadcrumb">
                         <li class="breadcrumb-item"><a href="{% url 'productos:garantia-registro-list' %}">Registros de Garantía</a></li>
-                        <li class="breadcrumb-item active">{{ registro.item.codigo_interno }}</li>
+                        <li class="breadcrumb-item active">{% if registro.item.codigo_utp_pendiente %}{{ registro.item.codigo_interno }}{% else %}{{ registro.item.codigo_utp }}{% endif %}</li>
                     </ol>
                 </nav>
                 <div class="d-flex justify-content-between align-items-center">
@@ -47,10 +47,10 @@
                             <p class="mb-1"><small class="text-muted">Código</small></p>
                             <p class="fw-semibold">
                                 <a href="{% url 'productos:item-detail' registro.item.codigo_interno %}">
-                                    {{ registro.item.codigo_interno }}
+                                    {% if registro.item.codigo_utp_pendiente %}{{ registro.item.codigo_interno }}{% else %}{{ registro.item.codigo_utp }}{% endif %}
                                 </a>
-                                {% if registro.item.codigo_utp and not registro.item.codigo_utp_pendiente %}
-                                <br><small class="text-muted">UTP: {{ registro.item.codigo_utp }}</small>
+                                {% if not registro.item.codigo_utp_pendiente %}
+                                <br><small class="text-muted">Interno: {{ registro.item.codigo_interno }}</small>
                                 {% endif %}
                             </p>
                         </div>

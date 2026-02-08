@@ -9,7 +9,7 @@
         <ol class="breadcrumb">
             <li class="breadcrumb-item"><a href="{% url 'productos:dashboard' %}">Dashboard</a></li>
             <li class="breadcrumb-item"><a href="{% url 'productos:item-list' %}">Inventario</a></li>
-            <li class="breadcrumb-item"><a href="{% url 'productos:item-detail' item.codigo_interno %}">{{ item.codigo_interno }}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'productos:item-detail' item.codigo_interno %}">{% if item.codigo_utp_pendiente %}{{ item.codigo_interno }}{% else %}{{ item.codigo_utp }}{% endif %}</a></li>
             <li class="breadcrumb-item active">Eliminar</li>
         </ol>
     </nav>

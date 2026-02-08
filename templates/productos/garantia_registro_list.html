@@ -100,7 +100,7 @@
                         <tr>
                             <td>
                                 <a href="{% url 'productos:item-detail' registro.item.codigo_interno %}" class="fw-semibold text-decoration-none">
-                                    {{ registro.item.codigo_interno }}
+                                    {% if registro.item.codigo_utp_pendiente %}{{ registro.item.codigo_interno }}{% else %}{{ registro.item.codigo_utp }}{% endif %}
                                 </a>
                                 <br><small class="text-muted">{{ registro.item.nombre }}</small>
                             </td>
