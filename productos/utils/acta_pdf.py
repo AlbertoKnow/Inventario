@@ -202,7 +202,7 @@ class ActaPDFGenerator:
                 item.tipo_item.nombre if item.tipo_item else '-',
                 specs.marca if specs else '-',
                 specs.modelo if specs else '-',
-                item.codigo_interno,
+                item.codigo_utp if not item.codigo_utp_pendiente else item.codigo_interno,
                 item.serie,
                 specs.procesador if specs else '-',
                 specs.ram_display if specs else '-',

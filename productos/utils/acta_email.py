@@ -66,7 +66,7 @@ def enviar_acta_por_correo(acta, pdf_bytes, fotos_paths=None):
             <li><b>Tipo:</b> {item.tipo_item.nombre if item.tipo_item else '-'}</li>
             <li><b>Marca:</b> {specs.marca if specs else '-'}</li>
             <li><b>Modelo:</b> {specs.modelo if specs else '-'}</li>
-            <li><b>Código:</b> {item.codigo_interno}</li>
+            <li><b>Código:</b> {item.codigo_utp if not item.codigo_utp_pendiente else item.codigo_interno}</li>
             <li><b>Serie:</b> {item.serie}</li>
             <li><b>Procesador:</b> {specs.procesador if specs else '-'}</li>
             <li><b>Memoria RAM:</b> {specs.ram_display if specs else '-'}</li>
