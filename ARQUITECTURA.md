@@ -58,13 +58,28 @@ graph TD
     APP_CONTAINER --- VOL_MEDIA
     DB_CONTAINER --- VOL_DB
 
-    style DO fill:#0069ff,color:#fff,stroke:#0050cc
-    style NET fill:#e8f4fd,stroke:#0069ff
-    style APP_CONTAINER fill:#c8e6c9,stroke:#388e3c
-    style DB_CONTAINER fill:#fff9c4,stroke:#f9a825
-    style OPS fill:#f3e5f5,stroke:#7b1fa2
-    style VOLUMES fill:#fce4ec,stroke:#c62828
-    style EXT fill:#e0f2f1,stroke:#00695c
+    style DO fill:#dbeafe,color:#1e3a5f,stroke:#3b82f6
+    style PROXY_LAYER fill:#fef9c3,color:#1a1a1a,stroke:#ca8a04
+    style NET fill:#dcfce7,color:#1a1a1a,stroke:#16a34a
+    style APP_CONTAINER fill:#bbf7d0,color:#1a1a1a,stroke:#15803d
+    style DB_CONTAINER fill:#fde68a,color:#1a1a1a,stroke:#d97706
+    style OPS fill:#ede9fe,color:#1a1a1a,stroke:#7c3aed
+    style VOLUMES fill:#fee2e2,color:#1a1a1a,stroke:#dc2626
+    style EXT fill:#ccfbf1,color:#1a1a1a,stroke:#0d9488
+
+    style USER fill:#1e3a5f,color:#ffffff,stroke:#1e3a5f
+    style NPM fill:#854d0e,color:#ffffff,stroke:#713f12
+    style GUNICORN fill:#166534,color:#ffffff,stroke:#14532d
+    style DJANGO fill:#166534,color:#ffffff,stroke:#14532d
+    style WHITENOISE fill:#166534,color:#ffffff,stroke:#14532d
+    style PG fill:#92400e,color:#ffffff,stroke:#78350f
+    style PORTAINER fill:#4c1d95,color:#ffffff,stroke:#3b0764
+    style KUMA fill:#4c1d95,color:#ffffff,stroke:#3b0764
+    style WATCHTOWER fill:#4c1d95,color:#ffffff,stroke:#3b0764
+    style VOL_MEDIA fill:#991b1b,color:#ffffff,stroke:#7f1d1d
+    style VOL_DB fill:#991b1b,color:#ffffff,stroke:#7f1d1d
+    style RESEND fill:#065f46,color:#ffffff,stroke:#064e3b
+    style GIT fill:#065f46,color:#ffffff,stroke:#064e3b
 ```
 
 ---
