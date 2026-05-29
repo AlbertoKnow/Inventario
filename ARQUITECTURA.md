@@ -1,4 +1,4 @@
-# Diagrama de Arquitectura — Sistema de Inventario UTP
+# Diagrama de Arquitectura — Sistema de Inventario
 
 > Stack: Python 3.11 · Django 4.2 · PostgreSQL 16 · Docker · DigitalOcean
 
