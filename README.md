@@ -1,6 +1,6 @@
-# Sistema de Inventario UTP
+# Sistema de Inventario
 
-Sistema de gestión de inventario para la **Universidad Tecnológica del Perú (UTP)**, desarrollado con Django y desplegado en producción con Docker.
+Sistema de gestión de inventario desarrollado con Django y desplegado en producción con Docker.
 
 **Producción:** [inventario.albertoknow.com](https://inventario.albertoknow.com)
 
@@ -17,7 +17,7 @@ Sistema de gestión de inventario para la **Universidad Tecnológica del Perú (
 
 ## Características
 
-- Gestión de ítems con código UTP, estado, ubicación y especificaciones técnicas
+- Gestión de ítems con código interno, estado, ubicación y especificaciones técnicas
 - Control de movimientos (traslados, bajas, préstamos) con flujo de aprobación
 - Módulo de mantenimiento preventivo y correctivo
 - Módulo de garantías con seguimiento de estados
@@ -52,7 +52,7 @@ Inventario/
 
 ## Modelos Principales
 
-- **Item** — equipo o mueble con código UTP, tipo, estado, ubicación y especificaciones
+- **Item** — equipo o mueble con código interno, tipo, estado, ubicación y especificaciones
 - **Movimiento / MovimientoItem** — traslados y bajas con flujo PENDIENTE → APROBADO → EJECUTADO
 - **Mantenimiento** — mantenimientos programados, preventivos y correctivos
 - **GarantiaRegistro** — seguimiento de garantías con estados y documentación
@@ -105,6 +105,3 @@ ALLOWED_HOSTS=localhost,127.0.0.1
 
 [MIT License](LICENSE)
 
----
-
-Desarrollado para la **Universidad Tecnológica del Perú**
