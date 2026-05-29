@@ -4,171 +4,91 @@
 
 ---
 
-## 1. Arquitectura de Infraestructura
+## 1. Contexto del Sistema
 
 ```mermaid
-graph TD
-    USER["🌐 Usuario\n(Navegador)"]
+C4Context
+    title Diagrama de Contexto
 
-    subgraph DO["☁️ DigitalOcean VPS — Ubuntu 22.04"]
-        direction TB
+    Person(usuario, "Usuario", "Personal administrativo que gestiona el inventario desde el navegador")
 
-        subgraph PROXY_LAYER["Capa de Entrada"]
-            NPM["Nginx Proxy Manager\n• Terminación SSL/TLS\n• Certificados Let's Encrypt\n• Redirección HTTP → HTTPS\npuertos: 80, 443"]
-        end
+    System(inventario, "Sistema de Inventario", "Gestión de ítems, movimientos, mantenimientos, garantías y actas de entrega")
 
-        subgraph NET["Red Docker Interna: docker-server-network"]
-            direction TB
+    System_Ext(resend, "Resend API", "Envío de correos electrónicos con actas adjuntas")
+    System_Ext(github, "GitHub", "Control de versiones y origen del código en producción")
 
-            subgraph APP_CONTAINER["Contenedor: inventario"]
-                GUNICORN["Gunicorn\n(2 workers WSGI)\npuerto interno: 8000"]
-                DJANGO["Django 4.2\nAplicación"]
-                WHITENOISE["WhiteNoise\nArchivos estáticos"]
-                GUNICORN --> DJANGO
-                WHITENOISE --> DJANGO
-            end
-
-            subgraph DB_CONTAINER["Contenedor: inventario-db"]
-                PG["PostgreSQL 16\npuerto interno: 5432"]
-            end
-
-            APP_CONTAINER -->|"psycopg2\nred interna"| DB_CONTAINER
-        end
-
-        subgraph OPS["Operaciones"]
-            PORTAINER["Portainer\nGestión de contenedores\npuerto: 9000"]
-            KUMA["Uptime Kuma\nMonitoreo de disponibilidad\npuerto: 3001"]
-            WATCHTOWER["Watchtower\nActualización automática\nde imágenes Docker"]
-        end
-
-        subgraph VOLUMES["Volúmenes Persistentes"]
-            VOL_MEDIA["./data/media\nFotos e imágenes\nde ítems"]
-            VOL_DB["./data/postgres\nDatos de PostgreSQL"]
-        end
-    end
-
-    subgraph EXT["Servicios Externos"]
-        RESEND["Resend API\nEnvío de correos\n(actas, notificaciones)"]
-        GIT["GitHub\nControl de versiones\nCI/CD manual"]
-    end
-
-    USER -->|"HTTPS"| NPM
-    NPM -->|"HTTP proxy\nred interna"| APP_CONTAINER
-    APP_CONTAINER -.->|"API REST"| RESEND
-    APP_CONTAINER --- VOL_MEDIA
-    DB_CONTAINER --- VOL_DB
-
-    style DO fill:#dbeafe,color:#1e3a5f,stroke:#3b82f6
-    style PROXY_LAYER fill:#fef9c3,color:#1a1a1a,stroke:#ca8a04
-    style NET fill:#dcfce7,color:#1a1a1a,stroke:#16a34a
-    style APP_CONTAINER fill:#bbf7d0,color:#1a1a1a,stroke:#15803d
-    style DB_CONTAINER fill:#fde68a,color:#1a1a1a,stroke:#d97706
-    style OPS fill:#ede9fe,color:#1a1a1a,stroke:#7c3aed
-    style VOLUMES fill:#fee2e2,color:#1a1a1a,stroke:#dc2626
-    style EXT fill:#ccfbf1,color:#1a1a1a,stroke:#0d9488
-
-    style USER fill:#1e3a5f,color:#ffffff,stroke:#1e3a5f
-    style NPM fill:#854d0e,color:#ffffff,stroke:#713f12
-    style GUNICORN fill:#166534,color:#ffffff,stroke:#14532d
-    style DJANGO fill:#166534,color:#ffffff,stroke:#14532d
-    style WHITENOISE fill:#166534,color:#ffffff,stroke:#14532d
-    style PG fill:#92400e,color:#ffffff,stroke:#78350f
-    style PORTAINER fill:#4c1d95,color:#ffffff,stroke:#3b0764
-    style KUMA fill:#4c1d95,color:#ffffff,stroke:#3b0764
-    style WATCHTOWER fill:#4c1d95,color:#ffffff,stroke:#3b0764
-    style VOL_MEDIA fill:#991b1b,color:#ffffff,stroke:#7f1d1d
-    style VOL_DB fill:#991b1b,color:#ffffff,stroke:#7f1d1d
-    style RESEND fill:#065f46,color:#ffffff,stroke:#064e3b
-    style GIT fill:#065f46,color:#ffffff,stroke:#064e3b
+    Rel(usuario, inventario, "Usa", "HTTPS")
+    Rel(inventario, resend, "Envía correos", "HTTPS / REST")
+    Rel(inventario, github, "Pull de código", "Git")
 ```
 
 ---
 
-## 2. Arquitectura de la Aplicación Django
+## 2. Contenedores (Infraestructura Docker)
 
 ```mermaid
-graph LR
-    subgraph REQUEST["Ciclo de una Petición HTTP"]
-        direction TB
+C4Container
+    title Diagrama de Contenedores
 
-        CLIENT["Cliente HTTP"]
+    Person(usuario, "Usuario", "Accede desde el navegador")
 
-        subgraph MW["Middleware Stack (ordenado)"]
-            MW1["SecurityMiddleware\nHeaders de seguridad"]
-            MW2["WhiteNoiseMiddleware\nArchivos estáticos"]
-            MW3["SessionMiddleware\nSesiones (24h)"]
-            MW4["CsrfViewMiddleware\nProtección CSRF"]
-            MW5["AuthenticationMiddleware\nIdentidad del usuario"]
-            MW6["CurrentUserMiddleware\nCaptura usuario p/auditoría"]
-        end
+    System_Boundary(do, "DigitalOcean VPS — Ubuntu 22.04") {
+        Container(npm, "Nginx Proxy Manager", "Docker / Nginx", "Terminación SSL/TLS, certificados Let's Encrypt, redirección HTTP a HTTPS")
+        Container(app, "inventario", "Docker / Python 3.11", "Aplicación Django 4.2 servida con Gunicorn (2 workers)")
+        ContainerDb(db, "inventario-db", "Docker / PostgreSQL 16", "Base de datos principal")
+        ContainerDb(vol_media, "Volumen: data/media", "Volumen Docker", "Fotos e imágenes subidas por usuarios")
+        ContainerDb(vol_db, "Volumen: data/postgres", "Volumen Docker", "Datos persistentes de PostgreSQL")
+        Container(portainer, "Portainer", "Docker", "Gestión visual de contenedores")
+        Container(kuma, "Uptime Kuma", "Docker", "Monitoreo de disponibilidad 24/7")
+        Container(watchtower, "Watchtower", "Docker", "Actualización automática de imágenes Docker")
+    }
 
-        subgraph ROUTER["Enrutamiento"]
-            URL["urls.py\nconfig/urls.py\n+ productos/urls_legacy.py"]
-        end
+    System_Ext(resend, "Resend API", "Servicio externo de envío de correos")
 
-        subgraph VIEWS["Vistas (views_legacy.py)"]
-            V_AUTH["Autenticación\nlogin / logout"]
-            V_ITEMS["Gestión de Ítems\nCRUD + búsqueda + filtros"]
-            V_ACTAS["Actas de Entrega\n+ envío por email + PDF"]
-            V_MOV["Movimientos\n+ flujo aprobación"]
-            V_MANT["Mantenimientos\n+ lotes"]
-            V_GAR["Garantías\n+ alertas"]
-            V_REPORT["Reportes\n+ exportación Excel"]
-            V_DASH["Dashboard\nEstadísticas en tiempo real"]
-        end
-
-        subgraph MIXINS["Mixins de Permisos"]
-            MIX1["LoginRequiredMixin"]
-            MIX2["RolRequeridoMixin\n(admin/gerente/supervisor...)"]
-            MIX3["AreaPermissMixin\n(filtro por área/campus)"]
-        end
-
-        subgraph FORMS["Formularios (forms_legacy.py)"]
-            F1["ItemForm\n+ validación MIME\n+ sanitización"]
-            F2["ActaForm / MovimientoForm"]
-            F3["ColaboradorForm"]
-        end
-
-        subgraph UTILS["Utilidades"]
-            U1["acta_pdf.py\nReportLab → PDF"]
-            U2["acta_email.py\nResend → Email con adjuntos"]
-            U3["export_utils.py\nopenpyxl → Excel"]
-        end
-
-        subgraph SIGNALS["Señales Django"]
-            S1["pre_save / post_save\nen Item"]
-            S2["post_save\nen Movimiento"]
-            S3["HistorialCambio\nauditoría de campos"]
-            S4["Notificacion\nalertas en tiempo real"]
-        end
-
-        subgraph MODELS["Modelos (models_legacy.py)"]
-            direction TB
-            M_LOCATION["📍 Ubicación\nCampus→Sede→Pabellón→Ambiente"]
-            M_ITEM["📦 Item\nentidad central"]
-            M_COLLAB["👤 Colaborador\nreceptor de equipos"]
-            M_ACTA["📄 Acta de Entrega"]
-            M_PROV["🏢 Proveedor→Contrato→Lote"]
-            M_USER["🔐 PerfilUsuario\n5 roles RBAC"]
-        end
-
-        DB[("PostgreSQL 16")]
-    end
-
-    CLIENT --> MW1 --> MW2 --> MW3 --> MW4 --> MW5 --> MW6
-    MW6 --> URL --> VIEWS
-    VIEWS --> MIXINS
-    VIEWS --> FORMS --> MODELS
-    VIEWS --> UTILS
-    MODELS --> S1 --> S3
-    S1 --> S4
-    MODELS --> S2 --> S4
-    MODELS <--> DB
+    Rel(usuario, npm, "HTTPS", "puerto 443")
+    Rel(npm, app, "HTTP proxy", "puerto 8000 / red interna")
+    Rel(app, db, "Consultas SQL", "psycopg2 / puerto 5432")
+    Rel(app, resend, "Envía correos con actas", "HTTPS")
+    Rel(app, vol_media, "Lee y escribe archivos")
+    Rel(db, vol_db, "Persiste datos")
 ```
 
 ---
 
-## 3. Modelo de Dominio (Entidades Clave)
+## 3. Componentes (Aplicación Django)
+
+```mermaid
+C4Component
+    title Diagrama de Componentes
+
+    Container_Boundary(app, "Contenedor: inventario") {
+        Component(middleware, "Middleware Stack", "Django Middleware", "Security, WhiteNoise, Session, CSRF, Auth, CurrentUser (en orden)")
+        Component(router, "URL Router", "Django URLs", "config/urls.py enruta a productos/urls_legacy.py")
+        Component(views, "Vistas", "Django CBV", "Dashboard, Items, Movimientos, Actas, Mantenimientos, Garantías, Reportes, API AJAX")
+        Component(mixins, "Mixins de Permisos", "Python", "LoginRequired, RolRequerido, AreaPermiss — RBAC con 5 roles por campus")
+        Component(forms, "Formularios", "Django Forms", "Validación MIME real con python-magic, sanitización y lógica de negocio")
+        Component(models, "Modelos", "Django ORM", "Item, Movimiento, ActaEntrega, Mantenimiento, GarantiaRegistro, PerfilUsuario...")
+        Component(signals, "Señales", "Django Signals", "Genera HistorialCambio y Notificaciones automáticamente en pre/post_save")
+        Component(utils, "Utilidades", "Python", "acta_pdf → ReportLab, acta_email → Resend, export_utils → openpyxl")
+    }
+
+    ContainerDb(db, "inventario-db", "PostgreSQL 16", "")
+    System_Ext(resend, "Resend API", "")
+
+    Rel(middleware, router, "Pasa la request procesada")
+    Rel(router, views, "Enruta según URL")
+    Rel(views, mixins, "Verifica permisos antes de ejecutar")
+    Rel(views, forms, "Valida datos de entrada")
+    Rel(views, utils, "Genera PDF, correo o Excel")
+    Rel(forms, models, "Persiste datos validados")
+    Rel(models, signals, "Dispara eventos automáticos")
+    Rel(models, db, "ORM", "psycopg2")
+    Rel(utils, resend, "Envía correos con actas adjuntas", "HTTPS")
+```
+
+---
+
+## 4. Modelo de Dominio
 
 ```mermaid
 erDiagram
@@ -294,7 +214,7 @@ erDiagram
 
 ---
 
-## 4. Seguridad Implementada
+## 5. Seguridad Implementada
 
 ```mermaid
 mindmap
@@ -343,7 +263,7 @@ mindmap
 
 ---
 
-## 5. Flujo de Despliegue
+## 6. Flujo de Despliegue
 
 ```mermaid
 sequenceDiagram
@@ -364,7 +284,7 @@ sequenceDiagram
     DC->>APP: python manage.py migrate --noinput
     DC->>APP: python manage.py collectstatic --noinput
     DC->>APP: gunicorn config.wsgi --bind 0.0.0.0:8000 --workers 2
-    APP-->>DO: ✅ Contenedor activo en red interna
+    APP-->>DO: Contenedor activo en red interna
 ```
 
 ---
@@ -387,5 +307,4 @@ sequenceDiagram
 | Rate limiting | django-ratelimit | Protección contra ataques de fuerza bruta |
 | Variables de entorno | python-decouple | Separación config/código (12-factor app) |
 | Auditoría | Django Signals | Historial automático sin modificar modelos |
-| Control de versiones | Git + GitHub | Historial completo, 15+ commits documentados |
 | Monitoreo | Uptime Kuma | Alertas de disponibilidad 24/7 |
