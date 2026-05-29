@@ -1,117 +1,110 @@
-# 📦 Sistema de Inventario UTP
+# Sistema de Inventario UTP
 
-Sistema de gestión de inventario para la **Universidad Tecnológica del Perú (UTP)** desarrollado con Django.
+Sistema de gestión de inventario para la **Universidad Tecnológica del Perú (UTP)**, desarrollado con Django y desplegado en producción con Docker.
 
-## 🚀 Características
+**Producción:** [inventario.albertoknow.com](https://inventario.albertoknow.com)
 
-- ✅ **Herencia Multi-tabla**: Productos base con especialización (Equipos Electrónicos, Muebles)
-- ✅ **Gestión completa**: CRUD para todos los tipos de productos
-- ✅ **Control de inventario**: Alertas de stock bajo y movimientos registrados
-- ✅ **Auditoría**: Registro de movimientos y mantenimientos
-- ✅ **Dashboard**: Panel con métricas y gráficos
-- ✅ **Responsive**: Bootstrap 5 + Font Awesome 6
-- ✅ **Pruebas automatizadas**: 44 tests unitarios y de integración
-
-## 🛠️ Stack Tecnológico
+## Stack Tecnológico
 
 | Componente | Tecnología |
-|------------|------------|
-| Backend | Django 6.0.1 |
+|---|---|
+| Backend | Django 4.2 |
 | Frontend | Django Templates + Bootstrap 5 |
-| Base de Datos | SQLite (desarrollo) |
-| Python | 3.14+ |
-| Testing | Django TestCase (44 tests) |
+| Base de Datos | PostgreSQL 16 |
+| Python | 3.11 |
+| Servidor | Gunicorn + Nginx Proxy Manager |
+| Deploy | Docker + DigitalOcean |
 
-## ⚡ Inicio Rápido
+## Características
+
+- Gestión de ítems con código UTP, estado, ubicación y especificaciones técnicas
+- Control de movimientos (traslados, bajas, préstamos) con flujo de aprobación
+- Módulo de mantenimiento preventivo y correctivo
+- Módulo de garantías con seguimiento de estados
+- Generación de actas de entrega en PDF
+- Importación masiva desde Excel
+- Sistema de permisos por roles (operador, supervisor, admin) y campus
+- Auditoría y notificaciones
+- Rate limiting y validación de archivos
+
+## Estructura del Proyecto
+
+```
+Inventario/
+├── config/                 # Configuración Django (settings, urls, wsgi)
+├── productos/              # Aplicación principal
+│   ├── models/             # Modelos organizados por dominio
+│   ├── views/              # Vistas (re-exportan desde views_legacy.py)
+│   ├── forms/              # Formularios (re-exportan desde forms_legacy.py)
+│   ├── urls/               # URLs (re-exportan desde urls_legacy.py)
+│   ├── admin/              # Admin (re-exporta desde admin_legacy.py)
+│   ├── migrations/         # Migraciones de base de datos
+│   ├── management/         # Comandos de gestión
+│   ├── templatetags/       # Filtros y tags personalizados
+│   ├── utils/              # Utilidades (PDF, email, exportación)
+│   └── tests.py            # Tests automatizados
+├── templates/              # Plantillas HTML (73 templates)
+├── scripts/                # Scripts de utilidad
+├── deploy/                 # Guía de despliegue
+├── static/                 # Archivos estáticos
+└── manage.py
+```
+
+## Modelos Principales
+
+- **Item** — equipo o mueble con código UTP, tipo, estado, ubicación y especificaciones
+- **Movimiento / MovimientoItem** — traslados y bajas con flujo PENDIENTE → APROBADO → EJECUTADO
+- **Mantenimiento** — mantenimientos programados, preventivos y correctivos
+- **GarantiaRegistro** — seguimiento de garantías con estados y documentación
+- **ActaEntrega / ActaItem** — generación de actas en PDF con firma
+- **Campus / Sede / Pabellon / Ambiente** — jerarquía de ubicaciones
+- **PerfilUsuario** — usuarios con roles y campus permitidos
+
+## Inicio Rápido (Desarrollo)
 
 ```bash
 # 1. Clonar repositorio
 git clone https://github.com/AlbertoKnow/Inventario.git
 cd Inventario
 
-# 2. Crear y activar entorno virtual
+# 2. Crear entorno virtual e instalar dependencias
 python -m venv venv
-.\venv\Scripts\Activate.ps1  # Windows PowerShell
-# source venv/bin/activate   # Linux/Mac
-
-# 3. Instalar dependencias
+.\venv\Scripts\Activate.ps1  # Windows
 pip install -r requirements.txt
 
-# 4. Aplicar migraciones
-python manage.py migrate
+# 3. Configurar variables de entorno
+cp .env.example .env
+# Editar .env con tus valores
 
-# 5. Crear superusuario
+# 4. Aplicar migraciones y crear superusuario
+python manage.py migrate
 python manage.py createsuperuser
 
-# 6. Ejecutar servidor
+# 5. Ejecutar servidor
 python manage.py runserver
 ```
 
-Accede a: **http://127.0.0.1:8000/**
-
-## 🧪 Ejecutar Pruebas
+## Tests
 
 ```bash
 python manage.py test productos
 ```
 
-## 📁 Estructura del Proyecto
+## Variables de Entorno
 
-```
-Inventario/
-├── config/                 # Configuración Django
-│   ├── settings.py         # Configuración principal
-│   ├── urls.py             # URLs raíz
-│   └── wsgi.py             # Servidor WSGI
-├── productos/              # Aplicación principal
-│   ├── models.py           # Modelos (Producto, Equipo, Mueble, etc.)
-│   ├── views.py            # Vistas basadas en clases
-│   ├── forms.py            # Formularios
-│   ├── admin.py            # Admin personalizado
-│   ├── urls.py             # URLs de productos
-│   └── tests.py            # 44 pruebas automatizadas
-├── templates/              # Plantillas HTML
-│   ├── base.html           # Template base
-│   ├── index.html          # Página de inicio
-│   └── productos/          # Templates de productos
-├── scripts/                # Scripts de utilidad
-│   ├── crear_datos_prueba.py
-│   ├── check_environment.py
-│   └── run.bat / run.sh
-├── requirements.txt        # Dependencias
-└── manage.py               # CLI Django
-```
-
-## 📊 Modelos de Datos
-
-```
-Producto (Base)
-├── EquipoElectronico (marca, modelo, número de serie...)
-└── Mueble (material, color, dimensiones...)
-
-Modelos de soporte:
-├── Categoria
-├── TipoProducto
-├── Ubicacion
-├── Condicion
-├── Movimiento (auditoría de inventario)
-└── Mantenimiento (historial de equipos)
-```
-
-## 🔧 Configuración
-
-Crea un archivo `.env` basándote en `.env.example`:
+Crea un `.env` basándote en `.env.example`:
 
 ```env
 SECRET_KEY=tu-clave-secreta
 DEBUG=True
+DATABASE_URL=postgres://usuario:password@localhost:5432/inventario
 ALLOWED_HOSTS=localhost,127.0.0.1
 ```
 
-## 📝 Licencia
+## Licencia
 
 [MIT License](LICENSE)
 
 ---
 
-Desarrollado para la **Universidad Tecnológica del Perú** 🇵🇪
+Desarrollado para la **Universidad Tecnológica del Perú**
