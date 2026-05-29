@@ -1,3 +1,6 @@
+# Contexto local de desarrollo
+CONTEXTO_LOCAL.md
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
